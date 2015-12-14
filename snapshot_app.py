@@ -97,7 +97,7 @@ class SnapshotConfigureDialog(QtGui.QDialog):
 
 class SnapshotSaveWidget(QtGui.QWidget):
 
-    def __init__(self, worker_thread, parent=None, **kw):
+    def __init__(self, worker, parent=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
         # Set file name and pass when save is pressed, pass file path to worker
         # to execute save
@@ -106,7 +106,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
         name_extension = datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M')
         
         self.file_path = None
-        self.worker_thread = worker_thread
+        self.worker = worker
 
         # Create main layout
         layout = QtGui.QVBoxLayout(self)
@@ -152,21 +152,26 @@ class SnapshotSaveWidget(QtGui.QWidget):
 
     def start_save(self):
         self.file_path = "RV_" + self.extension_input.text()
-        #self.emit(SIGNAL("save_pvs(PyQt_PyObject)"), self.file_path)
-        self.worker_thread.snapshot.save_pvs(self.file_path,
-                                             keywords=self.keyword_input.text(),
-                                             comment=self.comment_input.text())
+        QtCore.QMetaObject.invokeMethod(self.worker, "save_pvs",
+                                        Qt.QueuedConnection,
+                                        QtCore.Q_ARG(str, self.file_path),
+                                        QtCore.Q_ARG(str, self.keyword_input.text()),
+                                        QtCore.Q_ARG(str, self.comment_input.text()))
 
 
 class SnapshotRestoreWidget(QtGui.QWidget):
 
-    def __init__(self, worker_thread, common_settings, parent=None, **kw):
+    def __init__(self, worker, common_settings, parent=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
         # Select file and start restoring when restore button is pressed,
         # pass file path to worker
         # Add meta data TODO
-        self.worker_thread = worker_thread
+        self.worker = worker
         self.common_settings = common_settings
+
+        # Listen signals
+        self.connect(self.worker, SIGNAL("save_files_loaded(PyQt_PyObject)"),
+                     self.make_file_list)
 
         # Create main layout
         layout = QtGui.QVBoxLayout(self)
@@ -175,27 +180,41 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.setLayout(layout)
 
         # Create list of files, keywords, comments
-        file_selector = QtGui.QTreeWidget(self)
-        file_selector.setColumnCount(3)
-        file_selector.setHeaderLabels(["File", "Keywords", "Comment"])
+        self.file_selector = QtGui.QTreeWidget(self)
+        self.file_selector.setColumnCount(3)
+        self.file_selector.setHeaderLabels(["File", "Keywords", "Comment"])
 
-        
-        testni = QtGui.QTreeWidgetItem(["File", "Keywords", "Comment"])
-        file_selector.addTopLevelItem(testni)
-        
+        # TODO moving throuh list should change self.common_settings["pvs_to_restore"]
 
         #self.file_input = SnapshotFileSelector(self)
         restore_button = QtGui.QPushButton("Restore", self)
         restore_button.clicked.connect(self.start_restore)
 
         #layout.addWidget(self.file_input)
-        layout.addWidget(file_selector)
+        layout.addWidget(self.file_selector)
         layout.addWidget(restore_button)
+
+    def make_file_list(self, file_list):
+        for key in file_list:
+
+            keywords = file_list[key]["meta_data"].get("keywords", "")
+            comment = file_list[key]["meta_data"].get("comment", "")
+            print(keywords + comment)
+            save_file = QtGui.QTreeWidgetItem([key, keywords, comment])
+
+            self.file_selector.addTopLevelItem(save_file)
+
+
 
 
     def start_restore(self):
-        save_file_path = "." #self.file_input.file_path TODO
-        self.worker_thread.snapshot.restore_pvs(save_file_path)
+        # Use one of the preloaded caved files
+        QtCore.QMetaObject.invokeMethod(self.worker,
+                                        "restore_pvs_from_obj",
+                                        Qt.QueuedConnection,
+                                        QtCore.Q_ARG(dict,
+                                                     self.common_settings["pvs_to_restore"]))
+
 
 
 class TestWidget(QtGui.QWidget):
@@ -220,10 +239,10 @@ class SnapshotGui(QtGui.QWidget):
     thread where core application is running
     '''
 
-    def __init__(self, worker_thread, req_file_name, req_file_macros=None,
+    def __init__(self, worker, req_file_name, req_file_macros=None,
                  save_dir=None, save_file_dft=None, mode=None, parent=None):
         QtGui.QWidget.__init__(self, parent)
-        self.worker_thread = worker_thread
+        self.worker = worker
         self.parsed_save_files = dict()
         self.setMinimumSize(650, 500)
 
@@ -232,7 +251,7 @@ class SnapshotGui(QtGui.QWidget):
         # path, etc). It is propagated to other snapshot widgets if needed
 
         self.common_settings = dict()
-        self.common_settings["req_file_name"] = req_file_name
+        self.common_settings["req_file_name"] = "../RV.req"#req_file_name
         self.common_settings["req_file_macros"] = req_file_macros
         self.common_settings["save_dir"] ="." #save_dir TODO
         self.common_settings["save_file_dft"] = save_file_dft
@@ -248,13 +267,14 @@ class SnapshotGui(QtGui.QWidget):
         tabs = QtGui.QTabWidget(self)
         tabs.setMinimumSize(600, 450)
 
-        save_widget = SnapshotSaveWidget(self.worker_thread, tabs)
-        restore_widget = SnapshotRestoreWidget(self.worker_thread, self.common_settings, tabs)
+        save_widget = SnapshotSaveWidget(self.worker, tabs)
+        restore_widget = SnapshotRestoreWidget(self.worker,
+                                               self.common_settings, tabs)
 
         tabs.addTab(save_widget, "Save")
         tabs.addTab(restore_widget, "Restore")
 
-        #self.start_gui()
+        self.start_gui()
         self.show() # TODO check why it waits for end of get_save_files method
         self.setWindowTitle('Snapshot')
         self.get_save_files()
@@ -265,16 +285,18 @@ class SnapshotGui(QtGui.QWidget):
             # TODO request dialog to select request file
             pass
         else:
-            # initialize snapshot and show the gui in proper mode TODO (select tab)
-            self.worker_thread.init_snapshot(self.common_settings["req_file_name"],
+            # initialize snapshot and show the gui in proper mode 
+            # TODO (select tab)
+            self.worker.init_snapshot(self.common_settings["req_file_name"],
                                              self.common_settings["req_file_macros"])
                
     def get_save_files(self):
         prefix = os.path.split(self.common_settings["req_file_name"])[1].split(".")[0]
-        QtCore.QMetaObject.invokeMethod(self.worker_thread, "get_save_files",
+        QtCore.QMetaObject.invokeMethod(self.worker, "get_save_files",
                                         Qt.QueuedConnection,
                                         QtCore.Q_ARG(str, self.common_settings["save_dir"]),
                                         QtCore.Q_ARG(str, prefix))
+
 
 class SnapshotWorker(QtCore.QObject):
     # This worker object running in separate thread
@@ -292,27 +314,12 @@ class SnapshotWorker(QtCore.QObject):
         self.snapshot = Snapshot(req_file_path, req_macros)
         self.emit(SIGNAL("new_snapshot(PyQt_PyObject)"), self.snapshot.pvs)
 
-        #self.connect(self, SIGNAL("save_pvs(PyQt_PyObject)"), self.save_pvs)
-
-    def save_pvs(self, save_file_path):
-        self.snapshot.save_pvs(save_file_path)
-
-    def restore_pvs(self, save_file_path):
-        self.snapshot.restore_pvs(save_file_path)
-
-    def start_continous_compare(self):
-        self.snapshot.start_continous_compare(self.process_callbacks)
-
-    def stop_continous_compare(self):
-        self.snapshot.stop_continous_compare()
-
-    def process_callbacks(self, **kw):
-        pass
-        # TODO here raise signals data is packed in kw
-
+    @pyqtSlot(str, str, str)
+    def save_pvs(self, save_file_path, keywords=None, comment=None):
+        tatus = self.snapshot.save_pvs(save_file_path, keywords=keywords,
+                                       comment=comment)
     @pyqtSlot(str, str)
     def get_save_files(self, save_dir, name_prefix):
-        print("not")
         parsed_save_files = dict()
 
         for file_name in os.listdir(save_dir):
@@ -324,7 +331,33 @@ class SnapshotWorker(QtCore.QObject):
                 parsed_save_files[file_name] = dict()
                 parsed_save_files[file_name]["pvs_list"] = pvs_list
                 parsed_save_files[file_name]["meta_data"] = meta_data
-        print("done")
+        
+        self.emit(SIGNAL("save_files_loaded(PyQt_PyObject)"), parsed_save_files)
+
+
+    @pyqtSlot(dict)
+    def restore_pvs_from_obj(self, saved_pvs):
+        # All files are already parsed. Just need to load selected one
+        # and do parse
+        self.snapshot.load_saved_pvs_from_obj(saved_pvs)
+        self.snapshot.restore_pvs()
+        # TODO return status
+
+    def start_continous_compare(self):
+        self.snapshot.start_continous_compare(self.process_callbacks)
+
+    def stop_continous_compare(self):
+        self.snapshot.stop_continous_compare()
+
+    def process_callbacks(self, **kw):
+        pass
+        # TODO here raise signals data is packed in kw
+
+    def check_status(self, status):
+        report = ""
+        for key in status:
+            if not status[key]:
+                pass  # TODO status checking
 
 
 def main():
@@ -344,3 +377,6 @@ def main():
 # Start program here
 if __name__ == '__main__':
     main()
+
+
+kkkk

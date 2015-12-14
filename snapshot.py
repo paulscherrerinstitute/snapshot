@@ -47,15 +47,22 @@ class Snapshot():
     def save_pvs(self, save_file_path, **kw):
         # get value of all PVs and save them to file
         # All other parameters (packed in kw) are appended to file as meta data
+        status = dict()
         for key in self.pvs:
-            pv_value = self.pvs[key].get(count=None,
-                                            as_string=True,
-                                            use_monitor=False,
-                                            timeout=0.1)
+            pv_status = True
+            pv_value = self.pvs[key].get(count=None, as_string=True,
+                                         use_monitor=False, timeout=0.1)
             self.pvs[key].value_to_save = pv_value
-        self.parse_to_save_file(save_file_path, **kw)
+            if not pv_value or not self.pvs[key].connected or \
+               self.pvs[key].write_access:
 
-    def load_saved_pvs(self, save_file_path):
+                pv_status = False
+
+            status[key] = pv_status
+        self.parse_to_save_file(save_file_path, **kw)
+        return(status)
+
+    def load_saved_pvs_from_file(self, save_file_path=None):
         # Parsers the file and loads value to corresponding objects
         # Can be later used for compare and restore
 
@@ -68,22 +75,30 @@ class Snapshot():
                 # restoring values from old file if PV was not in last file
                 self.pvs[key].saved_value = None
 
+    def load_saved_pvs_from_obj(self, saved_pvs):
+        # Loads pvs that were previously parsed from saved file
+        for key in self.pvs:
+            if self.pvs[key]:
+                self.pvs[key].saved_value = saved_pvs[key]['pv_value']
+            else:
+                # Clear PVs that are not defined in save file to avoid
+                # restoring values from old file if PV was not in last file
+                self.pvs[key].saved_value = None
+
     def restore_pvs(self, save_file_path=None):
         # If file with saved values specified then read file. If no file
         # then just use last stored values
+        status = dict()
         if save_file_path:
-            self.load_saved_pvs(save_file_path)
+            self.load_saved_pvs_from_file(save_file_path)
 
         # Compare and restore only different
         for key in self.pvs:
-            pv_value = self.pvs[key].get(count=None,
-                                         as_string=True,
-                                         use_monitor=False,
-                                         timeout=0.1)
+            pv_status = True
+            pv_value = self.pvs[key].get(count=None, as_string=True,
+                                         use_monitor=False, timeout=0.1)
             saved_value = self.pvs[key].saved_value
-
-            if (self.pvs[key].connected and
-               saved_value != None and
+            if (self.pvs[key].connected and saved_value != None and
                pv_value != saved_value):
                 # Convert to bytes for any string type record
                 # Python3 distinguish between bytes and strings but pyepics
@@ -98,6 +113,14 @@ class Snapshot():
                 if "string" in self.pvs[key].type:
                     restore_value = str.encode(restore_value)
                 self.pvs[key].put(restore_value)
+
+            # Error checking
+            if (self.pvs[key].connected) and (self.pvs[key].write_acess) and \
+            (self.pvs[key].read_access):
+                pv_status = False
+
+            status[key] = pv_status
+            return(status)
 
     def start_continous_compare(self, callback=None, save_file_path=None):
 
@@ -179,9 +202,11 @@ class Snapshot():
 
         save_file = open(save_file_path, 'w')
         
+        # Meta data
         for key in kw:
-            save_file.write(key + ":" + kw[key] + "\n")
+            save_file.write("#" + key + ":" + kw[key] + "\n")
 
+        # PVs
         for key in self.pvs:
             if self.pvs[key].value_to_save:
                 save_file.write(key + "," + self.pvs[key].value_to_save + "\n")
@@ -215,6 +240,7 @@ class Snapshot():
                 saved_pvs[pv_name]['pv_value'] = pv_value
 
         saved_file.close() 
+        print(meta_data)
         return(saved_pvs, meta_data)
 
     def macros_substitutuion(self, string, macros):
