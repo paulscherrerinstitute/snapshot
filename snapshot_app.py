@@ -204,9 +204,6 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
             self.file_selector.addTopLevelItem(save_file)
 
-
-
-
     def start_restore(self):
         # Use one of the preloaded caved files
         QtCore.QMetaObject.invokeMethod(self.worker,
