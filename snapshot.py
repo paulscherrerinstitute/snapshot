@@ -115,7 +115,7 @@ class Snapshot():
                 self.pvs[key].put(restore_value)
 
             # Error checking
-            if (self.pvs[key].connected) and (self.pvs[key].write_acess) and \
+            if (self.pvs[key].connected) and (self.pvs[key].write_access) and \
             (self.pvs[key].read_access):
                 pv_status = False
 
@@ -227,8 +227,8 @@ class Snapshot():
             if line.startswith('#'):
                 split_line = line.rstrip().split(':')
                 meta_data[split_line[0].split("#")[1]] = split_line[1]
-            # skip comments and empty lines
-            elif not line.strip():
+            # skip empty lines
+            elif line.strip():
                 split_line = line.rstrip().split(',')
                 pv_name = split_line[0]
                 if len(split_line) > 1:
@@ -240,7 +240,6 @@ class Snapshot():
                 saved_pvs[pv_name]['pv_value'] = pv_value
 
         saved_file.close() 
-        print(meta_data)
         return(saved_pvs, meta_data)
 
     def macros_substitutuion(self, string, macros):

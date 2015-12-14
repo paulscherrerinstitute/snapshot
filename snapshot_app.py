@@ -5,6 +5,7 @@ from PyQt4.QtCore import pyqtSlot, Qt, SIGNAL
 import time
 import datetime
 import threading
+import argparse
 
 from snapshot import *
 
@@ -168,6 +169,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         # Add meta data TODO
         self.worker = worker
         self.common_settings = common_settings
+        self.file_list = dict()
 
         # Listen signals
         self.connect(self.worker, SIGNAL("save_files_loaded(PyQt_PyObject)"),
@@ -183,8 +185,11 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.file_selector = QtGui.QTreeWidget(self)
         self.file_selector.setColumnCount(3)
         self.file_selector.setHeaderLabels(["File", "Keywords", "Comment"])
+        self.file_selector.header().resizeSection(0, 300)
+        self.file_selector.header().resizeSection(1, 300)
+        self.file_selector.itemSelectionChanged.connect(self.choose_file)
 
-        # TODO moving throuh list should change self.common_settings["pvs_to_restore"]
+        # TODO moving through list should change self.common_settings["pvs_to_restore"]
 
         #self.file_input = SnapshotFileSelector(self)
         restore_button = QtGui.QPushButton("Restore", self)
@@ -194,15 +199,22 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         layout.addWidget(self.file_selector)
         layout.addWidget(restore_button)
 
+    def choose_file(self):
+        pvs = self.file_list[self.file_selector.selectedItems()[0].text(0)]["pvs_list"]
+        self.common_settings["pvs_to_restore"] = pvs
+        print(self.file_selector.selectedItems()[0].text(0))
+
     def make_file_list(self, file_list):
+        self.file_list = file_list
         for key in file_list:
 
             keywords = file_list[key]["meta_data"].get("keywords", "")
             comment = file_list[key]["meta_data"].get("comment", "")
-            print(keywords + comment)
             save_file = QtGui.QTreeWidgetItem([key, keywords, comment])
 
             self.file_selector.addTopLevelItem(save_file)
+            # Sort by file name (alphabetical order)
+            self.file_selector.sortItems(0, Qt.AscendingOrder)
 
     def start_restore(self):
         # Use one of the preloaded caved files
@@ -241,16 +253,19 @@ class SnapshotGui(QtGui.QWidget):
         QtGui.QWidget.__init__(self, parent)
         self.worker = worker
         self.parsed_save_files = dict()
-        self.setMinimumSize(650, 500)
+        self.setMinimumSize(900, 500)
 
         # common_settings is a dictionary which holds common configuration of
         # the application (such as directory with save files, request file
         # path, etc). It is propagated to other snapshot widgets if needed
 
         self.common_settings = dict()
-        self.common_settings["req_file_name"] = "../RV.req"#req_file_name
+        self.common_settings["req_file_name"] = req_file_name
         self.common_settings["req_file_macros"] = req_file_macros
-        self.common_settings["save_dir"] ="." #save_dir TODO
+        if not save_dir:
+            # Set current dir as save dir
+            save_dir = os.path.dirname(os.path.realpath(__file__))
+        self.common_settings["save_dir"] = save_dir
         self.common_settings["save_file_dft"] = save_file_dft
 
         # Snapshot gui consists of two tabs: "Save" and "Restore" default
@@ -262,7 +277,7 @@ class SnapshotGui(QtGui.QWidget):
         # Tab widget. Each tab has it's own widget. Need one for save 
         # and one for Restore
         tabs = QtGui.QTabWidget(self)
-        tabs.setMinimumSize(600, 450)
+        tabs.setMinimumSize(900, 450)
 
         save_widget = SnapshotSaveWidget(self.worker, tabs)
         restore_widget = SnapshotRestoreWidget(self.worker,
@@ -275,7 +290,6 @@ class SnapshotGui(QtGui.QWidget):
         self.show() # TODO check why it waits for end of get_save_files method
         self.setWindowTitle('Snapshot')
         self.get_save_files()
-
 
     def start_gui(self):
         if not self.common_settings["req_file_name"]:
@@ -359,15 +373,34 @@ class SnapshotWorker(QtCore.QObject):
 
 def main():
     """ Main logic """
-    #save_rest = Snapshot("../RV.req")
 
+    args_pars = argparse.ArgumentParser()
+    args_pars.add_argument('req_file', help='Request file')
+    args_pars.add_argument('-macros',
+                          help="Macros for request file e.g.: \"SYS=TEST,DEV=D1\"")
+    args_pars.add_argument('-save_dir',
+                          help="Directory for saved files")
+    args_pars.add_argument('-default_save',
+                          help="Default saved file name")
+    args = args_pars.parse_args()
 
+    #Parse macros string if exists
+    macros = dict()
+    if args.macros:
+        macros_list = args.macros.split(',')
+        for macro in macros_list:
+            split_macro = macro.split('=')
+            macros[split_macro[0]] = split_macro[1]
+    print(macros)
+
+    # Create application which consists of two threads. "gui" runs in main
+    # GUI thread. Time consuming functions are executed in worker thread.
     app = QtGui.QApplication(sys.argv)
     worker = SnapshotWorker(app)
     worker_thread = threading.Thread(target=worker)
 
-    gui = SnapshotGui(worker, "../RV.req", {"SYS": "rvintarHost", "NAME": "b1"})
-    
+    gui = SnapshotGui(worker, args.req_file, macros, args.save_dir,
+                      args.default_save)  
 
     sys.exit(app.exec_())
 
@@ -375,5 +408,3 @@ def main():
 if __name__ == '__main__':
     main()
 
-
-kkkk
