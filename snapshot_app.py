@@ -1,10 +1,8 @@
-import threading
 import sys
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import pyqtSlot, Qt, SIGNAL
 import time
 import datetime
-import threading
 import argparse
 
 from snapshot import *
@@ -108,7 +106,6 @@ class SnapshotSaveWidget(QtGui.QWidget):
         # set default name extension
         self.name_extension = datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M')
         
-
         self.file_path = os.path.join(self.common_settings["save_dir"],
                                       self.name_base + self.name_extension)
 
@@ -162,7 +159,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
 
         save_button = QtGui.QPushButton("Save", self)
         save_button.clicked.connect(self.start_save)
-
+        
         layout.addItem(extension_layout)
         layout.addItem(comment_layout)
         layout.addItem(keyword_layout)
@@ -238,20 +235,6 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                                         Qt.QueuedConnection,
                                         QtCore.Q_ARG(dict,
                                                      self.common_settings["pvs_to_restore"]))
-
-class TestWidget(QtGui.QWidget):
-
-    def __init__(self, parent=None):
-        QtGui.QWidget.__init__(self, parent)
-        self.thread = Worker()
-        self.label = QtGui.QLabel("bla", self)
-        self.connect(self.thread, SIGNAL("setPVs(PyQt_PyObject)"), self.setPVs)
-        self.thread.start()
-
-    def setPVs(self, pvs):
-        self.pvs = pvs
-        for key in self.pvs:
-            print(key)
 
 
 class SnapshotGui(QtGui.QWidget):
@@ -424,8 +407,10 @@ def main():
     # Create application which consists of two threads. "gui" runs in main
     # GUI thread. Time consuming functions are executed in worker thread.
     app = QtGui.QApplication(sys.argv)
-    worker = SnapshotWorker(app)
-    worker_thread = threading.Thread(target=worker)
+    worker = SnapshotWorker()  # this is working object manipulating snapshot
+    worker_thread = QtCore.QThread()
+    worker.moveToThread(worker_thread)
+    worker_thread.start()
 
     gui = SnapshotGui(worker, args.req_file, macros, args.dir)  
 
