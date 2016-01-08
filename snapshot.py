@@ -62,20 +62,14 @@ class Snapshot():
         self.parse_to_save_file(save_file_path, **kw)
         return(status)
 
-    def load_saved_pvs_from_file(self, save_file_path=None):
+    def prepare_pvs_to_restore_from_file(self, save_file_path=None):
         # Parsers the file and loads value to corresponding objects
         # Can be later used for compare and restore
 
         saved_pvs = self.parse_from_save_file(save_file_path)
-        for key in self.pvs:
-            if self.pvs[key]:
-                self.pvs[key].saved_value = saved_pvs[key]['pv_value']
-            else:
-                # Clear PVs that are not defined in save file to avoid
-                # restoring values from old file if PV was not in last file
-                self.pvs[key].saved_value = None
+        self.prepare_pvs_to_restore_from_list(saved_pvs)
 
-    def load_saved_pvs_from_obj(self, saved_pvs):
+    def prepare_pvs_to_restore_from_list(self, saved_pvs):
         # Loads pvs that were previously parsed from saved file
         for key in self.pvs:
             if self.pvs[key]:
@@ -90,7 +84,7 @@ class Snapshot():
         # then just use last stored values
         status = dict()
         if save_file_path:
-            self.load_saved_pvs_from_file(save_file_path)
+            self.prepare_pvs_to_restore_from_file(save_file_path)
 
         # Compare and restore only different
         for key in self.pvs:
