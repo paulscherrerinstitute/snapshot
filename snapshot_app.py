@@ -77,11 +77,13 @@ class SnapshotGui(QtGui.QWidget):
 
     def make_file_list(self, file_list):
         # Just pass data to Restore widget
-        print(id(file_list))
         self.restore_widget.make_file_list(file_list)
 
     def save_done(self, file_path, status):
+        # When save is done, save widget is updated by itself
+        # Update restore widget (new file in directory)
         # TODO report status, update restore widget with new file
+        self.restore_widget.start_file_list_update()
         print("Save done")
 
     def restore_done(self, restored_pvs, status):
@@ -135,9 +137,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
         extension_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
         extension_label.setMinimumWidth(min_label_width)
         self.extension_input = QtGui.QLineEdit(self)
-        # Monitor any changes (by user, problematical)
-        self.extension_input.textChanged.connect(self.update_name)
-        # Monitor just changes from the user
+        # Monitor any changes (by user, or by other methods)
         self.extension_input.textChanged.connect(self.update_name)
         file_name_label = QtGui.QLabel("File name: ", self)
         self.file_name_rb = QtGui.QLabel(self)
@@ -203,8 +203,10 @@ class SnapshotSaveWidget(QtGui.QWidget):
     def save_done(self, file_path, status):
         # Enable saving
         self.save_button.setEnabled(True)
+        # TODO update file name
 
     def update_name(self):
+        self.name_extension = self.extension_input.text()
         self.file_path = os.path.join(self.common_settings["save_dir"],
                                       self.name_base + self.name_extension)
         self.file_name_rb.setText(self.name_base + self.name_extension)
@@ -231,7 +233,8 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.worker = worker
         self.common_settings = common_settings
         # dict of available files to avoid multiple openings of one file when
-        # not needed. It is shared with worker thread. Use mutex to synchronize.
+        # not needed. It is shared with worker thread (currently only for
+        # reading)
         self.file_list = dict()
 
         # Create main layout
@@ -257,7 +260,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         layout.addWidget(self.restore_button)
 
         # Create file list for first time (this is done  by worker)
-        self.update_file_list()
+        self.start_file_list_update()
 
         # Connect to signals from working thread that are response of this
         # widget actions. If this widget must be updated by other widget
@@ -271,7 +274,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.connect(self.worker, SIGNAL("restore_done(PyQt_PyObject,PyQt_PyObject)"),
                      self.restore_done)
         self.connect(self.worker, SIGNAL("save_files_loaded(PyQt_PyObject)"),
-                     self.update_file_selector)
+                     self.update_file_list_selector)
 
     def start_restore(self):
         # First disable restore button (will be enabled when finished)
@@ -287,7 +290,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         # Enable button when restore is finished (worker notifies)
         self.restore_button.setEnabled(True)
 
-    def update_file_list(self):
+    def start_file_list_update(self):
         # Rescans directory and adds new/modified files and removes none
         # existing ones from the list.
 
@@ -305,15 +308,21 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         pvs = self.file_list[self.file_selector.selectedItems()[0].text(0)]["pvs_list"]
         self.common_settings["pvs_to_restore"] = pvs
 
-    def update_file_selector(self, file_list):
-        self.file_list = file_list
+    def update_file_list_selector(self, file_list):
         for key in file_list:
-
             keywords = file_list[key]["meta_data"].get("keywords", "")
             comment = file_list[key]["meta_data"].get("comment", "")
             save_file = QtGui.QTreeWidgetItem([key, keywords, comment])
 
-            self.file_selector.addTopLevelItem(save_file)
+            # check if all-ready on list (was just modified) and modify file
+            # selctor
+            if key not in self.file_list:
+                self.file_selector.addTopLevelItem(save_file)
+            else:
+                # If everything only one file should exist in list
+                self.file_selector.findItems(key, Qt.MatchCaseSensitive, 0)[0] = save_file
+
+            self.file_list[key] = file_list[key]
 
         # Sort by file name (alphabetical order)
         self.file_selector.sortItems(0, Qt.AscendingOrder)
@@ -365,6 +374,7 @@ class SnapshotFileSelector(QtGui.QWidget):
 
 
 class SnapshotConfigureDialog(QtGui.QDialog):
+    # NOT USED YET#
 
     ''' Dialog window to select and apply file'''
 
@@ -454,17 +464,13 @@ class SnapshotWorker(QtCore.QObject):
         for file_name in os.listdir(save_dir):
             file_path = os.path.join(save_dir, file_name)
             if os.path.isfile(file_path) and file_name.startswith(name_prefix):
-                if file_name not in current_files:
+                if (file_name not in current_files) or \
+                   (current_files[file_name]["modif_time"] != os.path.getmtime(file_path)):
+
                     pvs_list, meta_data = self.snapshot.parse_from_save_file(file_path)
 
                     # save data (no need to open file again later))
                     parsed_save_files[file_name] = dict()
-                    parsed_save_files[file_name]["pvs_list"] = pvs_list
-                    parsed_save_files[file_name]["meta_data"] = meta_data
-                    parsed_save_files[file_name]["modif_time"] = os.path.getmtime(file_path)
-
-                elif current_files[file_name]["modif_time"] != os.path.getmtime(file_path):
-                    pvs_list, meta_data = self.snapshot.parse_from_save_file(file_path)
                     parsed_save_files[file_name]["pvs_list"] = pvs_list
                     parsed_save_files[file_name]["meta_data"] = meta_data
                     parsed_save_files[file_name]["modif_time"] = os.path.getmtime(file_path)
