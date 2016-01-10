@@ -23,7 +23,6 @@ class SnapshotGui(QtGui.QWidget):
                  save_dir=None, save_file_dft=None, mode=None, parent=None):
         QtGui.QWidget.__init__(self, parent)
         self.worker = worker
-        self.parsed_save_files = dict()
         self.setMinimumSize(900, 500)
 
         # common_settings is a dictionary which holds common configuration of
@@ -40,12 +39,16 @@ class SnapshotGui(QtGui.QWidget):
         self.common_settings["save_dir"] = save_dir
         self.common_settings["save_file_dft"] = save_file_dft
 
+        self.common_settings["pvs_to_restore"] = list()
+
         # Before first interaction with the worker object list all signals
         # on which action must be taken
         self.connect(self.worker, SIGNAL("save_done(PyQt_PyObject,PyQt_PyObject)"),
                      self.save_done)
-        self.connect(self.worker, SIGNAL("restore_done(PyQt_PyObject,PyQt_PyObject)"),
+        self.connect(self.worker, SIGNAL("restore_done(PyQt_PyObject)"),
                      self.restore_done)
+        self.connect(self.worker, SIGNAL("new_snapshot_loaded(PyQt_PyObject)"),
+                     self.handle_new_snapshot)
 
         # Before creating GUI, snapshot must be initialized. This must be
         # blocking operation. Cannot proceed without snapshot instance.
@@ -90,6 +93,16 @@ class SnapshotGui(QtGui.QWidget):
         # TODO report status
         print("Restore done")
 
+    def handle_new_snapshot(self, pvs_names_list):
+        # This function should do anything that is needed when new worker
+        # creates new instance of snapshot
+
+        # Store pv names list to common settings and call all widgets that need to
+        # be updated
+        self.common_settings["pvs_to_restore"] = pvs_names_list
+        self.restore_widget.compare_widget.create_compare_list()
+        self.restore_widget.compare_widget.create_compare_list()
+
 
 class SnapshotSaveWidget(QtGui.QWidget):
 
@@ -122,6 +135,16 @@ class SnapshotSaveWidget(QtGui.QWidget):
 
         self.file_path = os.path.join(self.common_settings["save_dir"],
                                       self.name_base + self.name_extension)
+
+        # Before creating elements that can use worker to signals from working
+        # thread that are response of this widget actions. If this widget must
+        # be updated by other widget actions, catch appropriate signals outside
+        # and call methods from outside.
+        #
+        # * "save_done" is response of the worker when save is finished. Returns
+        #   (file_path, status).
+        self.connect(self.worker, SIGNAL("save_done(PyQt_PyObject,PyQt_PyObject)"),
+                     self.save_done)
 
         # Create layout and add GUI elements (input fields, buttons, ...)
         layout = QtGui.QVBoxLayout(self)
@@ -180,16 +203,6 @@ class SnapshotSaveWidget(QtGui.QWidget):
         # Widget properties
         self.setMaximumHeight(180)
 
-        # Connect to signals from working thread that are response of this
-        # widget actions. If this widget must be updated by other widget
-        # actions, catch appropriate signals outside and call methods from
-        # outside.
-        #
-        # * "save_done" is response of the worker when save is finished. Returns
-        #   (file_path, status).
-        self.connect(self.worker, SIGNAL("save_done(PyQt_PyObject,PyQt_PyObject)"),
-                     self.save_done)
-
     def start_save(self):
         # Disable button for the time of saving. Will be unlocked when save is
         # finished.
@@ -222,6 +235,8 @@ class SnapshotRestoreWidget(QtGui.QWidget):
      - restore button
      TODO add meta data searcher/filter
 
+    It also owns a compare widget.
+
     Data about current app state (such as request file) must be provided as
     part of the structure "common_settings".
 
@@ -236,6 +251,21 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         # not needed. It is shared with worker thread (currently only for
         # reading)
         self.file_list = dict()
+
+        # Before creating elements that can use worker to signals from working
+        # thread that are response of this widget actions. If this widget must
+        # be updated by other widget actions, catch appropriate signals outside
+        # and call methods from outside.
+        #
+        # * "restore_done" is response of the worker when restore is finished.
+        #   Returns (file_path, status)
+        # * "save_files_loaded" response of the worker when file parsing done.
+        #   Returns (file_list)
+        self.connect(self.worker, SIGNAL("restore_done(PyQt_PyObject)"),
+                     self.restore_done)
+        self.connect(self.worker, SIGNAL("save_files_loaded(PyQt_PyObject)"),
+                     self.update_file_list_selector)
+
 
         # Create main layout
         layout = QtGui.QVBoxLayout(self)
@@ -262,31 +292,21 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         # Create file list for first time (this is done  by worker)
         self.start_file_list_update()
 
-        # Connect to signals from working thread that are response of this
-        # widget actions. If this widget must be updated by other widget
-        # actions, catch appropriate signals outside and call methods from
-        # outside.
-        #
-        # * "restore_done" is response of the worker when restore is finished.
-        #   Returns (file_path, status)
-        # * "save_files_loaded" response of the worker when file parsing done.
-        #   Returns (file_list)
-        self.connect(self.worker, SIGNAL("restore_done(PyQt_PyObject,PyQt_PyObject)"),
-                     self.restore_done)
-        self.connect(self.worker, SIGNAL("save_files_loaded(PyQt_PyObject)"),
-                     self.update_file_list_selector)
+        # Compare widget, ready to be shown in a separate window
+        self.compare_widget = SnapshotCompareView(self.worker,
+                                                  self.common_settings, self)
 
     def start_restore(self):
         # First disable restore button (will be enabled when finished)
         # Then Use one of the preloaded saved files to restore
         self.restore_button.setEnabled(False)
         QtCore.QMetaObject.invokeMethod(self.worker,
-                                        "restore_pvs_from_obj",
-                                        Qt.QueuedConnection,
-                                        QtCore.Q_ARG(dict,
-                                                     self.common_settings["pvs_to_restore"]))
+                                        "restore_pvs",
+                                        Qt.QueuedConnection)
 
-    def restore_done(self, restored_pvs, status):
+        self.worker.snapshot.get_clbk()
+
+    def restore_done(self, status):
         # Enable button when restore is finished (worker notifies)
         self.restore_button.setEnabled(True)
 
@@ -306,26 +326,110 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
     def choose_file(self):
         pvs = self.file_list[self.file_selector.selectedItems()[0].text(0)]["pvs_list"]
-        self.common_settings["pvs_to_restore"] = pvs
+        QtCore.QMetaObject.invokeMethod(self.worker,
+                                        "load_pvs_to_snapshot",
+                                        Qt.QueuedConnection,
+                                        QtCore.Q_ARG(dict, pvs))
 
     def update_file_list_selector(self, file_list):
         for key in file_list:
             keywords = file_list[key]["meta_data"].get("keywords", "")
             comment = file_list[key]["meta_data"].get("comment", "")
-            save_file = QtGui.QTreeWidgetItem([key, keywords, comment])
 
             # check if all-ready on list (was just modified) and modify file
             # selctor
             if key not in self.file_list:
-                self.file_selector.addTopLevelItem(save_file)
+                self.file_selector.addTopLevelItem(QtGui.QTreeWidgetItem([key, keywords, comment]))
             else:
                 # If everything only one file should exist in list
-                self.file_selector.findItems(key, Qt.MatchCaseSensitive, 0)[0] = save_file
+                to_modify = self.file_selector.findItems(key, Qt.MatchCaseSensitive, 0)[0]
+                to_modify.setText(1, keywords)
+                to_modify.setText(2, comment)
 
             self.file_list[key] = file_list[key]
 
         # Sort by file name (alphabetical order)
         self.file_selector.sortItems(0, Qt.AscendingOrder)
+
+
+class SnapshotCompareView(QtGui.QWidget):
+
+    """ 
+
+    Widget for live comparing pv values. All infos about PVs that needs to be 
+    monitored are already in the "snapshot" object controlled by worker. They
+    were loaded with 
+
+    """
+
+    def __init__(self, worker, common_settings, parent=None, **kw):
+        QtGui.QWidget.__init__(self, parent, **kw)
+
+        self.worker = worker
+        self.common_settings = common_settings
+
+        # Before creating elements that can use worker to signals from working
+        # thread that are response of this widget actions. If this widget must
+        # be updated by other widget actions, catch appropriate signals outside
+        # and call methods from outside.
+        self.connect(self.worker, SIGNAL("pv_changed(PyQt_PyObject)"),
+                     self.update_pv)
+
+        # Create main layout
+        layout = QtGui.QVBoxLayout(self)
+        layout.setMargin(10)
+        layout.setSpacing(10)
+        self.setLayout(layout)
+
+        # Create list with: file names, keywords, comments
+        self.pv_view = QtGui.QTreeWidget(self)
+        self.pv_view.setColumnCount(4)
+        self.pv_view.setHeaderLabels(["PV", "Saved value", "Status", "Current value"])
+        self.pv_view.header().resizeSection(0, 300)
+        self.pv_view.header().resizeSection(1, 300)
+
+        # Add all widgets to main layout
+        layout.addWidget(self.pv_view)
+
+        # Use this widget as a window
+        self.setWindowTitle("Compare PVs")
+        self.setWindowFlags(Qt.Window)
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setAttribute(Qt.WA_X11NetWmWindowTypeMenu, True)
+        self.setEnabled(True)
+
+        self.create_compare_list()
+        self.show()
+        self.start_compare()
+
+    def create_compare_list(self):
+        # Create tree item for each PV. List of pv names was returned after
+        # parsing the request file. Attributes except PV name are empty at
+        # init. Will be updated when monitor happens, snapshot object will
+        # raise a callback which is then catched in worker and passed with
+        # signal. TODO which function handles.
+
+        # First remove all existing entries
+        while self.pv_view.topLevelItemCount() > 0:
+            self.pv_view.takeTopLevelItem(0)
+
+        for pv_name in self.common_settings["pvs_to_restore"]:
+            saved_val = ""
+            status = ""
+            curr_val = ""
+            pv_line = QtGui.QTreeWidgetItem([pv_name, saved_val, status, curr_val])
+            self.pv_view.addTopLevelItem(pv_line)
+
+    def start_compare(self):
+        # Just invoke worker, to set snapshot sending a callbacks
+        QtCore.QMetaObject.invokeMethod(self.worker, "start_continous_compare",
+                                        Qt.QueuedConnection)
+
+    def update_pv(self, data):
+        to_modify = self.pv_view.findItems(data["pv_name"], Qt.MatchCaseSensitive, 0)[0]
+        to_modify.setText(1, str(data["pv_saved"]))
+        to_modify.setText(3, str(data["pv_value_str"]))
+        to_modify.setText(2, str(data["pv_compare"]))
 
 
 class SnapshotFileSelector(QtGui.QWidget):
@@ -420,7 +524,7 @@ class SnapshotWorker(QtCore.QObject):
     Its slots (methods with @pyqtSlot) can be invoked with
     QtCore.QMetaObject.invokeMethod().
 
-    To notify GUI this worker emits following signals:
+    To notify GUI this worker emits following signals
     * new_snapshot(snapshot) --> new snapshot was instantiated
     * save_done(save_file_path, status) --> save was finished
     * restore_done(save_file_path, status) --> restore was finished
@@ -439,7 +543,8 @@ class SnapshotWorker(QtCore.QObject):
         # the signal new_snapshot to update the GUI
 
         self.snapshot = Snapshot(req_file_path, req_macros)
-        self.emit(SIGNAL("new_snapshot(PyQt_PyObject)"), self.snapshot.pvs)
+        pvs_names = self.snapshot.get_pvs_names()
+        self.emit(SIGNAL("new_snapshot_loaded(PyQt_PyObject)"), pvs_names)
 
     @pyqtSlot(str, str, str)
     def save_pvs(self, save_file_path, keywords=None, comment=None):
@@ -448,14 +553,19 @@ class SnapshotWorker(QtCore.QObject):
                                         comment=comment)
         self.emit(SIGNAL("save_done(PyQt_PyObject, PyQt_PyObject)"), save_file_path, status)
 
-    @pyqtSlot(dict)
-    def restore_pvs_from_obj(self, saved_pvs):
-        # All files were already parsed when loaded. Just need to load files
-        # list of pvs and do restore. Notifies when finished.
-        self.snapshot.prepare_pvs_to_restore_from_list(saved_pvs)
+    @pyqtSlot()
+    def restore_pvs(self):
+        # Just calling snapshot restore.
         status = self.snapshot.restore_pvs()
 
-        self.emit(SIGNAL("restore_done(PyQt_PyObject, PyQt_PyObject)"), saved_pvs, status)
+        self.emit(SIGNAL("restore_done(PyQt_PyObject)"), status)
+
+    @pyqtSlot(dict)
+    def load_pvs_to_snapshot(self, saved_pvs):
+        # Sets list of pvs to snapshot object
+
+        self.snapshot.prepare_pvs_to_restore_from_list(saved_pvs)
+        self.emit(SIGNAL("load_for_restore_done()"))
 
     @pyqtSlot(str, str, dict)
     def get_save_files(self, save_dir, name_prefix, current_files):
@@ -477,17 +587,21 @@ class SnapshotWorker(QtCore.QObject):
 
         self.emit(SIGNAL("save_files_loaded(PyQt_PyObject)"), parsed_save_files)
 
+    @pyqtSlot()
     def start_continous_compare(self):
         self.snapshot.start_continous_compare(self.process_callbacks)
+        print("Compare started")
 
+    @pyqtSlot()
     def stop_continous_compare(self):
         self.snapshot.stop_continous_compare()
 
     def process_callbacks(self, **kw):
-        pass
         # TODO here raise signals data is packed in kw
+        self.emit(SIGNAL("pv_changed(PyQt_PyObject)"), kw)
 
     def check_status(self, status):
+        # TODO why was this meant?
         report = ""
         for key in status:
             if not status[key]:

@@ -11,13 +11,19 @@ import readline
 
 # Subclass PV to be to later add info if needed
 class SnapshotPv(PV):
-    def __init__(self, pvname, auto_monitor=False, **kw):
+    def __init__(self, pvname, auto_monitor=True, **kw):
         PV.__init__(self, pvname, auto_monitor=auto_monitor, **kw)
         self.value_to_save = None
         self.saved_value = None  # This holds value from last loaded save file
         self.callback_id = None
         self.last_compare = None
         self.last_compare_value = None
+        self.compare_state = False
+
+        # PV class does not properly update "char_value" at initialization
+        # method "__on_changes" does the magic and updates it
+        # requesting PV.info, it processes "__on_changes" and updates "char_value"
+        self.info
 
 
 class Snapshot():
@@ -62,7 +68,7 @@ class Snapshot():
         self.parse_to_save_file(save_file_path, **kw)
         return(status)
 
-    def prepare_pvs_to_restore_from_file(self, save_file_path=None):
+    def prepare_pvs_to_restore_from_file(self, save_file_path):
         # Parsers the file and loads value to corresponding objects
         # Can be later used for compare and restore
 
@@ -72,12 +78,18 @@ class Snapshot():
     def prepare_pvs_to_restore_from_list(self, saved_pvs):
         # Loads pvs that were previously parsed from saved file
         for key in self.pvs:
-            if self.pvs[key]:
+            if key in saved_pvs:
                 self.pvs[key].saved_value = saved_pvs[key]['pv_value']
             else:
                 # Clear PVs that are not defined in save file to avoid
                 # restoring values from old file if PV was not in last file
                 self.pvs[key].saved_value = None
+
+        # If continuous compare is on then compare must be done and callbacks
+        # must be sent
+        if self.compare_state:
+            self.stop_continous_compare()
+            self.start_continous_compare(self.callback_func)
 
     def restore_pvs(self, save_file_path=None):
         # If file with saved values specified then read file. If no file
@@ -107,18 +119,17 @@ class Snapshot():
                 if "string" in self.pvs[key].type:
                     restore_value = str.encode(restore_value)
                 self.pvs[key].put(restore_value)
-
             # Error checking
             if (self.pvs[key].connected) and (self.pvs[key].write_access) and \
-            (self.pvs[key].read_access):
+               (self.pvs[key].read_access):
                 pv_status = False
 
             status[key] = pv_status
-            return(status)
+        return(status)
 
     def start_continous_compare(self, callback=None, save_file_path=None):
-
             self.callback_func = callback
+
             # If file with saved values specified then read file. If no file
             # then just use last stored values
             if save_file_path:
@@ -126,7 +137,7 @@ class Snapshot():
 
             for key in self.pvs:
                 pv_ref = self.pvs[key]
-                if self.pvs[key].connected:
+                if pv_ref.connected:
                     # Do first compare and report "initial" state for each PV
                     # compare char value because saved value string (from file)
 
@@ -135,16 +146,25 @@ class Snapshot():
                     pv_ref.auto_monitor = True
                     pv_ref.callback_id = pv_ref.add_callback(self.continous_compare)
 
+
                     # Send first callbacks for "initial" compare of each PV
                     self.continous_compare(pvname=pv_ref.pvname, value=pv_ref.value, char_value=pv_ref.char_value)
+
+            self.compare_state = True
+
+    def get_clbk(self):
+        for key in self.pvs:
+            pv_ref = self.pvs[key]
 
     def stop_continous_compare(self, stop_monitoring=True):
         for key in self.pvs:
             pv_ref = self.pvs[key]
-            if pv_ref.callbck_id:
-                pv_ref.remove_callback(pv_ref.callbck_id)
+            if pv_ref.callback_id:
+                pv_ref.remove_callback(pv_ref.callback_id)
                 if stop_monitoring:
                     pv_ref.auto_monitor = False
+
+        self.compare_state = False
 
     def continous_compare(self, pvname=None, value=None, char_value=None, **kw):
         # This is callback function
@@ -156,9 +176,13 @@ class Snapshot():
             pv_ref.last_compare = (char_value == pv_ref.saved_value)
             if self.callback_func:
                 self.callback_func(pv_name=pvname, pv_value=value,
+                                   pv_value_str=char_value,
                                    pv_saved=pv_ref.saved_value,
                                    pv_compare=pv_ref.last_compare)
 
+    def get_pvs_names(self):
+        # To access a list of all pvs that are under control of snapshot object
+        return self.pvs.keys()
 
 ## Parsers
 
