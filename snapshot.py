@@ -13,7 +13,8 @@ import readline
 
 
 def value_to_str(value, char_value, pv_type, connected, is_array):
-    # Use different string presentation that "char_value" offers  
+    # Use different string presentation that "char_value" offers 
+    # Used by both classes
     if value is not None:
         if "enum" in pv_type:
             # for boolean types (like "bi" record) store the numerical state
@@ -99,7 +100,7 @@ class Snapshot():
         status = dict()
         for key in self.pvs:
             pv_status = True
-            pv_value = self.pvs[key].get_snap_pv(count=None, use_monitor=False,
+            pv_value = self.pvs[key].get_snap_pv(use_monitor=True,
                                                  timeout=0.1)
             self.pvs[key].value_to_save = pv_value
             if not pv_value or not self.pvs[key].connected or \
@@ -145,7 +146,7 @@ class Snapshot():
         # Compare and restore only different
         for key in self.pvs:
             pv_status = True
-            pv_value = self.pvs[key].get_snap_pv(count=None, use_monitor=False,
+            pv_value = self.pvs[key].get_snap_pv(use_monitor=True,
                                                  timeout=0.1)
 
             saved_value = self.pvs[key].saved_value
@@ -190,10 +191,6 @@ class Snapshot():
                                        char_value=pv_ref.char_value)
         
         self.compare_state = True
-
-    def get_clbk(self):
-        for key in self.pvs:
-            pv_ref = self.pvs[key]
 
     def stop_continous_compare(self):
         for key in self.pvs:

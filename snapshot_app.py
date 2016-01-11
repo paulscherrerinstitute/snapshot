@@ -4,12 +4,27 @@ from PyQt4.QtCore import pyqtSlot, Qt, SIGNAL
 import time
 import datetime
 import argparse
+from enum import Enum
 
 from snapshot import *
 
 # close with ctrl+C
 import signal
 signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+class CompareFilter(Enum):
+    show_all = 0
+    show_eq = 1
+    show_neq = 2
+
+class CnctFilter(Enum):
+    show_all = 0
+    show_cnct = 1
+    show_ncnct = 2
+
+class PvCompare(Enum):
+    eq = "="
+    neq = "≠"
 
 
 class SnapshotGui(QtGui.QWidget):
@@ -307,8 +322,6 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                                         "restore_pvs",
                                         Qt.QueuedConnection)
 
-        self.worker.snapshot.get_clbk()
-
     def restore_done(self, status):
         # Enable button when restore is finished (worker notifies)
         self.restore_button.setEnabled(True)
@@ -406,6 +419,10 @@ class SnapshotCompareWidget(QtGui.QWidget):
         #self.show()
         self.start_compare()
 
+        # Disable possibility to select item
+        self.pv_view.setSelectionMode(QtGui.QAbstractItemView.NoSelection)
+        self.pv_view.setFocusPolicy(Qt.NoFocus)
+
     def create_compare_list(self):
         # Create tree item for each PV. List of pv names was returned after
         # parsing the request file. Attributes except PV name are empty at
@@ -423,6 +440,20 @@ class SnapshotCompareWidget(QtGui.QWidget):
             curr_val = ""
             pv_line = QtGui.QTreeWidgetItem([pv_name, saved_val, status, curr_val])
             self.pv_view.addTopLevelItem(pv_line)
+
+    def filter_compare_list(self, cmpr_filter=CompareFilter.show_all,
+                            cnct_filter=CnctFilter.show_all):
+        hide = False
+
+        # TODO porting to python2 xrange
+        for i in range(self.pv_view.topLevelItemCount()):
+            curr_item = self.pv_view.topLevelItem(i)
+            if (curr_item.text(2) != PvCompare.eq) && \
+               (cmpr_filter == CompareFilter.show_eq):
+               hide = True
+
+            curr_item.setHidden(hide)
+
 
     def start_compare(self):
         # Just invoke worker, to set snapshot sending a callbacks
@@ -454,15 +485,26 @@ class SnapshotCompareWidget(QtGui.QWidget):
             font.setPixelSize(20)
             to_modify.setFont(2, font)
             if data["pv_compare"]:
-                to_modify.setText(2, "=")
+                to_modify.setText(2, PvCompare.eq)
             else:
-                to_modify.setText(2, "≠")
+                to_modify.setText(2, PvCompare.neq)
 
         to_modify.setText(3, str(data["pv_value_str"]))
 
         # Sort by name (alphabetical order)
         self.pv_view.sortItems(0, Qt.AscendingOrder)
 
+
+#class CompareTreeWidgetItem(QtGui.QTreeWidgetItem):
+#    '''
+#    Extended to hold last info about connection status and value. Also
+#    implements methods to set visibility according to filter'''
+#
+#    def __init__(self, parent=None, properties=None):
+#        # properties are list of field values
+#        QtGui.QTreeWidgetItem.__init__(parent, properties)
+#        self.cnct_status = None
+#        self.compare                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              nbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn_status = None
 
 class SnapshotFileSelector(QtGui.QWidget):
 
