@@ -1,29 +1,70 @@
 #!/usr/bin/env python
 from epics import *
 import os
+import numpy
+import json
+from enum import Enum
 
 # On Python 3.5.1 :: Anaconda 2.4.1 (64-bit) with pyepics 3.2.5 there is an
 # error epics.ca.ChannelAccessException: loading Epics CA DLL failed
 # ../lib/libreadline.so.6: undefined symbol: PC
 # Importing readline module solves the problem
-
 import readline
+
+
+def value_to_str(value, char_value, pv_type, connected, is_array):
+    # Use different string presentation that "char_value" offers  
+    if value is not None:
+        if "enum" in pv_type:
+            # for boolean types (like "bi" record) store the numerical state
+            # to avoid mismatch if string representation (ONAM, ZNAM) changes
+            # existing "char_value" holds ONAM or ZNAM.
+            return(str(value))
+        elif is_array:
+            # For arrays use json for easier formating
+            return(json.dumps(value.tolist()))
+        else:
+            return(char_value)
+    else:
+        return(None)
 
 # Subclass PV to be to later add info if needed
 class SnapshotPv(PV):
-    def __init__(self, pvname, auto_monitor=True, **kw):
-        PV.__init__(self, pvname, auto_monitor=auto_monitor, **kw)
+    def __init__(self, pvname, **kw):
+        PV.__init__(self, pvname, connection_callback=self.connection_callback_pvt, callback=self.callback_pvt, auto_monitor=True, **kw)
         self.value_to_save = None
         self.saved_value = None  # This holds value from last loaded save file
         self.callback_id = None
         self.last_compare = None
         self.last_compare_value = None
-        self.compare_state = False
+        self.is_array = False
+        # String representation for snapshot (original char_value has problems)
+        self.str_value = None
 
-        # PV class does not properly update "char_value" at initialization
-        # method "__on_changes" does the magic and updates it
-        # requesting PV.info, it processes "__on_changes" and updates "char_value"
-        self.info
+    def connection_callback_pvt(self, **kw):
+        # PV layer of pyepics handles arrays strange. In case of having a
+        # waveform with NORD field "1" it will not interpret it as array.
+        # Instead of "count" (NORD) it should use "nelm", but this also acts
+        # wrong. It simply does if count == 1 then nelm = 1. The true NELM info
+        # can be found with ca.element_count(self.chid).
+        self.is_array = (ca.element_count(self.chid) > 1)
+
+    def callback_pvt(self, **kw):
+        # On each change make a string representation of data (also arrays)
+        self.str_value = value_to_str(self.value, self.char_value, self.type,
+                                      self.connected, self.is_array)
+
+    def get_snap_pv(self, **kw):
+        self.get(**kw)
+        return(value_to_str(self.value, self.char_value, self.type,
+                            self.connected, self.is_array))
+
+    def put_snap_pv(self, value, **kw):
+        # If array, use json to decode
+        if self.is_array:
+            self.put(json.loads(value))
+        else:
+            self.put(value)
 
 
 class Snapshot():
@@ -31,6 +72,8 @@ class Snapshot():
         # Hold a dictionary for each PV (key=pv_name) with reference to
         # SnapshotPv object.
         self.pvs = dict()
+        self.compare_state = False
+        self.restore_values_loaded = False
 
         # Uses default parsing method. If other format is needed, subclass
         # and re implement parse_req_file method. It must return list of
@@ -56,8 +99,8 @@ class Snapshot():
         status = dict()
         for key in self.pvs:
             pv_status = True
-            pv_value = self.pvs[key].get(count=None, as_string=True,
-                                         use_monitor=False, timeout=0.1)
+            pv_value = self.pvs[key].get_snap_pv(count=None, use_monitor=False,
+                                                 timeout=0.1)
             self.pvs[key].value_to_save = pv_value
             if not pv_value or not self.pvs[key].connected or \
                self.pvs[key].write_access:
@@ -72,7 +115,7 @@ class Snapshot():
         # Parsers the file and loads value to corresponding objects
         # Can be later used for compare and restore
 
-        saved_pvs = self.parse_from_save_file(save_file_path)
+        saved_pvs, meta_data = self.parse_from_save_file(save_file_path)
         self.prepare_pvs_to_restore_from_list(saved_pvs)
 
     def prepare_pvs_to_restore_from_list(self, saved_pvs):
@@ -85,8 +128,9 @@ class Snapshot():
                 # restoring values from old file if PV was not in last file
                 self.pvs[key].saved_value = None
 
+        self.restore_values_loaded = True
         # If continuous compare is on then compare must be done and callbacks
-        # must be sent
+        # must be sent TODO make a better reset of saved files
         if self.compare_state:
             self.stop_continous_compare()
             self.start_continous_compare(self.callback_func)
@@ -101,8 +145,9 @@ class Snapshot():
         # Compare and restore only different
         for key in self.pvs:
             pv_status = True
-            pv_value = self.pvs[key].get(count=None, as_string=True,
-                                         use_monitor=False, timeout=0.1)
+            pv_value = self.pvs[key].get_snap_pv(count=None, use_monitor=False,
+                                                 timeout=0.1)
+
             saved_value = self.pvs[key].saved_value
             if (self.pvs[key].connected and saved_value != None and
                pv_value != saved_value):
@@ -110,15 +155,14 @@ class Snapshot():
                 # Python3 distinguish between bytes and strings but pyepics
                 # passes string without conversion since it was not needed for
                 # Python2 where strings are bytes
-                restore_value = self.pvs[key].saved_value
-
+                restore_value = saved_value
                 # Returned types are something like:
                 #time_string
                 #time_double
                 #time_enum
                 if "string" in self.pvs[key].type:
                     restore_value = str.encode(restore_value)
-                self.pvs[key].put(restore_value)
+                self.pvs[key].put_snap_pv(restore_value)
             # Error checking
             if (self.pvs[key].connected) and (self.pvs[key].write_access) and \
                (self.pvs[key].read_access):
@@ -128,57 +172,64 @@ class Snapshot():
         return(status)
 
     def start_continous_compare(self, callback=None, save_file_path=None):
-            self.callback_func = callback
+        self.callback_func = callback
 
-            # If file with saved values specified then read file. If no file
-            # then just use last stored values
-            if save_file_path:
-                self.load_saved_pvs(save_file_path)
+        # If file with saved values specified then read file. If no file
+        # then just use last stored values
+        if save_file_path:
+            self.load_saved_pvs(save_file_path)
 
-            for key in self.pvs:
-                pv_ref = self.pvs[key]
-                if pv_ref.connected:
-                    # Do first compare and report "initial" state for each PV
-                    # compare char value because saved value string (from file)
-
-                    #pv_ref.last_compare = (pv_ref.get(as_string=True) == pv_ref.saved_value)
-                    # Apply monitor to the PV
-                    pv_ref.auto_monitor = True
-                    pv_ref.callback_id = pv_ref.add_callback(self.continous_compare)
-
-
-                    # Send first callbacks for "initial" compare of each PV
-                    self.continous_compare(pvname=pv_ref.pvname, value=pv_ref.value, char_value=pv_ref.char_value)
-
-            self.compare_state = True
+        for key in self.pvs:
+            pv_ref = self.pvs[key]
+            pv_ref.callback_id = pv_ref.add_callback(self.continous_compare)
+            if pv_ref.connected:
+                # Send first callbacks for "initial" compare of each PV if
+                # already connected.
+                self.continous_compare(pvname=pv_ref.pvname,
+                                       value=pv_ref.value,
+                                       char_value=pv_ref.char_value)
+        
+        self.compare_state = True
 
     def get_clbk(self):
         for key in self.pvs:
             pv_ref = self.pvs[key]
 
-    def stop_continous_compare(self, stop_monitoring=True):
+    def stop_continous_compare(self):
         for key in self.pvs:
             pv_ref = self.pvs[key]
             if pv_ref.callback_id:
                 pv_ref.remove_callback(pv_ref.callback_id)
-                if stop_monitoring:
-                    pv_ref.auto_monitor = False
 
         self.compare_state = False
 
     def continous_compare(self, pvname=None, value=None, char_value=None, **kw):
         # This is callback function
+        status = "ok"
         pv_ref = self.pvs[pvname]
+
+        str_value = value_to_str(value, char_value, pv_ref.type,
+                                 pv_ref.connected, pv_ref.is_array)
         if pv_ref:
             pv_ref.last_compare_value = value
 
-            # compare char value because saved value string (from file)
-            pv_ref.last_compare = (char_value == pv_ref.saved_value)
+            if not self.restore_values_loaded:
+                # nothing to compare
+                pv_ref.last_compare = None
+                status = "nothing_to_compare"
+            elif not pv_ref.connected:
+                pv_ref.last_compare = None
+                status = "not_connected"
+            else:
+                # compare char value because saved value is string (from file)
+                pv_ref.last_compare = (str_value == pv_ref.saved_value)
+            
             if self.callback_func:
                 self.callback_func(pv_name=pvname, pv_value=value,
-                                   pv_value_str=char_value,
+                                   pv_value_str=str_value,
                                    pv_saved=pv_ref.saved_value,
-                                   pv_compare=pv_ref.last_compare)
+                                   pv_compare=pv_ref.last_compare,
+                                   pv_status=status)
 
     def get_pvs_names(self):
         # To access a list of all pvs that are under control of snapshot object

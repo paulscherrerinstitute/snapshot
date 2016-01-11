@@ -89,7 +89,7 @@ class SnapshotGui(QtGui.QWidget):
         self.restore_widget.start_file_list_update()
         print("Save done")
 
-    def restore_done(self, restored_pvs, status):
+    def restore_done(self, status):
         # TODO report status
         print("Restore done")
 
@@ -341,7 +341,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
             if key not in self.file_list:
                 self.file_selector.addTopLevelItem(QtGui.QTreeWidgetItem([key, keywords, comment]))
             else:
-                # If everything only one file should exist in list
+                # If everything ok only one file should exist in list
                 to_modify = self.file_selector.findItems(key, Qt.MatchCaseSensitive, 0)[0]
                 to_modify.setText(1, keywords)
                 to_modify.setText(2, comment)
@@ -427,6 +427,7 @@ class SnapshotCompareView(QtGui.QWidget):
 
     def update_pv(self, data):
         to_modify = self.pv_view.findItems(data["pv_name"], Qt.MatchCaseSensitive, 0)[0]
+
         to_modify.setText(1, str(data["pv_saved"]))
         to_modify.setText(3, str(data["pv_value_str"]))
         to_modify.setText(2, str(data["pv_compare"]))
@@ -597,7 +598,6 @@ class SnapshotWorker(QtCore.QObject):
         self.snapshot.stop_continous_compare()
 
     def process_callbacks(self, **kw):
-        # TODO here raise signals data is packed in kw
         self.emit(SIGNAL("pv_changed(PyQt_PyObject)"), kw)
 
     def check_status(self, status):
