@@ -64,6 +64,7 @@ class SnapshotGui(QtGui.QWidget):
         self.setLayout(main_layout)
         tabs = QtGui.QTabWidget(self)
         tabs.setMinimumSize(900, 450)
+        main_layout.addWidget(tabs)
 
         # Each tab has it's own widget. Need one for save and one for restore.
         self.save_widget = SnapshotSaveWidget(self.worker,
@@ -293,8 +294,10 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.start_file_list_update()
 
         # Compare widget, ready to be shown in a separate window
-        self.compare_widget = SnapshotCompareView(self.worker,
-                                                  self.common_settings, self)
+        self.compare_widget = SnapshotCompareWidget(self.worker,
+                                                    self.common_settings, self)
+
+        layout.addWidget(self.compare_widget)
 
     def start_restore(self):
         # First disable restore button (will be enabled when finished)
@@ -352,7 +355,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.file_selector.sortItems(0, Qt.AscendingOrder)
 
 
-class SnapshotCompareView(QtGui.QWidget):
+class SnapshotCompareWidget(QtGui.QWidget):
 
     """ 
 
@@ -384,22 +387,23 @@ class SnapshotCompareView(QtGui.QWidget):
         # Create list with: file names, keywords, comments
         self.pv_view = QtGui.QTreeWidget(self)
         self.pv_view.setColumnCount(4)
-        self.pv_view.setHeaderLabels(["PV", "Saved value", "Status", "Current value"])
-        self.pv_view.header().resizeSection(0, 300)
-        self.pv_view.header().resizeSection(1, 300)
+        self.pv_view.setHeaderLabels(["PV", "Saved value", "Compared", "Current value"])
+        self.pv_view.header().resizeSection(0, 400)
+        self.pv_view.header().resizeSection(1, 200)
+        self.pv_view.header().resizeSection(2, 100)
 
         # Add all widgets to main layout
         layout.addWidget(self.pv_view)
 
         # Use this widget as a window
-        self.setWindowTitle("Compare PVs")
-        self.setWindowFlags(Qt.Window)
-        self.setAttribute(Qt.WA_DeleteOnClose, True)
-        self.setAttribute(Qt.WA_X11NetWmWindowTypeMenu, True)
-        self.setEnabled(True)
+        #self.setWindowTitle("Compare PVs")
+        #self.setWindowFlags(Qt.Window)
+        #self.setAttribute(Qt.WA_DeleteOnClose, True)
+        #self.setAttribute(Qt.WA_X11NetWmWindowTypeMenu, True)
+        #self.setEnabled(True)
 
         self.create_compare_list()
-        self.show()
+        #self.show()
         self.start_compare()
 
     def create_compare_list(self):
@@ -427,10 +431,37 @@ class SnapshotCompareView(QtGui.QWidget):
 
     def update_pv(self, data):
         to_modify = self.pv_view.findItems(data["pv_name"], Qt.MatchCaseSensitive, 0)[0]
+        status = data["pv_status"]
+        brush=QtGui.QBrush()
+        if status == "nothing_to_compare":
+            brush.setColor(QtGui.QColor(204, 0, 0))
+            to_modify.setForeground(1, brush)
+            to_modify.setText(1, "No value saved")
+            to_modify.setText(2, "")
 
-        to_modify.setText(1, str(data["pv_saved"]))
+        elif status == "not_connected":
+            brush.setColor(QtGui.QColor(204, 0, 0))
+            to_modify.setForeground(3, brush)
+            to_modify.setText(3, "No Connection")
+            to_modify.setText(2, "")
+        else:
+            to_modify.setText(1, str(data["pv_saved"]))
+            brush.setColor(QtGui.QColor(0, 0,  0))
+            to_modify.setForeground(1, brush)
+            to_modify.setForeground(2, brush)
+            to_modify.setForeground(3, brush)
+            font = QtGui.QFont()
+            font.setPixelSize(20)
+            to_modify.setFont(2, font)
+            if data["pv_compare"]:
+                to_modify.setText(2, "=")
+            else:
+                to_modify.setText(2, "≠")
+
         to_modify.setText(3, str(data["pv_value_str"]))
-        to_modify.setText(2, str(data["pv_compare"]))
+
+        # Sort by name (alphabetical order)
+        self.pv_view.sortItems(0, Qt.AscendingOrder)
 
 
 class SnapshotFileSelector(QtGui.QWidget):

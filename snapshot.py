@@ -261,28 +261,76 @@ class Snapshot():
         req_file.close()
         return(req_pvs)
 
+    #def parse_to_save_file(self, save_file_path, **kw):
+    #    # This function is called at each save of PV values.
+    #    # This is a parser which generates save file from pvs
+    #    # All parameters in **kw are packed as meta data
+    #    # To support other format of file, override this method in subclass
+    #
+    #    save_file = open(save_file_path, 'w')
+    #    
+    #    # Meta data
+    #    for key in kw:
+    #        save_file.write("#" + key + ":" + kw[key] + "\n")
+    #
+    #    # PVs
+    #    for key in self.pvs:
+    #       if self.pvs[key].value_to_save:
+    #           save_file.write(key + "," + self.pvs[key].value_to_save + "\n")
+    #       else:
+    #           save_file.write(key + "\n")
+    #
+    #    save_file.close
+
+
     def parse_to_save_file(self, save_file_path, **kw):
         # This function is called at each save of PV values.
         # This is a parser which generates save file from pvs
         # All parameters in **kw are packed as meta data
         # To support other format of file, override this method in subclass
-
-        # TODO manage metadata properly
-
+    
         save_file = open(save_file_path, 'w')
         
-        # Meta data
-        for key in kw:
-            save_file.write("#" + key + ":" + kw[key] + "\n")
-
+        file_content = dict()
+        # Meta data is everything in kw
+        file_content["metadata"] = kw
+        
+    
         # PVs
+        pvs_to_file = dict()
         for key in self.pvs:
-            if self.pvs[key].value_to_save:
-                save_file.write(key + "," + self.pvs[key].value_to_save + "\n")
-            else:
-                save_file.write(key + "\n")
+            pvs_to_file[key] = self.pvs[key].value_to_save
 
+        file_content["data"] = pvs_to_file
+        json.dump(file_content, save_file)
         save_file.close
+
+    #def parse_from_save_file(self, save_file_path):
+    #    # This function is called in compare function.
+    #    # This is a parser which has a desired value fro each PV.
+    #    # To support other format of file, override this method in subclass
+
+    #    saved_pvs = dict()
+    #    meta_data = dict()
+    #    saved_file = open(save_file_path)
+    #    for line in saved_file:
+    #        if line.startswith('#'):
+    #            split_line = line.rstrip().split(':')
+    #            meta_data[split_line[0].split("#")[1]] = split_line[1]
+    #        # skip empty lines
+    #        elif line.strip():
+    #            split_line = line.rstrip().split(',')
+    #            pv_name = split_line[0]
+    #            if len(split_line) > 1:
+    #                pv_value = split_line[1]
+    #            else:
+    #                pv_value = None
+
+    #            saved_pvs[pv_name] = dict()
+    #            saved_pvs[pv_name]['pv_value'] = pv_value
+
+    #    saved_file.close() 
+    #    return(saved_pvs, meta_data)
 
     def parse_from_save_file(self, save_file_path):
         # This function is called in compare function.
@@ -292,21 +340,13 @@ class Snapshot():
         saved_pvs = dict()
         meta_data = dict()
         saved_file = open(save_file_path)
-        for line in saved_file:
-            if line.startswith('#'):
-                split_line = line.rstrip().split(':')
-                meta_data[split_line[0].split("#")[1]] = split_line[1]
-            # skip empty lines
-            elif line.strip():
-                split_line = line.rstrip().split(',')
-                pv_name = split_line[0]
-                if len(split_line) > 1:
-                    pv_value = split_line[1]
-                else:
-                    pv_value = None
+        file_content = json.load(saved_file)
+        
+        meta_data = file_content["metadata"]
 
-                saved_pvs[pv_name] = dict()
-                saved_pvs[pv_name]['pv_value'] = pv_value
+        for key in file_content["data"]:
+            saved_pvs[key] = dict()
+            saved_pvs[key]['pv_value'] = file_content["data"][key]
 
         saved_file.close() 
         return(saved_pvs, meta_data)
