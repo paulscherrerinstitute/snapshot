@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import sys
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import pyqtSlot, Qt, SIGNAL
@@ -232,7 +233,6 @@ class SnapshotSaveWidget(QtGui.QWidget):
     def save_done(self, file_path, status):
         # Enable saving
         self.save_button.setEnabled(True)
-        # TODO update file name
 
     def update_name(self):
         self.name_extension = self.extension_input.text()
@@ -352,7 +352,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
             keywords = file_list[key]["meta_data"].get("keywords", "")
             comment = file_list[key]["meta_data"].get("comment", "")
 
-            # check if all-ready on list (was just modified) and modify file
+            # check if already on list (was just modified) and modify file
             # selctor
             if key not in self.file_list:
                 self.file_selector.addTopLevelItem(QtGui.QTreeWidgetItem([key, keywords, comment]))
@@ -401,7 +401,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         # Create list with: file names, keywords, comments
         self.pv_view = QtGui.QTreeWidget(self)
         self.pv_view.setColumnCount(4)
-        self.pv_view.setHeaderLabels(["PV", "Saved value", "Compared", "Current value"])
+        self.pv_view.setHeaderLabels(["PV", "Current value", "Saved value", "Status"])
         self.pv_view.header().resizeSection(0, 400)
         self.pv_view.header().resizeSection(1, 200)
         self.pv_view.header().resizeSection(2, 100)
@@ -439,8 +439,10 @@ class SnapshotCompareWidget(QtGui.QWidget):
             saved_val = ""
             status = ""
             curr_val = ""
-            pv_line = QtGui.QTreeWidgetItem([pv_name, saved_val, status, curr_val])
+            pv_line = CompareTreeWidgetItem(pv_name, self.pv_view)
             self.pv_view.addTopLevelItem(pv_line)
+        # Sort by name (alphabetical order)
+        self.pv_view.sortItems(0, Qt.AscendingOrder)
 
    # def filter_compare_list(self, cmpr_filter=CompareFilter.show_all,
    #                         cnct_filter=CnctFilter.show_all):
@@ -462,50 +464,76 @@ class SnapshotCompareWidget(QtGui.QWidget):
                                         Qt.QueuedConnection)
         
     def update_pv(self, data):
-        to_modify = self.pv_view.findItems(data["pv_name"], Qt.MatchCaseSensitive, 0)[0]
-        status = data["pv_status"]
-        brush = QtGui.QBrush()
-        if status == "nothing_to_compare":
-            brush.setColor(QtGui.QColor(204, 0, 0))
-            to_modify.setForeground(1, brush)
-            to_modify.setText(1, "No value saved")
-            to_modify.setText(2, "")
+        #brush.setColor(QtGui.QColor(204, 0, 0))
+        #to_modify.setForeground(1, brush)
 
-        elif status == "not_connected":
-            brush.setColor(QtGui.QColor(204, 0, 0))
-            to_modify.setForeground(3, brush)
-            to_modify.setText(3, "No Connection")
-            to_modify.setText(2, "")
+        # If everything ok, only one line must match
+        line_to_update = self.pv_view.findItems(data["pv_name"], Qt.MatchCaseSensitive, 0)[0]
+        
+        line_to_update.update_state(**data)      
+
+
+class CompareTreeWidgetItem(QtGui.QTreeWidgetItem):
+    '''
+    Extended to hold last info about connection status and value. Also
+    implements methods to set visibility according to filter
+    '''
+
+    def __init__(self, pv_name, parent=None):
+       # Visual representation [pv_name, saved_value, current_value, status]
+        QtGui.QTreeWidgetItem.__init__(self, parent, [pv_name,"","",""])
+
+        self.pv_name = pv_name
+
+        # Have data stored in native types, for easier filtering etc.
+        self.connect_sts = None
+        self.saved_value = None
+        self.value = None
+        self.compare = None
+
+    def update_state(self, pv_value, pv_saved, pv_compare, pv_cnct_sts, saved_sts, **kw):
+        self.connect_sts = pv_cnct_sts
+        self.saved_sts = saved_sts  # indicates if list of saved PVs loaded to snapshot
+        self.saved_value = pv_saved
+        self.value = pv_value
+        self.compare = pv_compare
+        has_error = False
+
+        if not self.connect_sts:
+            self.setText(1, "") # no connection means no value
+            self.setText(3, "PV not connected!")
+
+            # TODO sho error state
+            has_error = True
         else:
-            to_modify.setText(1, str(data["pv_saved"]))
-            brush.setColor(QtGui.QColor(0, 0,  0))
-            to_modify.setForeground(1, brush)
-            to_modify.setForeground(2, brush)
-            to_modify.setForeground(3, brush)
-            font = QtGui.QFont()
-            #font.setPixelSize(20)
-            to_modify.setFont(2, font)
-            if data["pv_compare"]:
-                to_modify.setText(2, "E")
+            if value is not None:
+                self.setText(1, json.dumps(value))
+            else: 
+                self.setText(1, "")
+
+        if not saved_sts:
+            self.setText(2, "") # not laoded lsit of saved PVs means no value
+            self.setText(3, "Set of saved PVs not selected.")
+
+            # TODO show error state
+            has_error = True
+        else:
+            if value is not None:
+                self.setText(2, json.dumps(value))
             else:
-                to_modify.setText(2, "N")
+                self.setText(2, "")
 
-        to_modify.setText(3, str(data["pv_value"]))
+            if has_problem or (compare is None):
+                self.setText(3, "")
+            else:
+                if compare == True:
+                    self.setText(3, "Equal")
+                    # Todo color for true
+                else:
+                    self.setText(3, "Not equal")
+                    # Todo color fot flase
 
-        # Sort by name (alphabetical order)
-        self.pv_view.sortItems(0, Qt.AscendingOrder)
-
-
-#class CompareTreeWidgetItem(QtGui.QTreeWidgetItem):
-#    '''
-#    Extended to hold last info about connection status and value. Also
-#    implements methods to set visibility according to filter'''
-#
-#    def __init__(self, parent=None, properties=None):
-#        # properties are list of field values
-#        QtGui.QTreeWidgetItem.__init__(parent, properties)
-#        self.cnct_status = None
-#        self.compare                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              nbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn_status = None
+        # TODO make method that colors whole line in proper color
 
 class SnapshotFileSelector(QtGui.QWidget):
 

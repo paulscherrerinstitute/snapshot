@@ -163,10 +163,10 @@ class Snapshot():
         for key in self.pvs:
             pv_ref = self.pvs[key]
             pv_ref.callback_id = pv_ref.add_callback(self.continous_compare)
-            if pv_ref.connected:
+            #if pv_ref.connected:
                 # Send first callbacks for "initial" compare of each PV if
                 # already connected.
-                self.continous_compare(pvname=pv_ref.pvname, value=pv_ref.value)
+            self.continous_compare(pvname=pv_ref.pvname, value=pv_ref.value)
         
         self.compare_state = True
 
@@ -180,19 +180,16 @@ class Snapshot():
 
     def continous_compare(self, pvname=None, value=None, **kw):
         # This is callback function
-        status = "ok"
         pv_ref = self.pvs.get(pvname, None)
 
         if pv_ref:
             pv_ref.last_compare_value = value
 
             if not self.restore_values_loaded:
-                # no old data was loaded
+                # no old data was loaded clear compare
                 pv_ref.last_compare = None
-                status = "nothing_to_compare"
             elif not pv_ref.connected:
                 pv_ref.last_compare = None
-                status = "not_connected"
             else:
                 # compare  value (different for arrays)
                 if pv_ref.is_array:
@@ -205,17 +202,17 @@ class Snapshot():
                         compare = (pv_ref.saved_value is None)
                     else:
                         compare = numpy.array_equal(value, pv_ref.saved_value)
-                    print(compare)
                 else:
                     compare = (value == pv_ref.saved_value)
 
                 pv_ref.last_compare = compare
-
+                
             if self.callback_func:
                 self.callback_func(pv_name=pvname, pv_value=value,
                                    pv_saved=pv_ref.saved_value,
                                    pv_compare=pv_ref.last_compare,
-                                   pv_status=status)
+                                   pv_cnct_sts=pv_ref.connected,
+                                   saved_sts=self.restore_values_loaded)
 
     def get_pvs_names(self):
         # To access a list of all pvs that are under control of snapshot object
