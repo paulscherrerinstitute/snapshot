@@ -24,6 +24,7 @@ class SnapshotPv(PV):
         PV.__init__(self, pvname,
                     connection_callback=self.connection_callback_pvt,
                     auto_monitor=True, **kw)
+        self.connection_lost = not self.connected
         self.value_to_save = None
         self.saved_value = None  # This holds value from last loaded save file
         self.callback_id = None
@@ -31,13 +32,24 @@ class SnapshotPv(PV):
         self.last_compare_value = None
         self.is_array = False
 
-    def connection_callback_pvt(self, **kw):
+    def connection_callback_pvt(self, conn, **kw):
         # PV layer of pyepics handles arrays strange. In case of having a
         # waveform with NORD field "1" it will not interpret it as array.
         # Instead of "count" (NORD) it should use "nelm", but this also acts
         # wrong. It simply does if count == 1 then nelm = 1. The true NELM info
         # can be found with ca.element_count(self.chid).
         self.is_array = (ca.element_count(self.chid) > 1)
+
+        # Because snapshot, must be also updated when connection is lost,
+        # and  one callback per pv is used in snapshot, lost of connection
+        # must execute callbacks.
+        # Callbacks need info about connection status but self.connected
+        # is updated after connection callbacks are called, store it in
+        # separate variable
+        self.connection_lost = not conn
+
+        if not conn:
+            self.run_callbacks()
 
 
 class Snapshot():
@@ -173,6 +185,8 @@ class Snapshot():
 
     def continous_compare(self, pvname=None, value=None, **kw):
         # This is callback function
+        # Use "connection_lost" instead of "connected", because it is
+        # updated before (to get proper value in case of connection lost)
         pv_ref = self.pvs.get(pvname, None)
 
         # in case of empty array pyepics does not return
@@ -188,7 +202,7 @@ class Snapshot():
             if not self.restore_values_loaded:
                 # no old data was loaded clear compare
                 pv_ref.last_compare = None
-            elif not pv_ref.connected:
+            elif pv_ref.connection_lost:
                 pv_ref.last_compare = None
             else:
                 # compare  value (different for arrays)
@@ -203,7 +217,7 @@ class Snapshot():
                 self.callback_func(pv_name=pvname, pv_value=value,
                                    pv_saved=pv_ref.saved_value,
                                    pv_compare=pv_ref.last_compare,
-                                   pv_cnct_sts=pv_ref.connected,
+                                   pv_cnct_sts=not pv_ref.connection_lost,
                                    saved_sts=self.restore_values_loaded)
 
     def get_pvs_names(self):
@@ -294,7 +308,7 @@ class Snapshot():
                 meta_data[split_line[0].split("#")[1]] = split_line[1]
             # skip empty lines
             elif line.strip():
-                split_line = line.rstrip().split(';')
+                split_line = line.strip().split(';')
                 pv_name = split_line[0]
                 if len(split_line) > 1:
                     pv_value_str = split_line[1]

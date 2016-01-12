@@ -161,7 +161,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
         min_label_width = 120
 
         # Make a field to select file extension (has a read-back)
-        extension_layout = QtGui.QHBoxLayout(self)
+        extension_layout = QtGui.QHBoxLayout()
         extension_layout.setSpacing(10)
         extension_label = QtGui.QLabel("Name extension:", self)
         extension_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
@@ -179,7 +179,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
         extension_layout.addWidget(self.file_name_rb)
 
         # Make a field to enable user adding a comment
-        comment_layout = QtGui.QHBoxLayout(self)
+        comment_layout = QtGui.QHBoxLayout()
         comment_layout.setSpacing(10)
         comment_label = QtGui.QLabel("Comment:", self)
         comment_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
@@ -189,7 +189,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
         comment_layout.addWidget(self.comment_input)
 
         # Make field for keywords
-        keyword_layout = QtGui.QHBoxLayout(self)
+        keyword_layout = QtGui.QHBoxLayout()
         keyword_layout.setSpacing(10)
         keyword_label = QtGui.QLabel("Keywords:", self)
         keyword_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
@@ -480,31 +480,41 @@ class CompareTreeWidgetItem(QtGui.QTreeWidgetItem):
         has_error = False
 
         if not self.connect_sts:
-            self.setText(1, "") # no connection means no value
+            self.setText(1, "")  # no connection means no value
             self.setText(3, "PV not connected!")
+            print("bla")
             has_error = True
         else:
             if isinstance(self.value, (numpy.ndarray)):
                 self.setText(1, json.dumps(self.value.tolist()))
             elif self.value is not None:
-                self.setText(1, json.dumps(self.value))
+                #if string do not dump it will add "" to a it
+                if isinstance(self.value, (str)):
+                    self.setText(1, self.value)
+                else:
+                    # dump other values
+                    self.setText(1, json.dumps(self.value))
             else:
                 self.setText(1, "")
 
         if not self.saved_sts:
             self.setText(2, "") # not loaded list of saved PVs means no value
-            self.setText(3, "Set of saved PVs not selected.")
+            self.setText(3, "Set of saved PVs not selected!")
             has_error = True
         else:
             if isinstance(self.saved_value, (numpy.ndarray)):
                 self.setText(2, json.dumps(self.saved_value.tolist()))
             elif self.value is not None:
-                self.setText(2, json.dumps(self.saved_value))
+                #if string do not dump it will add "" to a it
+                if isinstance(self.saved_value, (str)):
+                    self.setText(2, self.saved_value)
+                else:
+                    # dump other values
+                    self.setText(2, json.dumps(self.saved_value))
             else:
                 self.setText(2, "")
 
             if has_error or (self.compare is None):
-                self.setText(3, "")
                 self.set_background_color(PvViewStatus.err)
             else:
                 if self.compare:
