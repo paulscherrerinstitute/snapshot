@@ -13,20 +13,10 @@ from snapshot import *
 import signal
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-#class CompareFilter(Enum):
-#    show_all = 0
-#    show_eq = 1
-#    show_neq = 2
-#
-#class CnctFilter(Enum):
-#    show_all = 0
-#    show_cnct = 1
-#    show_ncnct = 2
-#
-#class PvCompare(Enum):
-#    eq = "="
-#    neq = "≠"
-
+class PvViewStatus(Enum):
+    eq = 0
+    neq = 1
+    err = 2
 
 class SnapshotGui(QtGui.QWidget):
 
@@ -405,6 +395,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         self.pv_view.header().resizeSection(0, 400)
         self.pv_view.header().resizeSection(1, 200)
         self.pv_view.header().resizeSection(2, 100)
+        self.pv_view.setAlternatingRowColors(True)
 
         # Add all widgets to main layout
         layout.addWidget(self.pv_view)
@@ -456,10 +447,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
                                         Qt.QueuedConnection)
         
     def update_pv(self, data):
-        #brush.setColor(QtGui.QColor(204, 0, 0))
-        #to_modify.setForeground(1, brush)
-
-        # If everything ok, only one line must match
+        # If everything ok, only one line should match
         line_to_update = self.pv_view.findItems(data["pv_name"], Qt.MatchCaseSensitive, 0)[0]
         
         line_to_update.update_state(**data)      
@@ -494,8 +482,6 @@ class CompareTreeWidgetItem(QtGui.QTreeWidgetItem):
         if not self.connect_sts:
             self.setText(1, "") # no connection means no value
             self.setText(3, "PV not connected!")
-
-            # TODO sho error state
             has_error = True
         else:
             if isinstance(self.value, (numpy.ndarray)):
@@ -508,8 +494,6 @@ class CompareTreeWidgetItem(QtGui.QTreeWidgetItem):
         if not self.saved_sts:
             self.setText(2, "") # not loaded list of saved PVs means no value
             self.setText(3, "Set of saved PVs not selected.")
-
-            # TODO show error state
             has_error = True
         else:
             if isinstance(self.saved_value, (numpy.ndarray)):
@@ -521,15 +505,29 @@ class CompareTreeWidgetItem(QtGui.QTreeWidgetItem):
 
             if has_error or (self.compare is None):
                 self.setText(3, "")
+                self.set_background_color(PvViewStatus.err)
             else:
                 if self.compare:
                     self.setText(3, "Equal")
-                    # Todo color for true
+                    self.set_background_color(PvViewStatus.eq)
                 else:
                     self.setText(3, "Not equal")
-                    # Todo color fot flase
+                    self.set_background_color(PvViewStatus.neq)
 
         # TODO make method that colors whole line in proper color
+    
+    def set_background_color(self, status):
+        brush = QtGui.QBrush()
+
+        if status == PvViewStatus.eq:
+            brush.setColor(QtGui.QColor(0, 190, 0))
+        elif status == PvViewStatus.neq:
+            brush.setColor(QtGui.QColor(204, 0, 0))
+        
+        # TODO porting python 2 xrange
+        for i in range(0, self.columnCount()):
+            # idealy Background, but it look like a bug, and doe's not work
+            self.setForeground(i, brush)
 
 
 class SnapshotFileSelector(QtGui.QWidget):
