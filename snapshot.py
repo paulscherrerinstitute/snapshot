@@ -11,28 +11,19 @@ from enum import Enum
 # Importing readline module solves the problem
 import readline
 
+#
+# numpy.array_repr(ha)
+# 'array([4, 6, 6], dtype=int32)'
+# numpy.fromstring("1,2,4,5",dtype=float, sep=',')
 
-def value_to_str(value, char_value, pv_type, connected, is_array):
-    # Use different string presentation that "char_value" offers 
-    # Used by both classes
-    if value is not None:
-        if "enum" in pv_type:
-            # for boolean types (like "bi" record) store the numerical state
-            # to avoid mismatch if string representation (ONAM, ZNAM) changes
-            # existing "char_value" holds ONAM or ZNAM.
-            return(str(value))
-        elif is_array:
-            # For arrays use json for easier formating
-            return(json.dumps(value.tolist()))
-        else:
-            return(char_value)
-    else:
-        return(None)
+
 
 # Subclass PV to be to later add info if needed
 class SnapshotPv(PV):
     def __init__(self, pvname, **kw):
-        PV.__init__(self, pvname, connection_callback=self.connection_callback_pvt, callback=self.callback_pvt, auto_monitor=True, **kw)
+        PV.__init__(self, pvname,
+                    connection_callback=self.connection_callback_pvt,
+                    auto_monitor=True, **kw)
         self.value_to_save = None
         self.saved_value = None  # This holds value from last loaded save file
         self.callback_id = None
@@ -49,24 +40,6 @@ class SnapshotPv(PV):
         # wrong. It simply does if count == 1 then nelm = 1. The true NELM info
         # can be found with ca.element_count(self.chid).
         self.is_array = (ca.element_count(self.chid) > 1)
-
-    def callback_pvt(self, **kw):
-        # On each change make a string representation of data (also arrays)
-        self.str_value = value_to_str(self.value, self.char_value, self.type,
-                                      self.connected, self.is_array)
-
-    def get_snap_pv(self, **kw):
-        self.get(**kw)
-        return(value_to_str(self.value, self.char_value, self.type,
-                            self.connected, self.is_array))
-
-    def put_snap_pv(self, value, **kw):
-        # If array, use json to decode
-        if self.is_array:
-            self.put(json.loads(value))
-        else:
-            self.put(value)
-
 
 class Snapshot():
     def __init__(self, req_file_path, macros=None, **kw):
@@ -99,15 +72,17 @@ class Snapshot():
         # All other parameters (packed in kw) are appended to file as meta data
         status = dict()
         for key in self.pvs:
+            pv_ref = self.pvs[key]
             pv_status = True
-            pv_value = self.pvs[key].get_snap_pv(use_monitor=True,
-                                                 timeout=0.1)
-            self.pvs[key].value_to_save = pv_value
-            if not pv_value or not self.pvs[key].connected or \
-               self.pvs[key].write_access:
 
+            # Get value. If no value (either empty array (size==0) or None)
+            pv_ref.value_to_save = pv_ref.get()
+            if pv_ref.is_array and numpy.size(pv_ref.value_to_save) == 0:
+                # If empty array is equal to None scalar value
+                pv_ref.value_to_save = None
+
+            if (pv_ref.value is not None) or (not pv_ref.connected) or (pv_ref.read_access):
                 pv_status = False
-
             status[key] = pv_status
         self.parse_to_save_file(save_file_path, **kw)
         return(status)
@@ -120,20 +95,25 @@ class Snapshot():
         self.prepare_pvs_to_restore_from_list(saved_pvs)
 
     def prepare_pvs_to_restore_from_list(self, saved_pvs):
+        if self.compare_state:
+            self.stop_continous_compare()
+            self.compare_state = True  # keep old info to start at the end
+
         # Loads pvs that were previously parsed from saved file
         for key in self.pvs:
-            if key in saved_pvs:
-                self.pvs[key].saved_value = saved_pvs[key]['pv_value']
+            pv_ref = self.pvs[key]
+            saved_pv = saved_pvs.get(key, None)
+            if saved_pv != None:
+                pv_ref.saved_value = saved_pv['pv_value']
             else:
                 # Clear PVs that are not defined in save file to avoid
                 # restoring values from old file if PV was not in last file
-                self.pvs[key].saved_value = None
+                pv_ref.saved_value = None
 
         self.restore_values_loaded = True
-        # If continuous compare is on then compare must be done and callbacks
-        # must be sent TODO make a better reset of saved files
+
+        # run compare again and do initial compare
         if self.compare_state:
-            self.stop_continous_compare()
             self.start_continous_compare(self.callback_func)
 
     def restore_pvs(self, save_file_path=None):
@@ -186,9 +166,7 @@ class Snapshot():
             if pv_ref.connected:
                 # Send first callbacks for "initial" compare of each PV if
                 # already connected.
-                self.continous_compare(pvname=pv_ref.pvname,
-                                       value=pv_ref.value,
-                                       char_value=pv_ref.char_value)
+                self.continous_compare(pvname=pv_ref.pvname, value=pv_ref.value)
         
         self.compare_state = True
 
@@ -200,30 +178,41 @@ class Snapshot():
 
         self.compare_state = False
 
-    def continous_compare(self, pvname=None, value=None, char_value=None, **kw):
+    def continous_compare(self, pvname=None, value=None, **kw):
         # This is callback function
         status = "ok"
-        pv_ref = self.pvs[pvname]
+        pv_ref = self.pvs.get(pvname, None)
 
-        str_value = value_to_str(value, char_value, pv_ref.type,
-                                 pv_ref.connected, pv_ref.is_array)
         if pv_ref:
             pv_ref.last_compare_value = value
 
             if not self.restore_values_loaded:
-                # nothing to compare
+                # no old data was loaded
                 pv_ref.last_compare = None
                 status = "nothing_to_compare"
             elif not pv_ref.connected:
                 pv_ref.last_compare = None
                 status = "not_connected"
             else:
-                # compare char value because saved value is string (from file)
-                pv_ref.last_compare = (str_value == pv_ref.saved_value)
-            
+                # compare  value (different for arrays)
+                if pv_ref.is_array:
+                    # in case of empty array pyepics does not return
+                    # numpy.ndarray but instance of
+                    # <class 'epics.dbr.c_int_Array_0'>
+                    #
+                    # Check if in this case saved value is None (empty array)
+                    if not isinstance(value, (numpy.ndarray)):
+                        compare = (pv_ref.saved_value is None)
+                    else:
+                        compare = numpy.array_equal(value, pv_ref.saved_value)
+                    print(compare)
+                else:
+                    compare = (value == pv_ref.saved_value)
+
+                pv_ref.last_compare = compare
+
             if self.callback_func:
                 self.callback_func(pv_name=pvname, pv_value=value,
-                                   pv_value_str=str_value,
                                    pv_saved=pv_ref.saved_value,
                                    pv_compare=pv_ref.last_compare,
                                    pv_status=status)
@@ -258,28 +247,6 @@ class Snapshot():
         req_file.close()
         return(req_pvs)
 
-    #def parse_to_save_file(self, save_file_path, **kw):
-    #    # This function is called at each save of PV values.
-    #    # This is a parser which generates save file from pvs
-    #    # All parameters in **kw are packed as meta data
-    #    # To support other format of file, override this method in subclass
-    #
-    #    save_file = open(save_file_path, 'w')
-    #    
-    #    # Meta data
-    #    for key in kw:
-    #        save_file.write("#" + key + ":" + kw[key] + "\n")
-    #
-    #    # PVs
-    #    for key in self.pvs:
-    #       if self.pvs[key].value_to_save:
-    #           save_file.write(key + "," + self.pvs[key].value_to_save + "\n")
-    #       else:
-    #           save_file.write(key + "\n")
-    #
-    #    save_file.close
-
-
     def parse_to_save_file(self, save_file_path, **kw):
         # This function is called at each save of PV values.
         # This is a parser which generates save file from pvs
@@ -288,66 +255,99 @@ class Snapshot():
     
         save_file = open(save_file_path, 'w')
         
-        file_content = dict()
-        # Meta data is everything in kw
-        file_content["metadata"] = kw
-        
+        # Meta data
+        for key in kw:
+            save_file.write("#" + key + ":" + kw[key] + "\n")
     
         # PVs
-        pvs_to_file = dict()
         for key in self.pvs:
-            pvs_to_file[key] = self.pvs[key].value_to_save
-
-        file_content["data"] = pvs_to_file
-        json.dump(file_content, save_file)
+            pv_ref = self.pvs[key]
+            if pv_ref.value_to_save is not None:
+                if pv_ref.is_array:
+                    save_file.write(key + ";" + json.dumps(pv_ref.value_to_save.tolist()) + "\n")
+                else:
+                    save_file.write(key + ";" + json.dumps(pv_ref.value_to_save) + "\n")
+            else:
+                save_file.write(key + "\n")
+    
         save_file.close
+
+
+    #def parse_to_save_file(self, save_file_path, **kw):
+    #    # This function is called at each save of PV values.
+    #    # This is a parser which generates save file from pvs
+    #    # All parameters in **kw are packed as meta data
+    #    # To support other format of file, override this method in subclass
+    #
+    #    save_file = open(save_file_path, 'w')
+    #    
+    #    file_content = dict()
+    #    # Meta data is everything in kw
+    #    file_content["metadata"] = kw
+    #    
+    #
+    #    # PVs
+    #    pvs_to_file = dict()
+    #    for key in self.pvs:
+    #        pvs_to_file[key] = self.pvs[key].value_to_save
+    #
+    #    file_content["data"] = pvs_to_file
+    #    json.dump(file_content, save_file)
+    #    save_file.close
+
+    def parse_from_save_file(self, save_file_path):
+    #    # This function is called in compare function.
+    #    # This is a parser which has a desired value fro each PV.
+    #    # To support other format of file, override this method in subclass
+
+        saved_pvs = dict()
+        meta_data = dict()
+        saved_file = open(save_file_path)
+        for line in saved_file:
+            if line.startswith('#'):
+                split_line = line.rstrip().split(':')
+                meta_data[split_line[0].split("#")[1]] = split_line[1]
+            # skip empty lines
+            elif line.strip():
+                split_line = line.rstrip().split(';')
+                pv_name = split_line[0]
+                if len(split_line) > 1:
+                    pv_value_str = split_line[1]
+                    # In case of array it will return a list, otherwise value
+                    # of proper type
+                    pv_value = json.loads(pv_value_str)
+
+                    if isinstance(pv_value, (list)):
+                        # arrays as numpy array, because pyepics returns
+                        # as numpy array
+                        pv_value = numpy.asarray(pv_value)
+                else:
+                    pv_value = None
+
+                saved_pvs[pv_name] = dict()
+                saved_pvs[pv_name]['pv_value'] = pv_value
+        saved_file.close() 
+        return(saved_pvs, meta_data)
 
     #def parse_from_save_file(self, save_file_path):
     #    # This function is called in compare function.
     #    # This is a parser which has a desired value fro each PV.
     #    # To support other format of file, override this method in subclass
-
-    #    saved_pvs = dict()
-    #    meta_data = dict()
-    #    saved_file = open(save_file_path)
-    #    for line in saved_file:
-    #        if line.startswith('#'):
-    #            split_line = line.rstrip().split(':')
-    #            meta_data[split_line[0].split("#")[1]] = split_line[1]
-    #        # skip empty lines
-    #        elif line.strip():
-    #            split_line = line.rstrip().split(',')
-    #            pv_name = split_line[0]
-    #            if len(split_line) > 1:
-    #                pv_value = split_line[1]
-    #            else:
-    #                pv_value = None
-
-    #            saved_pvs[pv_name] = dict()
-    #            saved_pvs[pv_name]['pv_value'] = pv_value
-
-    #    saved_file.close() 
-    #    return(saved_pvs, meta_data)
-
-    def parse_from_save_file(self, save_file_path):
-        # This function is called in compare function.
-        # This is a parser which has a desired value fro each PV.
-        # To support other format of file, override this method in subclass
-
-        saved_pvs = dict()
-        meta_data = dict()
-        saved_file = open(save_file_path)
-        file_content = json.load(saved_file)
-        
-        meta_data = file_content["metadata"]
-
-        for key in file_content["data"]:
-            saved_pvs[key] = dict()
-            saved_pvs[key]['pv_value'] = file_content["data"][key]
-
-        saved_file.close() 
-        return(saved_pvs, meta_data)
-
+#
+#    #    saved_pvs = dict()
+#    #    meta_data = dict()
+#    #    saved_file = open(save_file_path)
+#    #    file_content = json.load(saved_file)
+#    #    
+#    #    meta_data = file_content["metadata"]
+#
+#    #    for key in file_content["data"]:
+#    #        saved_pvs[key] = dict()
+#    #        saved_pvs[key]['pv_value'] = file_content["data"][key]
+#
+#    #    saved_file.close() 
+#    #    return(saved_pvs, meta_data)
+#
     def macros_substitutuion(self, string, macros):
         for key in macros:
             macro = "$(" + key + ")"

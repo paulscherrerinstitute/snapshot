@@ -12,19 +12,19 @@ from snapshot import *
 import signal
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-class CompareFilter(Enum):
-    show_all = 0
-    show_eq = 1
-    show_neq = 2
-
-class CnctFilter(Enum):
-    show_all = 0
-    show_cnct = 1
-    show_ncnct = 2
-
-class PvCompare(Enum):
-    eq = "="
-    neq = "≠"
+#class CompareFilter(Enum):
+#    show_all = 0
+#    show_eq = 1
+#    show_neq = 2
+#
+#class CnctFilter(Enum):
+#    show_all = 0
+#    show_cnct = 1
+#    show_ncnct = 2
+#
+#class PvCompare(Enum):
+#    eq = "="
+#    neq = "≠"
 
 
 class SnapshotGui(QtGui.QWidget):
@@ -388,6 +388,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         # thread that are response of this widget actions. If this widget must
         # be updated by other widget actions, catch appropriate signals outside
         # and call methods from outside.
+        # TODO vklopi nazj
         self.connect(self.worker, SIGNAL("pv_changed(PyQt_PyObject)"),
                      self.update_pv)
 
@@ -441,29 +442,29 @@ class SnapshotCompareWidget(QtGui.QWidget):
             pv_line = QtGui.QTreeWidgetItem([pv_name, saved_val, status, curr_val])
             self.pv_view.addTopLevelItem(pv_line)
 
-    def filter_compare_list(self, cmpr_filter=CompareFilter.show_all,
-                            cnct_filter=CnctFilter.show_all):
-        hide = False
-
-        # TODO porting to python2 xrange
-        for i in range(self.pv_view.topLevelItemCount()):
-            curr_item = self.pv_view.topLevelItem(i)
-            if (curr_item.text(2) != PvCompare.eq) && \
-               (cmpr_filter == CompareFilter.show_eq):
-               hide = True
-
-            curr_item.setHidden(hide)
-
+   # def filter_compare_list(self, cmpr_filter=CompareFilter.show_all,
+   #                         cnct_filter=CnctFilter.show_all):
+   #     hide = False
+#
+#   #     # TODO porting to python2 xrange
+#   #     for i in range(self.pv_view.topLevelItemCount()):
+#   #         curr_item = self.pv_view.topLevelItem(i)
+#   #         if (curr_item.text(2) != PvCompare.eq) && \
+#   #            (cmpr_filter == CompareFilter.show_eq):
+#   #            hide = True
+#
+#   #         curr_item.setHidden(hide)
+#
 
     def start_compare(self):
         # Just invoke worker, to set snapshot sending a callbacks
         QtCore.QMetaObject.invokeMethod(self.worker, "start_continous_compare",
                                         Qt.QueuedConnection)
-
+        
     def update_pv(self, data):
         to_modify = self.pv_view.findItems(data["pv_name"], Qt.MatchCaseSensitive, 0)[0]
         status = data["pv_status"]
-        brush=QtGui.QBrush()
+        brush = QtGui.QBrush()
         if status == "nothing_to_compare":
             brush.setColor(QtGui.QColor(204, 0, 0))
             to_modify.setForeground(1, brush)
@@ -482,14 +483,14 @@ class SnapshotCompareWidget(QtGui.QWidget):
             to_modify.setForeground(2, brush)
             to_modify.setForeground(3, brush)
             font = QtGui.QFont()
-            font.setPixelSize(20)
+            #font.setPixelSize(20)
             to_modify.setFont(2, font)
             if data["pv_compare"]:
-                to_modify.setText(2, PvCompare.eq)
+                to_modify.setText(2, "E")
             else:
-                to_modify.setText(2, PvCompare.neq)
+                to_modify.setText(2, "N")
 
-        to_modify.setText(3, str(data["pv_value_str"]))
+        to_modify.setText(3, str(data["pv_value"]))
 
         # Sort by name (alphabetical order)
         self.pv_view.sortItems(0, Qt.AscendingOrder)
