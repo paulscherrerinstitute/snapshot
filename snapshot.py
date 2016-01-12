@@ -54,18 +54,12 @@ class Snapshot():
         # PV names.
         self.add_pvs(self.parse_req_file(req_file_path, macros))
 
-    def add_pvs(self, config):
+    def add_pvs(self, file_list):
         # pyepics will handle PVs to have only one connection per PV.
-        # If one PV is specified more than once but with different config
-        # (might be relevant in the future) only first configuration is used.
-        # config must be a dict, which keys are PV names
 
-        for key in config:
-            if not self.pvs.get(key):
-                self.pvs[key] = SnapshotPv(key)  # this also open connections
-                # Handle other config parameters in the future if needed
-            else:
-                pass  # todo warn
+        for pv_name in file_list:
+            if not self.pvs.get(pv_name):
+                self.pvs[pv_name] = SnapshotPv(pv_name)
 
     def save_pvs(self, save_file_path, **kw):
         # get value of all PVs and save them to file
@@ -225,21 +219,17 @@ class Snapshot():
         # This is a parser for a simple request file which supports macro
         # substitution. Macros are defined as dictionary
         # {'SYS': 'MY-SYS'} will change all $(SYS) macros with MY-SYS
-        req_pvs = dict()
+        req_pvs = list()
         req_file = open(req_file_path)
         for line in req_file:
             # skip comments and empty lines
-            if not line.startswith('#') or not line.strip():
+            if not line.startswith('#') and line.strip():
                 pv_name = line.rstrip().split(',')[0]
                 # Do a macro substitution if macros exist.
                 if macros:
                     pv_name = self.macros_substitutuion(pv_name, macros)
 
-                # For each pv_name create empty dict(). In future more powerful
-                # req files might be supported, and parameters will be then
-                # packed as dictionary for each PV
-                req_pv = dict()
-                req_pvs[pv_name] = req_pv
+                req_pvs.append(pv_name)
 
         req_file.close()
         return(req_pvs)

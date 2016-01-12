@@ -268,10 +268,10 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         # reading)
         self.file_list = dict()
 
-        # Before creating elements that can use worker to signals from working
-        # thread that are response of this widget actions. If this widget must
-        # be updated by other widget actions, catch appropriate signals outside
-        # and call methods from outside.
+        # Before creating elements that can use worker, connect to signals from
+        # working thread that are response of this widget actions. If this
+        # widget must be updated by other widget actions, catch appropriate
+        # signals outside and call methods from outside.
         #
         # * "restore_done" is response of the worker when restore is finished.
         #   Returns (file_path, status)
@@ -308,7 +308,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         # Create file list for first time (this is done  by worker)
         self.start_file_list_update()
 
-        # Compare widget, ready to be shown in a separate window
+        # Compare widget
         self.compare_widget = SnapshotCompareWidget(self.worker,
                                                     self.common_settings, self)
 
@@ -409,15 +409,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         # Add all widgets to main layout
         layout.addWidget(self.pv_view)
 
-        # Use this widget as a window
-        #self.setWindowTitle("Compare PVs")
-        #self.setWindowFlags(Qt.Window)
-        #self.setAttribute(Qt.WA_DeleteOnClose, True)
-        #self.setAttribute(Qt.WA_X11NetWmWindowTypeMenu, True)
-        #self.setEnabled(True)
-
         self.create_compare_list()
-        #self.show()
         self.start_compare()
 
         # Disable possibility to select item
@@ -535,6 +527,7 @@ class CompareTreeWidgetItem(QtGui.QTreeWidgetItem):
 
         # TODO make method that colors whole line in proper color
 
+
 class SnapshotFileSelector(QtGui.QWidget):
 
     ''' Widget to select file with dialog box '''
@@ -644,7 +637,6 @@ class SnapshotWorker(QtCore.QObject):
     def init_snapshot(self, req_file_path, req_macros=None):
         # creates new instance of snapshot loads the request file and emits
         # the signal new_snapshot to update the GUI
-
         self.snapshot = Snapshot(req_file_path, req_macros)
         pvs_names = self.snapshot.get_pvs_names()
         self.emit(SIGNAL("new_snapshot_loaded(PyQt_PyObject)"), pvs_names)
