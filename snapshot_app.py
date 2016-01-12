@@ -285,6 +285,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.file_selector.setHeaderLabels(["File", "Keywords", "Comment"])
         self.file_selector.header().resizeSection(0, 300)
         self.file_selector.header().resizeSection(1, 300)
+        self.file_selector.setAlternatingRowColors(True)
         self.file_selector.itemSelectionChanged.connect(self.choose_file)
 
         # Restore button
@@ -378,7 +379,6 @@ class SnapshotCompareWidget(QtGui.QWidget):
         # thread that are response of this widget actions. If this widget must
         # be updated by other widget actions, catch appropriate signals outside
         # and call methods from outside.
-        # TODO vklopi nazj
         self.connect(self.worker, SIGNAL("pv_changed(PyQt_PyObject)"),
                      self.update_pv)
 
@@ -398,6 +398,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         self.pv_view.setAlternatingRowColors(True)
 
         # Add all widgets to main layout
+        # TODO add filter selector widget
         layout.addWidget(self.pv_view)
 
         self.create_compare_list()
