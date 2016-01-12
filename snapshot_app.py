@@ -13,10 +13,19 @@ from snapshot import *
 import signal
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
+
+# Define enums
 class PvViewStatus(Enum):
     eq = 0
     neq = 1
     err = 2
+
+
+class PvCompareFilter(Enum):
+    show_all = 0
+    show_eq = 1
+    show_neq = 2
+
 
 class SnapshotGui(QtGui.QWidget):
 
@@ -483,7 +492,6 @@ class CompareTreeWidgetItem(QtGui.QTreeWidgetItem):
         if not self.connect_sts:
             self.setText(1, "")  # no connection means no value
             self.setText(3, "PV not connected!")
-            print("bla")
             has_error = True
         else:
             if isinstance(self.value, (numpy.ndarray)):
@@ -505,7 +513,7 @@ class CompareTreeWidgetItem(QtGui.QTreeWidgetItem):
         else:
             if isinstance(self.saved_value, (numpy.ndarray)):
                 self.setText(2, json.dumps(self.saved_value.tolist()))
-            elif self.value is not None:
+            elif self.saved_value is not None:
                 #if string do not dump it will add "" to a it
                 if isinstance(self.saved_value, (str)):
                     self.setText(2, self.saved_value)
@@ -513,7 +521,9 @@ class CompareTreeWidgetItem(QtGui.QTreeWidgetItem):
                     # dump other values
                     self.setText(2, json.dumps(self.saved_value))
             else:
-                self.setText(2, "")
+                self.setText(2, "Not Saved")
+                self.setText(3, "PV value not saved in this set.")
+                has_error = True
 
             if has_error or (self.compare is None):
                 self.set_background_color(PvViewStatus.err)

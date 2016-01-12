@@ -29,7 +29,6 @@ class SnapshotPv(PV):
         self.saved_value = None  # This holds value from last loaded save file
         self.callback_id = None
         self.last_compare = None
-        self.last_compare_value = None
         self.is_array = False
 
     def connection_callback_pvt(self, conn, **kw):
@@ -197,13 +196,12 @@ class Snapshot():
             value = None  # return None in callback
 
         if pv_ref:
-            pv_ref.last_compare_value = value
-
             if not self.restore_values_loaded:
                 # no old data was loaded clear compare
                 pv_ref.last_compare = None
             elif pv_ref.connection_lost:
                 pv_ref.last_compare = None
+                value = None
             else:
                 # compare  value (different for arrays)
                 if pv_ref.is_array:
