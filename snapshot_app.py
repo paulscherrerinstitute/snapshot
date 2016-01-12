@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import sys
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import pyqtSlot, Qt, SIGNAL
