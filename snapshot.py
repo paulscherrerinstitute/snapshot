@@ -30,8 +30,6 @@ class SnapshotPv(PV):
         self.last_compare = None
         self.last_compare_value = None
         self.is_array = False
-        # String representation for snapshot (original char_value has problems)
-        self.str_value = None
 
     def connection_callback_pvt(self, **kw):
         # PV layer of pyepics handles arrays strange. In case of having a
@@ -40,6 +38,7 @@ class SnapshotPv(PV):
         # wrong. It simply does if count == 1 then nelm = 1. The true NELM info
         # can be found with ca.element_count(self.chid).
         self.is_array = (ca.element_count(self.chid) > 1)
+
 
 class Snapshot():
     def __init__(self, req_file_path, macros=None, **kw):
@@ -97,8 +96,8 @@ class Snapshot():
         for key in self.pvs:
             pv_ref = self.pvs[key]
             saved_pv = saved_pvs.get(key, None)
-            if saved_pv != None:
-                pv_ref.saved_value = saved_pv['pv_value']
+            if saved_pv is not None:
+                    pv_ref.saved_value = saved_pv['pv_value']
             else:
                 # Clear PVs that are not defined in save file to avoid
                 # restoring values from old file if PV was not in last file
@@ -176,6 +175,13 @@ class Snapshot():
         # This is callback function
         pv_ref = self.pvs.get(pvname, None)
 
+        # in case of empty array pyepics does not return
+        # numpy.ndarray but instance of
+        # <class 'epics.dbr.c_int_Array_0'>
+        # Check if in this case saved value is None (empty array)
+        if pv_ref.is_array and not isinstance(value, (numpy.ndarray)):
+            value = None  # return None in callback
+
         if pv_ref:
             pv_ref.last_compare_value = value
 
@@ -187,15 +193,7 @@ class Snapshot():
             else:
                 # compare  value (different for arrays)
                 if pv_ref.is_array:
-                    # in case of empty array pyepics does not return
-                    # numpy.ndarray but instance of
-                    # <class 'epics.dbr.c_int_Array_0'>
-                    #
-                    # Check if in this case saved value is None (empty array)
-                    if not isinstance(value, (numpy.ndarray)):
-                        compare = (pv_ref.saved_value is None)
-                    else:
-                        compare = numpy.array_equal(value, pv_ref.saved_value)
+                    compare = numpy.array_equal(value, pv_ref.saved_value)
                 else:
                     compare = (value == pv_ref.saved_value)
 

@@ -498,27 +498,31 @@ class CompareTreeWidgetItem(QtGui.QTreeWidgetItem):
             # TODO sho error state
             has_error = True
         else:
-            if value is not None:
-                self.setText(1, json.dumps(value))
-            else: 
+            if isinstance(self.value, (numpy.ndarray)):
+                self.setText(1, json.dumps(self.value.tolist()))
+            elif self.value is not None:
+                self.setText(1, json.dumps(self.value))
+            else:
                 self.setText(1, "")
 
-        if not saved_sts:
-            self.setText(2, "") # not laoded lsit of saved PVs means no value
+        if not self.saved_sts:
+            self.setText(2, "") # not loaded list of saved PVs means no value
             self.setText(3, "Set of saved PVs not selected.")
 
             # TODO show error state
             has_error = True
         else:
-            if value is not None:
-                self.setText(2, json.dumps(value))
+            if isinstance(self.saved_value, (numpy.ndarray)):
+                self.setText(2, json.dumps(self.saved_value.tolist()))
+            elif self.value is not None:
+                self.setText(2, json.dumps(self.saved_value))
             else:
                 self.setText(2, "")
 
-            if has_problem or (compare is None):
+            if has_error or (self.compare is None):
                 self.setText(3, "")
             else:
-                if compare == True:
+                if self.compare:
                     self.setText(3, "Equal")
                     # Todo color for true
                 else:
