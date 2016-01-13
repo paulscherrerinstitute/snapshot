@@ -210,14 +210,25 @@ class SnapshotSaveWidget(QtGui.QWidget):
         keyword_layout.addWidget(keyword_label)
         keyword_layout.addWidget(self.keyword_input)
 
-        # Make Save button
+        # Make Save button, status indicator and save report
+        save_layout = QtGui.QHBoxLayout()
+        save_layout.setSpacing(10)
         self.save_button = QtGui.QPushButton("Save", self)
         self.save_button.clicked.connect(self.start_save)
+        self.save_sts = QtGui.QLabel(self)
+    
+        self.save_sts.setMaximumWidth(200)
+        self.save_sts.setMaximumHeight(30)
+        self.save_sts.setMargin(5)
+        self.save_sts.setStyleSheet("background-color : white")
+        save_layout.addWidget(self.save_button)
+        save_layout.addWidget(self.save_sts)
 
+        # Add to main layout
         layout.addItem(extension_layout)
         layout.addItem(comment_layout)
         layout.addItem(keyword_layout)
-        layout.addWidget(self.save_button)
+        layout.addItem(save_layout)
 
         # Widget properties
         self.setMaximumHeight(180)
@@ -226,6 +237,8 @@ class SnapshotSaveWidget(QtGui.QWidget):
         # Disable button for the time of saving. Will be unlocked when save is
         # finished.
         self.save_button.setEnabled(False)
+        self.save_sts.setText("Saving ...")
+        self.save_sts.setStyleSheet("background-color : orange")
         QtCore.QMetaObject.invokeMethod(self.worker, "save_pvs",
                                         Qt.QueuedConnection,
                                         QtCore.Q_ARG(str, self.file_path),
@@ -236,6 +249,10 @@ class SnapshotSaveWidget(QtGui.QWidget):
     def save_done(self, file_path, status):
         # Enable saving
         self.save_button.setEnabled(True)
+        self.save_sts.setText("Saving done")
+        self.save_sts.setStyleSheet("background-color : #64C864")
+        # bad status
+        #self.save_sts.setStyleSheet("background-color : #F06464")
 
     def update_name(self):
         self.name_extension = self.extension_input.text()
@@ -300,13 +317,22 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.file_selector.setAlternatingRowColors(True)
         self.file_selector.itemSelectionChanged.connect(self.choose_file)
 
-        # Restore button
+        # Make restore button, status indicator and restore report
+        restore_layout = QtGui.QHBoxLayout()
+        restore_layout.setSpacing(10)
         self.restore_button = QtGui.QPushButton("Restore", self)
         self.restore_button.clicked.connect(self.start_restore)
+        self.restore_sts = QtGui.QLabel(self)
+        self.restore_sts.setMaximumWidth(200)
+        self.restore_sts.setMaximumHeight(30)
+        self.restore_sts.setMargin(5)
+        self.restore_sts.setStyleSheet("background-color : white")
+        restore_layout.addWidget(self.restore_button)
+        restore_layout.addWidget(self.restore_sts)
 
         # Add all widgets to main layout
         layout.addWidget(self.file_selector)
-        layout.addWidget(self.restore_button)
+        layout.addItem(restore_layout)
 
         # Create file list for first time (this is done  by worker)
         self.start_file_list_update()
@@ -328,6 +354,10 @@ class SnapshotRestoreWidget(QtGui.QWidget):
     def restore_done(self, status):
         # Enable button when restore is finished (worker notifies)
         self.restore_button.setEnabled(True)
+        self.restore_sts.setText("Restore done")
+        self.restore_sts.setStyleSheet("background-color : #64C864")
+        # bad status
+        #self.restore_sts.setStyleSheet("background-color : #F06464")
 
     def start_file_list_update(self):
         # Rescans directory and adds new/modified files and removes none

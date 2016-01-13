@@ -131,24 +131,26 @@ class Snapshot():
         # Compare and restore only different
         for key in self.pvs:
             pv_status = True
-            pv_value = self.pvs[key].get_snap_pv(use_monitor=True,
-                                                 timeout=0.1)
+            pv_ref = self.pvs[key]
 
             saved_value = self.pvs[key].saved_value
-            if (self.pvs[key].connected and saved_value != None and
-               pv_value != saved_value):
-                # Convert to bytes for any string type record
-                # Python3 distinguish between bytes and strings but pyepics
-                # passes string without conversion since it was not needed for
-                # Python2 where strings are bytes
-                restore_value = saved_value
-                # Returned types are something like:
-                #time_string
-                #time_double
-                #time_enum
-                if "string" in self.pvs[key].type:
-                    restore_value = str.encode(restore_value)
-                self.pvs[key].put_snap_pv(restore_value)
+
+            if pv_ref.connected and (pv_ref.saved_value is not None):
+                # compare  different for arrays)
+                if pv_ref.is_array:
+                    compare = numpy.array_equal(pv_ref.value, pv_ref.saved_value)
+                else:
+                    compare = (pv_ref.value == pv_ref.saved_value)
+
+                if not compare:
+                    if isinstance(pv_ref.saved_value, (str)):
+                        # Convert to bytes any string type value.
+                        # Python3 distinguish between bytes and strings but pyepics
+                        # passes string without conversion since it was not needed for
+                        # Python2 where strings are bytes
+                        self.pvs[key].put(str.encode(pv_ref.saved_value))
+                    else:
+                        self.pvs[key].put(pv_ref.saved_value)
             # Error checking
             if (self.pvs[key].connected) and (self.pvs[key].write_access) and \
                (self.pvs[key].read_access):
