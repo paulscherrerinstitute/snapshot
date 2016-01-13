@@ -20,7 +20,16 @@ Snapshot tool can be then started with following command (will be later packaged
 ```
 snapshot_app.py <path_to_request_file> -macros "MACRO1=M1,MACRO2=M2,..."
 ```
-When PVs are saved using a GUI, they are stored in json file, which holds metada and pv values for all PVs listed in request file.
+When PVs are saved using a GUI, they are stored in file where first line starts with `#` and is followed by meta data (json formating). This is followed by lines with PV names and saved data (one line per PV). Example:
+
+```
+#{"keywords": "key1,key2", "comment": "This is comment", "save_time": 1452670573.6637778}
+examplePv:test-1;20
+examplePv:test-2;30
+examplePv:test-3;"string"
+examplePv:test-4;[5.0, 6.0, 7.0, 8.0, 9.0, 0.0, 1.0, 2.0, 3.0, 4.0]
+```
+
 
 TODO:
 - package as conda package
