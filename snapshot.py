@@ -23,7 +23,7 @@ class SnapshotPv(PV):
     def __init__(self, pvname, **kw):
         PV.__init__(self, pvname,
                     connection_callback=self.connection_callback_pvt,
-                    auto_monitor=True, **kw)
+                    auto_monitor=True, connection_timeout=1, **kw)
         self.connection_lost = not self.connected
         self.value_to_save = None
         self.saved_value = None  # This holds value from last loaded save file
@@ -79,15 +79,21 @@ class Snapshot():
         for key in self.pvs:
             pv_ref = self.pvs[key]
             pv_status = True
+            # If connected get value. Do not wait for a connection if not
+            if pv_ref.connected:
+                pv_ref.value_to_save = pv_ref.get(use_monitor=True)
+                if pv_ref.is_array and numpy.size(pv_ref.value_to_save) == 0:
+                    # If empty array is equal to None scalar value
+                    pv_ref.value_to_save = None
 
-            # Get value. If no value (either empty array (size==0) or None)
-            pv_ref.value_to_save = pv_ref.get()
-            if pv_ref.is_array and numpy.size(pv_ref.value_to_save) == 0:
-                # If empty array is equal to None scalar value
+                if (pv_ref.value is not None) or (not pv_ref.write_access):
+                    pv_status = False
+                else:
+                    pv_status = True
+            else:
                 pv_ref.value_to_save = None
-
-            if (pv_ref.value is not None) or (not pv_ref.connected) or (pv_ref.read_access):
                 pv_status = False
+
             status[key] = pv_status
         self.parse_to_save_file(save_file_path, **kw)
         return(status)
@@ -129,6 +135,7 @@ class Snapshot():
             self.prepare_pvs_to_restore_from_file(save_file_path)
 
         # Compare and restore only different
+        put_started = list()
         for key in self.pvs:
             pv_status = True
             pv_ref = self.pvs[key]
@@ -148,15 +155,22 @@ class Snapshot():
                         # Python3 distinguish between bytes and strings but pyepics
                         # passes string without conversion since it was not needed for
                         # Python2 where strings are bytes
-                        self.pvs[key].put(str.encode(pv_ref.saved_value))
+                        pv_ref.put(str.encode(pv_ref.saved_value),
+                                   wait=False, use_complete=True)
                     else:
-                        self.pvs[key].put(pv_ref.saved_value)
-            # Error checking
-            if (self.pvs[key].connected) and (self.pvs[key].write_access) and \
-               (self.pvs[key].read_access):
-                pv_status = False
+                        pv_ref.put(pv_ref.saved_value,
+                                   wait=False, use_complete=True)
+                    put_started.append(pv_ref)
+            # Make all Flase, when put done it will be set to true
+            status[key] = False
 
-            status[key] = pv_status
+        waiting = True
+        while waiting:
+            # waiting for puts
+            time.sleep(0.001)
+            for pv in put_started:
+                waiting = not all([pv.put_complete for pv in put_started])
+
         return(status)
 
     def start_continous_compare(self, callback=None, save_file_path=None):
