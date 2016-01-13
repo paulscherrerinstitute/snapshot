@@ -9,7 +9,7 @@ from enum import Enum
 # error epics.ca.ChannelAccessException: loading Epics CA DLL failed
 # ../lib/libreadline.so.6: undefined symbol: PC
 # Importing readline module solves the problem
-import readline
+#import readline
 
 #
 # numpy.array_repr(ha)

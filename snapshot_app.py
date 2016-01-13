@@ -23,8 +23,8 @@ class PvViewStatus(Enum):
 
 class PvCompareFilter(Enum):
     show_all = 0
-    show_eq = 1
-    show_neq = 2
+    show_neq = 1
+    show_eq = 2
 
 
 class SnapshotGui(QtGui.QWidget):
@@ -38,7 +38,7 @@ class SnapshotGui(QtGui.QWidget):
                  save_dir=None, save_file_dft=None, mode=None, parent=None):
         QtGui.QWidget.__init__(self, parent)
         self.worker = worker
-        self.setMinimumSize(900, 500)
+        self.setMinimumSize(1100, 900)
 
         # common_settings is a dictionary which holds common configuration of
         # the application (such as directory with save files, request file
@@ -68,9 +68,10 @@ class SnapshotGui(QtGui.QWidget):
         # Before creating GUI, snapshot must be initialized. This must be
         # blocking operation. Cannot proceed without snapshot instance.
         QtCore.QMetaObject.invokeMethod(self.worker, "init_snapshot",
-                                Qt.BlockingQueuedConnection,
-                                QtCore.Q_ARG(str, self.common_settings["req_file_name"]),
-                                QtCore.Q_ARG(dict, self.common_settings["req_file_macros"]))
+                                        Qt.BlockingQueuedConnection,
+                                        QtCore.Q_ARG(
+                                            str, self.common_settings["req_file_name"]),
+                                        QtCore.Q_ARG(dict, self.common_settings["req_file_macros"]))
 
         # Create snapshot GUI:
         # Snapshot gui consists of two tabs: "Save" and "Restore" default
@@ -146,8 +147,10 @@ class SnapshotSaveWidget(QtGui.QWidget):
 
         # Default saved file name: If req file name is PREFIX.req, then saved
         # file name is: PREFIX_YYMMDD_hhmm (holds time info)
-        self.name_base = os.path.split(common_settings["req_file_name"])[1].split(".")[0] + "_"
-        self.name_extension = datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M')
+        self.name_base = os.path.split(
+            common_settings["req_file_name"])[1].split(".")[0] + "_"
+        self.name_extension = datetime.datetime.fromtimestamp(
+            time.time()).strftime('%Y%m%d_%H%M')
 
         self.file_path = os.path.join(self.common_settings["save_dir"],
                                       self.name_base + self.name_extension)
@@ -226,7 +229,8 @@ class SnapshotSaveWidget(QtGui.QWidget):
         QtCore.QMetaObject.invokeMethod(self.worker, "save_pvs",
                                         Qt.QueuedConnection,
                                         QtCore.Q_ARG(str, self.file_path),
-                                        QtCore.Q_ARG(str, self.keyword_input.text()),
+                                        QtCore.Q_ARG(
+                                            str, self.keyword_input.text()),
                                         QtCore.Q_ARG(str, self.comment_input.text()))
 
     def save_done(self, file_path, status):
@@ -281,7 +285,6 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.connect(self.worker, SIGNAL("save_files_loaded(PyQt_PyObject)"),
                      self.update_file_list_selector)
 
-
         # Create main layout
         layout = QtGui.QVBoxLayout(self)
         layout.setMargin(10)
@@ -332,16 +335,19 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
         # set prefix of the files (do outside invokeMethod because looks less
         # ugly :D)
-        file_prefix = os.path.split(self.common_settings["req_file_name"])[1].split(".")[0] + "_"
+        file_prefix = os.path.split(
+            self.common_settings["req_file_name"])[1].split(".")[0] + "_"
 
         QtCore.QMetaObject.invokeMethod(self.worker, "get_save_files",
                                         Qt.QueuedConnection,
-                                        QtCore.Q_ARG(str, self.common_settings["save_dir"]),
+                                        QtCore.Q_ARG(
+                                            str, self.common_settings["save_dir"]),
                                         QtCore.Q_ARG(str, file_prefix),
                                         QtCore.Q_ARG(dict, self.file_list))
 
     def choose_file(self):
-        pvs = self.file_list[self.file_selector.selectedItems()[0].text(0)]["pvs_list"]
+        pvs = self.file_list[
+            self.file_selector.selectedItems()[0].text(0)]["pvs_list"]
         QtCore.QMetaObject.invokeMethod(self.worker,
                                         "load_pvs_to_snapshot",
                                         Qt.QueuedConnection,
@@ -355,10 +361,12 @@ class SnapshotRestoreWidget(QtGui.QWidget):
             # check if already on list (was just modified) and modify file
             # selctor
             if key not in self.file_list:
-                self.file_selector.addTopLevelItem(QtGui.QTreeWidgetItem([key, keywords, comment]))
+                self.file_selector.addTopLevelItem(
+                    QtGui.QTreeWidgetItem([key, keywords, comment]))
             else:
                 # If everything ok only one file should exist in list
-                to_modify = self.file_selector.findItems(key, Qt.MatchCaseSensitive, 0)[0]
+                to_modify = self.file_selector.findItems(
+                    key, Qt.MatchCaseSensitive, 0)[0]
                 to_modify.setText(1, keywords)
                 to_modify.setText(2, comment)
 
@@ -370,11 +378,11 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
 class SnapshotCompareWidget(QtGui.QWidget):
 
-    """ 
+    """
 
-    Widget for live comparing pv values. All infos about PVs that needs to be 
+    Widget for live comparing pv values. All infos about PVs that needs to be
     monitored are already in the "snapshot" object controlled by worker. They
-    were loaded with 
+    were loaded with
 
     """
 
@@ -397,10 +405,47 @@ class SnapshotCompareWidget(QtGui.QWidget):
         layout.setSpacing(10)
         self.setLayout(layout)
 
-        # Create list with: file names, keywords, comments
+        # Create filter selectors
+        # - text input to filter by name
+        # - drop down to filter by compare status
+        # - check box to select if showing pvs with incomplete data
+        filter_layout = QtGui.QHBoxLayout()
+        pv_filter_layout = QtGui.QHBoxLayout()
+        pv_filter_layout.setSpacing(10)
+        pv_filter_label = QtGui.QLabel("Filter:", self)
+        pv_filter_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
+        self.pv_filter_inp = QtGui.QLineEdit(self)
+        self.pv_filter_inp.textChanged.connect(self.filter_list)
+
+        pv_filter_layout.addWidget(pv_filter_label)
+        pv_filter_layout.addWidget(self.pv_filter_inp)
+
+        self.compare_filter_inp = QtGui.QComboBox(self)
+        self.compare_filter_inp.addItems(
+            ["Show all", "Not equal only", "Equal only"])
+        self.compare_filter_inp.currentIndexChanged.connect(self.filter_list)
+        self.compare_filter_inp.setMaximumWidth(200)
+        self.completnes_filter_inp = QtGui.QCheckBox(
+            "Show PVs with incomplete data.", self)
+        self.completnes_filter_inp.setChecked(True)
+        self.completnes_filter_inp.stateChanged.connect(self.filter_list)
+        self.completnes_filter_inp.setMaximumWidth(500)
+
+        filter_layout.addItem(pv_filter_layout)
+        filter_layout.addWidget(self.compare_filter_inp)
+        filter_layout.addWidget(self.completnes_filter_inp)
+        filter_layout.setAlignment(Qt.AlignLeft)
+        filter_layout.setSpacing(10)
+
+        # Create list where each line presents one PV with data:
+        # - pv name
+        # - current pv value
+        # - saved pv value
+        # - status string
         self.pv_view = QtGui.QTreeWidget(self)
         self.pv_view.setColumnCount(4)
-        self.pv_view.setHeaderLabels(["PV", "Current value", "Saved value", "Status"])
+        self.pv_view.setHeaderLabels(
+            ["PV", "Current value", "Saved value", "Status"])
         self.pv_view.header().resizeSection(0, 400)
         self.pv_view.header().resizeSection(1, 200)
         self.pv_view.header().resizeSection(2, 100)
@@ -408,21 +453,25 @@ class SnapshotCompareWidget(QtGui.QWidget):
 
         # Add all widgets to main layout
         # TODO add filter selector widget
+        layout.addItem(filter_layout)
         layout.addWidget(self.pv_view)
 
+        # fill the compare view and start comparing
         self.create_compare_list()
         self.start_compare()
 
-        # Disable possibility to select item
+        # Disable possibility to select item in the compare list
         self.pv_view.setSelectionMode(QtGui.QAbstractItemView.NoSelection)
         self.pv_view.setFocusPolicy(Qt.NoFocus)
 
     def create_compare_list(self):
-        # Create tree item for each PV. List of pv names was returned after
-        # parsing the request file. Attributes except PV name are empty at
-        # init. Will be updated when monitor happens, snapshot object will
-        # raise a callback which is then catched in worker and passed with
-        # signal. TODO which function handles.
+        '''
+        Create tree item for each PV. List of pv names was returned after
+        parsing the request file. Attributes except PV name are empty at
+        init. Will be updated when monitor happens, snapshot object will
+        raise a callback which is then catched in worker and passed with
+        signal. TODO which function handles.
+        '''
 
         # First remove all existing entries
         while self.pv_view.topLevelItemCount() > 0:
@@ -437,42 +486,38 @@ class SnapshotCompareWidget(QtGui.QWidget):
         # Sort by name (alphabetical order)
         self.pv_view.sortItems(0, Qt.AscendingOrder)
 
-   # def filter_compare_list(self, cmpr_filter=CompareFilter.show_all,
-   #                         cnct_filter=CnctFilter.show_all):
-   #     hide = False
-#
-#   #     # TODO porting to python2 xrange
-#   #     for i in range(self.pv_view.topLevelItemCount()):
-#   #         curr_item = self.pv_view.topLevelItem(i)
-#   #         if (curr_item.text(2) != PvCompare.eq) && \
-#   #            (cmpr_filter == CompareFilter.show_eq):
-#   #            hide = True
-#
-#   #         curr_item.setHidden(hide)
-#
+    def filter_list(self):
+        # Just pass the filter conditions to all items in the list. # Use
+        # values directly from GUI elements (filter selectors).
+        for i in range(self.pv_view.topLevelItemCount()):
+            curr_item = self.pv_view.topLevelItem(i)
+            curr_item.apply_filter(self.compare_filter_inp.currentIndex(),
+                                   self.completnes_filter_inp.isChecked(),
+                                   self.pv_filter_inp.text())
 
     def start_compare(self):
         # Just invoke worker, to set snapshot sending a callbacks
         QtCore.QMetaObject.invokeMethod(self.worker, "start_continous_compare",
                                         Qt.QueuedConnection)
-        
+
     def update_pv(self, data):
         # If everything ok, only one line should match
-        line_to_update = self.pv_view.findItems(data["pv_name"], Qt.MatchCaseSensitive, 0)[0]
-        
-        line_to_update.update_state(**data)      
+        line_to_update = self.pv_view.findItems(
+            data["pv_name"], Qt.MatchCaseSensitive, 0)[0]
+
+        line_to_update.update_state(**data)
 
 
 class CompareTreeWidgetItem(QtGui.QTreeWidgetItem):
+
     '''
     Extended to hold last info about connection status and value. Also
     implements methods to set visibility according to filter
     '''
 
     def __init__(self, pv_name, parent=None):
-       # Visual representation [pv_name, saved_value, current_value, status]
-        QtGui.QTreeWidgetItem.__init__(self, parent, [pv_name,"","",""])
-
+        # Item with [pv_name, current_value, saved_value, status]
+        QtGui.QTreeWidgetItem.__init__(self, parent, [pv_name, "", "", ""])
         self.pv_name = pv_name
 
         # Have data stored in native types, for easier filtering etc.
@@ -480,24 +525,33 @@ class CompareTreeWidgetItem(QtGui.QTreeWidgetItem):
         self.saved_value = None
         self.value = None
         self.compare = None
+        self.has_error = None
+
+        # Variables to hold current filter. Whenever filter is applied they are
+        # updated. When filter is applied from items own metods (like
+        # update_state), this stored values are used.
+        self.compare_filter = 0
+        self.completeness_filter = True
+        self.name_filter = None
 
     def update_state(self, pv_value, pv_saved, pv_compare, pv_cnct_sts, saved_sts, **kw):
         self.connect_sts = pv_cnct_sts
-        self.saved_sts = saved_sts  # indicates if list of saved PVs loaded to snapshot
+        # indicates if list of saved PVs loaded to snapshot
+        self.saved_sts = saved_sts
         self.saved_value = pv_saved
         self.value = pv_value
         self.compare = pv_compare
-        has_error = False
+        self.has_error = False
 
         if not self.connect_sts:
             self.setText(1, "")  # no connection means no value
             self.setText(3, "PV not connected!")
-            has_error = True
+            self.has_error = True
         else:
             if isinstance(self.value, (numpy.ndarray)):
                 self.setText(1, json.dumps(self.value.tolist()))
             elif self.value is not None:
-                #if string do not dump it will add "" to a it
+                # if string do not dump it will add "" to a string
                 if isinstance(self.value, (str)):
                     self.setText(1, self.value)
                 else:
@@ -507,14 +561,14 @@ class CompareTreeWidgetItem(QtGui.QTreeWidgetItem):
                 self.setText(1, "")
 
         if not self.saved_sts:
-            self.setText(2, "") # not loaded list of saved PVs means no value
+            self.setText(2, "")  # not loaded list of saved PVs means no value
             self.setText(3, "Set of saved PVs not selected!")
-            has_error = True
+            self.has_error = True
         else:
             if isinstance(self.saved_value, (numpy.ndarray)):
                 self.setText(2, json.dumps(self.saved_value.tolist()))
             elif self.saved_value is not None:
-                #if string do not dump it will add "" to a it
+                # if string do not dump it will add "" to a string
                 if isinstance(self.saved_value, (str)):
                     self.setText(2, self.saved_value)
                 else:
@@ -523,32 +577,61 @@ class CompareTreeWidgetItem(QtGui.QTreeWidgetItem):
             else:
                 self.setText(2, "Not Saved")
                 self.setText(3, "PV value not saved in this set.")
-                has_error = True
+                self.has_error = True
 
-            if has_error or (self.compare is None):
-                self.set_background_color(PvViewStatus.err)
+            if self.has_error or (self.compare is None):
+                self.set_color(PvViewStatus.err)
             else:
                 if self.compare:
                     self.setText(3, "Equal")
-                    self.set_background_color(PvViewStatus.eq)
+                    self.set_color(PvViewStatus.eq)
                 else:
                     self.setText(3, "Not equal")
-                    self.set_background_color(PvViewStatus.neq)
+                    self.set_color(PvViewStatus.neq)
 
-        # TODO make method that colors whole line in proper color
-    
-    def set_background_color(self, status):
+        # Filter with saved filter data, to check conditions with new values.
+        self.apply_filter(self.compare_filter, self.completeness_filter,
+                          self.name_filter)
+
+    def set_color(self, status):
         brush = QtGui.QBrush()
 
         if status == PvViewStatus.eq:
             brush.setColor(QtGui.QColor(0, 190, 0))
         elif status == PvViewStatus.neq:
             brush.setColor(QtGui.QColor(204, 0, 0))
-        
-        # TODO porting python 2 xrange
+
+        # TODO porting to python 2 xrange
         for i in range(0, self.columnCount()):
-            # idealy Background, but it look like a bug, and doe's not work
+            # ideally would set a background color, but it look like a bug (no
+            # background is applied with method setBackground()
             self.setForeground(i, brush)
+
+    def apply_filter(self, compare_filter=PvCompareFilter.show_all,
+                     completeness_filter=True, name_filter=None):
+        ''' Controls visibility of item, depending on filter conditions. '''
+
+        # Save filters to use the when processed by value change
+        self.compare_filter = compare_filter
+        self.completeness_filter = completeness_filter
+        self.name_filter = name_filter
+
+        # if name filter empty --> no filter applied (show all)
+        if name_filter:
+            name_match = name_filter in self.pv_name
+        else:
+            name_match = True
+
+        compare_match = ((PvCompareFilter(compare_filter) == PvCompareFilter.show_eq) and
+                         (self.compare)) or ((PvCompareFilter(compare_filter) == PvCompareFilter.show_neq) and
+                                             (not self.compare)) or (PvCompareFilter(compare_filter) == PvCompareFilter.show_all)
+
+        # Do show values which has incomplete data?
+        completeness_match = completeness_filter or \
+            (not completeness_filter and not self.has_error)
+
+        self.setHidden(
+            not(name_match and compare_match and completeness_match))
 
 
 class SnapshotFileSelector(QtGui.QWidget):
@@ -558,7 +641,6 @@ class SnapshotFileSelector(QtGui.QWidget):
     def __init__(self, parent=None, label_text="File", button_text="Browse",
                  init_path=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
-        self.setMinimumSize(550, 50)
         self.file_path = init_path
 
         # Create main layout
@@ -635,6 +717,7 @@ class SnapshotConfigureDialog(QtGui.QDialog):
 
 
 class SnapshotWorker(QtCore.QObject):
+
     '''
     This is a worker object running in separate thread. It holds core of the
     application, snapshot object, so it does all time consuming tasks such as
@@ -669,7 +752,9 @@ class SnapshotWorker(QtCore.QObject):
         # Start saving process and notify when finished
         status = self.snapshot.save_pvs(save_file_path, keywords=keywords,
                                         comment=comment)
-        self.emit(SIGNAL("save_done(PyQt_PyObject, PyQt_PyObject)"), save_file_path, status)
+        self.emit(
+            SIGNAL("save_done(PyQt_PyObject, PyQt_PyObject)"), save_file_path,
+            status)
 
     @pyqtSlot()
     def restore_pvs(self):
@@ -695,15 +780,18 @@ class SnapshotWorker(QtCore.QObject):
                 if (file_name not in current_files) or \
                    (current_files[file_name]["modif_time"] != os.path.getmtime(file_path)):
 
-                    pvs_list, meta_data = self.snapshot.parse_from_save_file(file_path)
+                    pvs_list, meta_data = self.snapshot.parse_from_save_file(
+                        file_path)
 
                     # save data (no need to open file again later))
                     parsed_save_files[file_name] = dict()
                     parsed_save_files[file_name]["pvs_list"] = pvs_list
                     parsed_save_files[file_name]["meta_data"] = meta_data
-                    parsed_save_files[file_name]["modif_time"] = os.path.getmtime(file_path)
+                    parsed_save_files[file_name][
+                        "modif_time"] = os.path.getmtime(file_path)
 
-        self.emit(SIGNAL("save_files_loaded(PyQt_PyObject)"), parsed_save_files)
+        self.emit(
+            SIGNAL("save_files_loaded(PyQt_PyObject)"), parsed_save_files)
 
     @pyqtSlot()
     def start_continous_compare(self):
@@ -717,13 +805,6 @@ class SnapshotWorker(QtCore.QObject):
     def process_callbacks(self, **kw):
         self.emit(SIGNAL("pv_changed(PyQt_PyObject)"), kw)
 
-    def check_status(self, status):
-        # TODO why was this meant?
-        report = ""
-        for key in status:
-            if not status[key]:
-                pass  # TODO status checking
-
 
 def main():
     """ Main logic """
@@ -736,7 +817,7 @@ def main():
                            help="Directory for saved files")
     args = args_pars.parse_args()
 
-    #Parse macros string if exists
+    # Parse macros string if exists
     macros = dict()
     if args.macros:
         macros_list = args.macros.split(',')
