@@ -5,18 +5,11 @@ import numpy
 import json
 from enum import Enum
 
-# On Python 3.5.1 :: Anaconda 2.4.1 (64-bit) with pyepics 3.2.5 there is an
-# error epics.ca.ChannelAccessException: loading Epics CA DLL failed
-# ../lib/libreadline.so.6: undefined symbol: PC
-# Importing readline module solves the problem
-#import readline
-
-#
-# numpy.array_repr(ha)
-# 'array([4, 6, 6], dtype=int32)'
-# numpy.fromstring("1,2,4,5",dtype=float, sep=',')
-
-
+class PvStatus(Enum):
+    ok = 0
+    access_err = 1
+    not_saved = 2
+    equal = 3
 
 # Subclass PV to be to later add info if needed
 class SnapshotPv(PV):
@@ -78,22 +71,26 @@ class Snapshot():
         kw["save_time"] = time.time()
         for key in self.pvs:
             pv_ref = self.pvs[key]
-            pv_status = True
+            pv_status = PvStatus.ok  # Will be changed if error occurs.
             # If connected get value. Do not wait for a connection if not
             if pv_ref.connected:
-                pv_ref.value_to_save = pv_ref.get(use_monitor=True)
-                if pv_ref.is_array and numpy.size(pv_ref.value_to_save) == 0:
-                    # If empty array is equal to None scalar value
-                    pv_ref.value_to_save = None
+                # Check also write access. If checked when not connected it
+                # tries to reconnect (slows the process)
+                if pv_ref.write_access:
 
-                if (pv_ref.value is not None) or (not pv_ref.write_access):
-                    pv_status = False
+                    pv_ref.value_to_save = pv_ref.get(use_monitor=True)
+                    if pv_ref.is_array and numpy.size(pv_ref.value_to_save) == 0:
+                        # If empty array is equal to None scalar value
+                        pv_ref.value_to_save = None
+                    if pv_ref.value is None:
+                        pv_status = PvStatus.not_saved
+                    else:
+                        pv_status = PvStatus.ok
                 else:
-                    pv_status = True
+                    pv_status = PvStatus.access_err
             else:
                 pv_ref.value_to_save = None
-                pv_status = False
-
+                pv_status = PvStatus.access_err
             status[key] = pv_status
         self.parse_to_save_file(save_file_path, **kw)
         return(status)
@@ -131,45 +128,56 @@ class Snapshot():
         # If file with saved values specified then read file. If no file
         # then just use last stored values
         status = dict()
+        if not self.restore_values_loaded:
+            # Nothing to restore
+            return(status)
+
         if save_file_path:
             self.prepare_pvs_to_restore_from_file(save_file_path)
 
         # Compare and restore only different
         put_started = list()
         for key in self.pvs:
-            pv_status = True
             pv_ref = self.pvs[key]
 
             saved_value = self.pvs[key].saved_value
 
-            if pv_ref.connected and (pv_ref.saved_value is not None):
-                # compare  different for arrays)
-                if pv_ref.is_array:
-                    compare = numpy.array_equal(pv_ref.value, pv_ref.saved_value)
+            status[key] = PvStatus.access_err
+            if pv_ref.connected and pv_ref.write_access:
+                if pv_ref.saved_value is None:
+                    status[key] = PvStatus.not_saved
                 else:
-                    compare = (pv_ref.value == pv_ref.saved_value)
-
-                if not compare:
-                    if isinstance(pv_ref.saved_value, (str)):
-                        # Convert to bytes any string type value.
-                        # Python3 distinguish between bytes and strings but pyepics
-                        # passes string without conversion since it was not needed for
-                        # Python2 where strings are bytes
-                        pv_ref.put(str.encode(pv_ref.saved_value),
-                                   wait=False, use_complete=True)
+                    # compare  different for arrays)
+                    if pv_ref.is_array:
+                        compare = numpy.array_equal(pv_ref.value, pv_ref.saved_value)
                     else:
-                        pv_ref.put(pv_ref.saved_value,
-                                   wait=False, use_complete=True)
-                    put_started.append(pv_ref)
-            # Make all Flase, when put done it will be set to true
-            status[key] = False
+                        compare = (pv_ref.value == pv_ref.saved_value)
 
-        waiting = True
-        while waiting:
-            # waiting for puts
-            time.sleep(0.001)
-            for pv in put_started:
-                waiting = not all([pv.put_complete for pv in put_started])
+                    if not compare:
+                        if isinstance(pv_ref.saved_value, (str)):
+                            # Convert to bytes any string type value.
+                            # Python3 distinguish between bytes and strings but pyepics
+                            # passes string without conversion since it was not needed for
+                            # Python2 where strings are bytes
+                            pv_ref.put(str.encode(pv_ref.saved_value),
+                                       wait=False, use_complete=True)
+                        else:
+                            pv_ref.put(pv_ref.saved_value,
+                                       wait=False, use_complete=True)
+                        put_started.append(pv_ref)
+                    else:
+                        # No need to be restored.
+                        status[key] = PvStatus.equal
+
+        if put_started:
+            waiting = True
+            while waiting:
+                # waiting for puts
+                time.sleep(0.001)
+                for pv in put_started:
+                    waiting = not all([pv.put_complete for pv in put_started])
+                    if pv.put_complete:
+                        status[pv.pvname] = PvStatus.ok
 
         return(status)
 

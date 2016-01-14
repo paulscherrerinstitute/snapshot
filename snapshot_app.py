@@ -5,6 +5,7 @@ from PyQt4.QtCore import pyqtSlot, Qt, SIGNAL
 import time
 import datetime
 import argparse
+import re
 from enum import Enum
 
 from snapshot import *
@@ -58,10 +59,8 @@ class SnapshotGui(QtGui.QWidget):
 
         # Before first interaction with the worker object list all signals
         # on which action must be taken
-        self.connect(self.worker, SIGNAL("save_done(PyQt_PyObject,PyQt_PyObject)"),
+        self.connect(self.worker, SIGNAL("save_done(PyQt_PyObject)"),
                      self.save_done)
-        self.connect(self.worker, SIGNAL("restore_done(PyQt_PyObject)"),
-                     self.restore_done)
         self.connect(self.worker, SIGNAL("new_snapshot_loaded(PyQt_PyObject)"),
                      self.handle_new_snapshot)
 
@@ -99,16 +98,10 @@ class SnapshotGui(QtGui.QWidget):
         # Just pass data to Restore widget
         self.restore_widget.make_file_list(file_list)
 
-    def save_done(self, file_path, status):
+    def save_done(self, status):
         # When save is done, save widget is updated by itself
         # Update restore widget (new file in directory)
-        # TODO report status, update restore widget with new file
         self.restore_widget.start_file_list_update()
-        print("Save done")
-
-    def restore_done(self, status):
-        # TODO report status
-        print("Restore done")
 
     def handle_new_snapshot(self, pvs_names_list):
         # This function should do anything that is needed when new worker
@@ -162,7 +155,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
         #
         # * "save_done" is response of the worker when save is finished. Returns
         #   (file_path, status).
-        self.connect(self.worker, SIGNAL("save_done(PyQt_PyObject,PyQt_PyObject)"),
+        self.connect(self.worker, SIGNAL("save_done(PyQt_PyObject)"),
                      self.save_done)
 
         # Create layout and add GUI elements (input fields, buttons, ...)
@@ -216,7 +209,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
         self.save_button = QtGui.QPushButton("Save", self)
         self.save_button.clicked.connect(self.start_save)
         self.save_sts = QtGui.QLabel(self)
-    
+
         self.save_sts.setMaximumWidth(200)
         self.save_sts.setMaximumHeight(30)
         self.save_sts.setMargin(5)
@@ -224,14 +217,16 @@ class SnapshotSaveWidget(QtGui.QWidget):
         save_layout.addWidget(self.save_button)
         save_layout.addWidget(self.save_sts)
 
+        # Full status report ("error log")
+        self.save_report = QtGui.QPlainTextEdit(self)
+        self.save_report.setReadOnly(True)
+
         # Add to main layout
         layout.addItem(extension_layout)
         layout.addItem(comment_layout)
         layout.addItem(keyword_layout)
         layout.addItem(save_layout)
-
-        # Widget properties
-        self.setMaximumHeight(180)
+        layout.addWidget(self.save_report)
 
     def start_save(self):
         # Disable button for the time of saving. Will be unlocked when save is
@@ -246,16 +241,26 @@ class SnapshotSaveWidget(QtGui.QWidget):
                                             str, self.keyword_input.text()),
                                         QtCore.Q_ARG(str, self.comment_input.text()))
 
-    def save_done(self, file_path, status):
+    def save_done(self, status):
         # Enable saving
         self.save_button.setEnabled(True)
-        self.save_sts.setText("Saving done")
+        self.save_sts.setText("Save done")
         self.save_sts.setStyleSheet("background-color : #64C864")
-        # bad status
-        #self.save_sts.setStyleSheet("background-color : #F06464")
+
+        error_str = ""
+        for key in status:
+            sts = status[key]
+            if status[key] == PvStatus.access_err:
+                error_str = error_str + "ERROR: " + key + \
+                    ": Not saved (no connection or no read access)\n"
+
+                self.save_sts.setText("Error during save.")
+                self.save_sts.setStyleSheet("background-color : #F06464")
+
+        self.save_report.insertPlainText(error_str)
 
     def update_name(self):
-        self.name_extension = self.extension_input.text()
+        self.name_extension = self.extension_input.text() + ".snap"
         self.file_path = os.path.join(self.common_settings["save_dir"],
                                       self.name_base + self.name_extension)
         self.file_name_rb.setText(self.name_base + self.name_extension)
@@ -308,6 +313,22 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         layout.setSpacing(10)
         self.setLayout(layout)
 
+        # Filter widgets
+        # Filter handling
+        self.file_filter = dict()
+        self.file_filter["time"] = list()  # star and end date
+        self.file_filter["keys"] = list()
+        self.file_filter["comment"] = ""
+
+        self.filter_input = SnapshotFileFilterWidget(self)
+        self.connect(self.filter_input, SIGNAL(
+            "file_filter_updated"), self.filter_file_list_selector)
+
+        self.filter_file_list_selector()
+
+        # Make restore button, status indicator and restore report
+        restore_layout_main = QtGui.QVBoxLayout()
+
         # Create list with: file names, keywords, comments
         self.file_selector = QtGui.QTreeWidget(self)
         self.file_selector.setColumnCount(3)
@@ -317,7 +338,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.file_selector.setAlternatingRowColors(True)
         self.file_selector.itemSelectionChanged.connect(self.choose_file)
 
-        # Make restore button, status indicator and restore report
+        # Button with short status
         restore_layout = QtGui.QHBoxLayout()
         restore_layout.setSpacing(10)
         self.restore_button = QtGui.QPushButton("Restore", self)
@@ -329,24 +350,37 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.restore_sts.setStyleSheet("background-color : white")
         restore_layout.addWidget(self.restore_button)
         restore_layout.addWidget(self.restore_sts)
+        # Full status report ("error log")
+        self.restore_report = QtGui.QPlainTextEdit(self)
+        self.restore_report.setReadOnly(True)
 
-        # Add all widgets to main layout
-        layout.addWidget(self.file_selector)
-        layout.addItem(restore_layout)
+        restore_layout_main.addWidget(self.file_selector)
+        restore_layout_main.addItem(restore_layout)
+        restore_layout_main.addWidget(self.restore_report)
 
         # Create file list for first time (this is done  by worker)
         self.start_file_list_update()
 
-        # Compare widget
+        # Compare widget ("separator" line before)
+        separator = QtGui.QFrame(self)
+        separator.setFrameShape(QtGui.QFrame.HLine)
         self.compare_widget = SnapshotCompareWidget(self.worker,
                                                     self.common_settings, self)
 
+        # Add all widgets to main layout
+        layout.addWidget(self.filter_input)
+        layout.addItem(restore_layout_main)
+        layout.addWidget(separator)
         layout.addWidget(self.compare_widget)
 
     def start_restore(self):
         # First disable restore button (will be enabled when finished)
         # Then Use one of the preloaded saved files to restore
         self.restore_button.setEnabled(False)
+        self.restore_report.setPlainText("")
+        self.restore_sts.setText("Restoring ...")
+        self.restore_sts.setStyleSheet("background-color : orange")
+
         QtCore.QMetaObject.invokeMethod(self.worker,
                                         "restore_pvs",
                                         Qt.QueuedConnection)
@@ -356,8 +390,24 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.restore_button.setEnabled(True)
         self.restore_sts.setText("Restore done")
         self.restore_sts.setStyleSheet("background-color : #64C864")
-        # bad status
-        #self.restore_sts.setStyleSheet("background-color : #F06464")
+
+        error_str = ""
+        if not status:
+            error_str = error_str + "ERROR: File is not selected.\n"
+            self.restore_sts.setText("Cannot restore")
+            self.restore_sts.setStyleSheet("background-color : #F06464")
+        else:
+            for key in status:
+                sts = status[key]
+                if status[key] == PvStatus.access_err:
+                    error_str = error_str + "ERROR: " + key + \
+                        ": Not restored (no connection or readonly)\n"
+
+                    self.restore_sts.setText("Error during restore.")
+                    self.restore_sts.setStyleSheet(
+                        "background-color : #F06464")
+
+        self.restore_report.insertPlainText(error_str)
 
     def start_file_list_update(self):
         # Rescans directory and adds new/modified files and removes none
@@ -370,10 +420,11 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
         QtCore.QMetaObject.invokeMethod(self.worker, "get_save_files",
                                         Qt.QueuedConnection,
-                                        QtCore.Q_ARG(
-                                            str, self.common_settings["save_dir"]),
+                                        QtCore.Q_ARG(str, self.common_settings["save_dir"]),
                                         QtCore.Q_ARG(str, file_prefix),
                                         QtCore.Q_ARG(dict, self.file_list))
+
+        self.filter_file_list_selector()
 
     def choose_file(self):
         pvs = self.file_list[
@@ -385,36 +436,174 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
     def update_file_list_selector(self, file_list):
         for key in file_list:
-            keywords = file_list[key]["meta_data"].get("keywords", "")
-            comment = file_list[key]["meta_data"].get("comment", "")
+            meta_data = file_list[key]["meta_data"]
+            keywords = meta_data.get("keywords", "")
+            comment = meta_data.get("comment", "")
 
             # check if already on list (was just modified) and modify file
-            # selctor
+            # selector
             if key not in self.file_list:
-                self.file_selector.addTopLevelItem(
-                    QtGui.QTreeWidgetItem([key, keywords, comment]))
+                slector_item = QtGui.QTreeWidgetItem([key, keywords, comment])
+                self.file_selector.addTopLevelItem(slector_item)
+                self.file_list[key] = file_list[key]
+                self.file_list[key]["file_selector"] = slector_item
             else:
                 # If everything ok only one file should exist in list
-                to_modify = self.file_selector.findItems(
-                    key, Qt.MatchCaseSensitive, 0)[0]
+                to_modify = self.file_list[key]["file_selector"]
                 to_modify.setText(1, keywords)
                 to_modify.setText(2, comment)
-
-            self.file_list[key] = file_list[key]
 
         # Sort by file name (alphabetical order)
         self.file_selector.sortItems(0, Qt.AscendingOrder)
 
+    def filter_file_list_selector(self):
+        file_filter = self.filter_input.file_filter
 
+        for key in self.file_list:
+            file_line = self.file_list[key]["file_selector"]
+            file_to_filter = self.file_list.get(key)
+
+            if not file_filter:
+                file_line.setHidden(False)
+            else:
+                time_filter = file_filter.get("time")
+                keys_filter = file_filter.get("keys")
+                comment_filter = file_filter.get("comment")
+
+                if time_filter is not None:
+                    # valid names are all between this two dates
+                    # convert file name back to date and check if between
+                    modif_time = file_to_filter["meta_data"]["save_time"]
+                    if time_filter[0] is not None:
+                        time_status = (modif_time >= time_filter[0])
+                    else:
+                        time_status = True
+
+                    if time_filter[1] is not None:
+                        time_status = time_status and (
+                            modif_time <= time_filter[1])
+                else:
+                    time_status = True
+
+                if keys_filter:
+                    # get file keys as list
+                    keywords = file_to_filter[
+                        "meta_data"]["keywords"].split(',')
+                    keys_status = False
+
+                    for key in keywords:
+                        # Breake when first found
+                        if key and (key in keys_filter):
+                            keys_status = True
+                            break
+                else:
+                    keys_status = True
+
+                if comment_filter:
+                    comment_status = comment_filter in file_to_filter[
+                        "meta_data"]["comment"]
+                else:
+                    comment_status = True
+
+                # Set visibility if any of the filters conditions met
+                file_line.setHidden(
+                    not(time_status and keys_status and comment_status))
+
+
+class SnapshotFileFilterWidget(QtGui.QWidget):
+
+    '''
+        Is a widget with 3 filter options:
+            - by time
+            - by keywords
+            - by name
+
+        Emits signal: filter_changed when any of the filter changed.
+    '''
+
+    def __init__(self, common_settings, parent=None, **kw):
+        QtGui.QWidget.__init__(self, parent, **kw)
+
+        # Create main layout
+        layout = QtGui.QHBoxLayout(self)
+        layout.setMargin(10)
+        layout.setSpacing(10)
+        self.setLayout(layout)
+
+        # Create filter selectors (with readbacks)
+        # - date selector
+        # - check_boxes for keywords
+        # - text input to filter comments
+
+        # date selector
+        date_layout = QtGui.QHBoxLayout()
+        date_layout.setMargin(0)
+        date_layout.setSpacing(10)
+
+        from_label = QtGui.QLabel("From:", self)
+        self.date_from = SnapshotDateSelector(self)
+        to_label = QtGui.QLabel("To:", self)
+        self.date_to = SnapshotDateSelector(self, day_end=True)
+
+        date_layout.addWidget(from_label)
+        date_layout.addWidget(self.date_from)
+        date_layout.addWidget(to_label)
+        date_layout.addWidget(self.date_to)
+
+        # Init filters
+        self.file_filter = dict()
+        self.file_filter["time"] = [
+            self.date_from.selected_date, self.date_to.selected_date]
+        self.file_filter["keys"] = list()
+        self.file_filter["comment"] = ""
+
+        # Connect after file_filter exist
+        self.connect(
+            self.date_from, SIGNAL("date_updated"), self.update_filter)
+        self.connect(self.date_to, SIGNAL("date_updated"), self.update_filter)
+
+        # Key filter
+        key_layout = QtGui.QHBoxLayout()
+        key_label = QtGui.QLabel("Keywords:", self)
+        self.keys_input = QtGui.QLineEdit(self)
+        self.keys_input.setPlaceholderText("key1,key2,...")
+        self.keys_input.textChanged.connect(self.update_filter)
+        key_layout.addWidget(key_label)
+        key_layout.addWidget(self.keys_input)
+
+        # Comment filter
+        comment_layout = QtGui.QHBoxLayout()
+        comment_label = QtGui.QLabel("Comment:", self)
+        self.comment_input = QtGui.QLineEdit(self)
+        self.comment_input.setPlaceholderText("Filter")
+        self.comment_input.textChanged.connect(self.update_filter)
+        comment_layout.addWidget(comment_label)
+        comment_layout.addWidget(self.comment_input)
+
+        # Add to main layout
+        layout.addItem(date_layout)
+        layout.addItem(key_layout)
+        layout.addItem(comment_layout)
+
+    def update_filter(self):
+        self.file_filter["time"] = [
+            self.date_from.selected_date, self.date_to.selected_date]
+        self.file_filter["keys"] = self.keys_input.text().strip('').split(',')
+        self.file_filter["comment"] = self.comment_input.text().strip('')
+
+        self.emit(SIGNAL("file_filter_updated"))
+
+
+# PV Compare part
 class SnapshotCompareWidget(QtGui.QWidget):
 
-    """
+    '''
 
     Widget for live comparing pv values. All infos about PVs that needs to be
     monitored are already in the "snapshot" object controlled by worker. They
     were loaded with
 
-    """
+    '''
 
     def __init__(self, worker, common_settings, parent=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
@@ -511,7 +700,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
             saved_val = ""
             status = ""
             curr_val = ""
-            pv_line = CompareTreeWidgetItem(pv_name, self.pv_view)
+            pv_line = SnapshotCompareTreeWidgetItem(pv_name, self.pv_view)
             self.pv_view.addTopLevelItem(pv_line)
         # Sort by name (alphabetical order)
         self.pv_view.sortItems(0, Qt.AscendingOrder)
@@ -538,7 +727,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         line_to_update.update_state(**data)
 
 
-class CompareTreeWidgetItem(QtGui.QTreeWidgetItem):
+class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
 
     '''
     Extended to hold last info about connection status and value. Also
@@ -664,6 +853,151 @@ class CompareTreeWidgetItem(QtGui.QTreeWidgetItem):
             not(name_match and compare_match and completeness_match))
 
 
+# Helper widgets
+class SnapshotDateSelector(QtGui.QWidget):
+
+    def __init__(self, parent=None, dft_date=None, day_end=False, **kw):
+        QtGui.QWidget.__init__(self, parent, **kw)
+
+        layout = QtGui.QHBoxLayout(self)
+        layout.setMargin(0)
+        layout.setSpacing(0)
+        self.date_input = SnapshotDateSelectorInput(self, dft_date, day_end)
+        clear_button = QtGui.QPushButton("Clear", self)
+        clear_button.setMaximumWidth(50)
+        clear_button.clicked.connect(self.clear_date)
+
+        self.connect(self.date_input, SIGNAL("date_updated"), self.update_date)
+
+        layout.addWidget(self.date_input)
+        layout.addWidget(clear_button)
+
+        self.selected_date = None
+
+    def clear_date(self):
+        self.date_input.clear_date()
+        self.selected_date = self.date_input.selected_date
+
+    def update_date(self):
+        self.selected_date = self.date_input.selected_date
+        self.emit(SIGNAL("date_updated"))
+
+
+class SnapshotDateSelectorInput(QtGui.QLineEdit):
+
+    def __init__(self, parent=None, dft_date=None, day_end=False, **kw):
+        QtGui.QLineEdit.__init__(self, parent, **kw)
+
+        self.selector = SnapshotDateSelectorWindow(self, dft_date, day_end)
+        self.connect(self.selector, SIGNAL("date_selected"), self.update_date)
+
+        self.selected_date = None
+
+    def mousePressEvent(self, event):
+        self.selector.show()
+
+    def update_date(self):
+        self.selected_date = self.selector.selected_date
+        self.setText(self.selector.date_line.text())
+        self.emit(SIGNAL("date_updated"))
+
+    def clear_date(self):
+        self.selector.clear_date()
+
+
+class SnapshotDateSelectorWindow(QtGui.QWidget):
+
+    def __init__(self, parent=None, dft_date=None, day_end=False, **kw):
+        QtGui.QWidget.__init__(self, parent, **kw)
+        self.dft_date = dft_date
+        self.day_end = day_end
+        # Main Layout
+        layout = QtGui.QVBoxLayout(self)
+
+        # readback + today button + clear button
+        head_layout = QtGui.QHBoxLayout()
+        self.date_line = QtGui.QLineEdit(self)
+        self.date_line.setPlaceholderText("dd.mm.yyyy")
+        self.date_line.editingFinished.connect(self.check_date)
+        today_button = QtGui.QPushButton("Today", self)
+        today_button.clicked.connect(self.set_today)
+        clear_button = QtGui.QPushButton("Clear", self)
+        clear_button.clicked.connect(self.clear_internal)
+        head_layout.addWidget(self.date_line)
+        head_layout.addWidget(today_button)
+        head_layout.addWidget(clear_button)
+
+        # Calendar and apply button
+        self.cal = QtGui.QCalendarWidget(self)
+        self.cal.clicked.connect(self.cal_changed)
+        apply_button = QtGui.QPushButton("Apply", self)
+        apply_button.clicked.connect(self.apply_date)
+
+        layout.addItem(head_layout)
+        layout.addWidget(self.cal)
+        layout.addWidget(apply_button)
+
+        # Make as a window
+        self.setWindowTitle("date")
+        self.setWindowFlags(Qt.Window | Qt.Tool)
+        self.setAttribute(Qt.WA_X11NetWmWindowTypeMenu, True)
+        self.setEnabled(True)
+
+        self.selected_date = 0
+        self.set_today()
+
+    def cal_changed(self):
+        self.date_line.setText(self.cal.selectedDate().toString("dd.MM.yyyy"))
+        self.date_valid = True
+
+    def set_today(self):
+        today = time.time()
+        Y = int(datetime.datetime.fromtimestamp(today).strftime('%Y'))
+        m = int(datetime.datetime.fromtimestamp(today).strftime('%m'))
+        d = int(datetime.datetime.fromtimestamp(today).strftime('%d'))
+        self.cal.setSelectedDate(QtCore.QDate(Y, m, d))
+        self.date_line.setText(
+            datetime.datetime.fromtimestamp(today).strftime('%d.%m.%Y'))
+        self.date_valid = True
+
+    def clear_internal(self):
+        # To be used only by this widget
+        self.date_line.setText("")
+        self.date_valid = True
+
+    def check_date(self):
+        date_str = self.date_line.text()
+        condition = re.compile('[0-9]{2}\.[0-9]{2}\.[0-9]{4}')
+        if condition.match(date_str) is not None:
+            self.date_valid = True
+            date_to_set = date_str.split('.')
+            self.cal.setSelectedDate(
+                QtCore.QDate(int(date_to_set[2]), int(date_to_set[1]), int(date_to_set[0])))
+        else:
+            self.date_valid = False
+
+        return(self.date_valid)
+
+    def apply_date(self):
+        if self.date_valid:
+            if self.day_end:
+                time_str_full = self.date_line.text()+"/23:59:59"
+            else:
+                time_str_full = self.date_line.text()+"/0:0:0"
+            if self.date_line.text():
+                self.selected_date = time.mktime(
+                    time.strptime(time_str_full, '%d.%m.%Y/%H:%M:%S'))
+            else:
+                self.selected_date = self.dft_date
+
+            self.emit(SIGNAL("date_selected"))
+            self.hide()
+
+    def clear_date(self):
+        # To be used from outside
+        self.clear_internal()
+        self.apply_date()
+
 class SnapshotFileSelector(QtGui.QWidget):
 
     ''' Widget to select file with dialog box '''
@@ -758,7 +1092,7 @@ class SnapshotWorker(QtCore.QObject):
 
     To notify GUI this worker emits following signals
     * new_snapshot(snapshot) --> new snapshot was instantiated
-    * save_done(save_file_path, status) --> save was finished
+    * save_done(status) --> save was finished
     * restore_done(save_file_path, status) --> restore was finished
     '''
 
@@ -783,8 +1117,7 @@ class SnapshotWorker(QtCore.QObject):
         status = self.snapshot.save_pvs(save_file_path, keywords=keywords,
                                         comment=comment)
         self.emit(
-            SIGNAL("save_done(PyQt_PyObject, PyQt_PyObject)"), save_file_path,
-            status)
+            SIGNAL("save_done(PyQt_PyObject)"), status)
 
     @pyqtSlot()
     def restore_pvs(self):
@@ -826,7 +1159,6 @@ class SnapshotWorker(QtCore.QObject):
     @pyqtSlot()
     def start_continous_compare(self):
         self.snapshot.start_continous_compare(self.process_callbacks)
-        print("Compare started")
 
     @pyqtSlot()
     def stop_continous_compare(self):
