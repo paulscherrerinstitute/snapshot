@@ -106,7 +106,7 @@ class Snapshot:
 
     def prepare_pvs_to_restore_from_list(self, saved_pvs):
         if self.compare_state:
-            self.stop_continous_compare()
+            self.stop_continuous_compare()
             self.compare_state = True  # keep old info to start at the end
 
         # Loads pvs that were previously parsed from saved file
@@ -124,7 +124,7 @@ class Snapshot:
 
         # run compare again and do initial compare
         if self.compare_state:
-            self.start_continous_compare(self.callback_func)
+            self.start_continuous_compare(self.callback_func)
 
     def restore_pvs(self, save_file_path=None):
         # If file with saved values specified then read file. If no file
@@ -183,7 +183,7 @@ class Snapshot:
 
         return status
 
-    def start_continous_compare(self, callback=None, save_file_path=None):
+    def start_continuous_compare(self, callback=None, save_file_path=None):
         self.callback_func = callback
 
         # If file with saved values specified then read file. If no file
@@ -193,15 +193,15 @@ class Snapshot:
 
         for key in self.pvs:
             pv_ref = self.pvs[key]
-            pv_ref.callback_id = pv_ref.add_callback(self.continous_compare)
+            pv_ref.callback_id = pv_ref.add_callback(self.continuous_compare)
             # if pv_ref.connected:
             #     # Send first callbacks for "initial" compare of each PV if
             #      already connected.
-            self.continous_compare(pvname=pv_ref.pvname, value=pv_ref.value)
+            self.continuous_compare(pvname=pv_ref.pvname, value=pv_ref.value)
         
         self.compare_state = True
 
-    def stop_continous_compare(self):
+    def stop_continuous_compare(self):
         for key in self.pvs:
             pv_ref = self.pvs[key]
             if pv_ref.callback_id:
@@ -209,7 +209,7 @@ class Snapshot:
 
         self.compare_state = False
 
-    def continous_compare(self, pvname=None, value=None, **kw):
+    def continuous_compare(self, pvname=None, value=None, **kw):
         # This is callback function
         # Use "connection_lost" instead of "connected", because it is
         # updated before (to get proper value in case of connection lost)
@@ -264,7 +264,7 @@ class Snapshot:
                 pv_name = line.rstrip().split(',')[0]
                 # Do a macro substitution if macros exist.
                 if macros:
-                    pv_name = self.macros_substitutuion(pv_name, macros)
+                    pv_name = self.macros_substitution(pv_name, macros)
 
                 req_pvs.append(pv_name)
 
@@ -330,7 +330,7 @@ class Snapshot:
         saved_file.close() 
         return(saved_pvs, meta_data)
 
-    def macros_substitutuion(self, string, macros):
+    def macros_substitution(self, string, macros):
         for key in macros:
             macro = "$(" + key + ")"
             string = string.replace(macro, macros[key])
