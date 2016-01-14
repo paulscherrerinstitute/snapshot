@@ -1,0 +1,22 @@
+package:
+    name: snapshot
+    version: v0.0.1
+source:
+    git_tag: v0.0.1
+    git_url: https://git.psi.ch/cosylab/snapshot_tool.git
+requirements:
+    build:
+        - python
+        - setuptools
+        - pyqt
+    run:
+        - python
+        - pyqt
+
+build:
+  entry_points:
+    - snapshot = snapshot.snapshot:main
+
+about:
+    home: https://github.psi.ch/cosylab/snapshot_tool
+    summary: "Tool to save and restore EPICS channels."
