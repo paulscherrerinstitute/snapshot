@@ -1,9 +1,11 @@
 package:
     name: snapshot
-    version: v0.0.1
+    version: v0.0.2
 source:
-    git_tag: v0.0.1
-    git_url: https://git.psi.ch/cosylab/snapshot_tool.git
+    git_tag: v0.0.2
+    #git_url: https://git.psi.ch/cosylab/snapshot_tool.git
+    git_url: /home/rvintar/workspace/CSL/SaveRestore/git/snapshot_tool
+
 requirements:
     build:
         - python
