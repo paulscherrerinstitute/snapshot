@@ -29,11 +29,10 @@ class PvCompareFilter(Enum):
 
 
 class SnapshotGui(QtGui.QWidget):
-
-    '''
+    """
     Main GUI class for Snapshot application. It needs separate working
     thread where core of the application is running
-    '''
+    """
 
     def __init__(self, worker, req_file_name, req_file_macros=None,
                  save_dir=None, save_file_dft=None, mode=None, parent=None):
@@ -393,7 +392,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
         error_str = ""
         if not status:
-            error_str = error_str + "ERROR: File is not selected.\n"
+            error_str += "ERROR: File is not selected.\n"
             self.restore_sts.setText("Cannot restore")
             self.restore_sts.setStyleSheet("background-color : #F06464")
         else:
@@ -767,11 +766,11 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
             self.setText(3, "PV not connected!")
             self.has_error = True
         else:
-            if isinstance(self.value, (numpy.ndarray)):
+            if isinstance(self.value, numpy.ndarray):
                 self.setText(1, json.dumps(self.value.tolist()))
             elif self.value is not None:
                 # if string do not dump it will add "" to a string
-                if isinstance(self.value, (str)):
+                if isinstance(self.value, str):
                     self.setText(1, self.value)
                 else:
                     # dump other values
@@ -784,11 +783,11 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
             self.setText(3, "Set of saved PVs not selected!")
             self.has_error = True
         else:
-            if isinstance(self.saved_value, (numpy.ndarray)):
+            if isinstance(self.saved_value, numpy.ndarray):
                 self.setText(2, json.dumps(self.saved_value.tolist()))
             elif self.saved_value is not None:
                 # if string do not dump it will add "" to a string
-                if isinstance(self.saved_value, (str)):
+                if isinstance(self.saved_value, str):
                     self.setText(2, self.saved_value)
                 else:
                     # dump other values
@@ -952,10 +951,10 @@ class SnapshotDateSelectorWindow(QtGui.QWidget):
 
     def set_today(self):
         today = time.time()
-        Y = int(datetime.datetime.fromtimestamp(today).strftime('%Y'))
+        y = int(datetime.datetime.fromtimestamp(today).strftime('%Y'))
         m = int(datetime.datetime.fromtimestamp(today).strftime('%m'))
         d = int(datetime.datetime.fromtimestamp(today).strftime('%d'))
-        self.cal.setSelectedDate(QtCore.QDate(Y, m, d))
+        self.cal.setSelectedDate(QtCore.QDate(y, m, d))
         self.date_line.setText(
             datetime.datetime.fromtimestamp(today).strftime('%d.%m.%Y'))
         self.date_valid = True
@@ -976,7 +975,7 @@ class SnapshotDateSelectorWindow(QtGui.QWidget):
         else:
             self.date_valid = False
 
-        return(self.date_valid)
+        return self.date_valid
 
     def apply_date(self):
         if self.date_valid:
@@ -997,6 +996,7 @@ class SnapshotDateSelectorWindow(QtGui.QWidget):
         # To be used from outside
         self.clear_internal()
         self.apply_date()
+
 
 class SnapshotFileSelector(QtGui.QWidget):
 

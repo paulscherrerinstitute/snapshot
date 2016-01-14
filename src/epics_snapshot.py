@@ -5,11 +5,13 @@ import numpy
 import json
 from enum import Enum
 
+
 class PvStatus(Enum):
     ok = 0
     access_err = 1
     not_saved = 2
     equal = 3
+
 
 # Subclass PV to be to later add info if needed
 class SnapshotPv(PV):
@@ -44,7 +46,7 @@ class SnapshotPv(PV):
             self.run_callbacks()
 
 
-class Snapshot():
+class Snapshot:
     def __init__(self, req_file_path, macros=None, **kw):
         # Hold a dictionary for each PV (key=pv_name) with reference to
         # SnapshotPv object.
@@ -93,7 +95,7 @@ class Snapshot():
                 pv_status = PvStatus.access_err
             status[key] = pv_status
         self.parse_to_save_file(save_file_path, **kw)
-        return(status)
+        return status
 
     def prepare_pvs_to_restore_from_file(self, save_file_path):
         # Parsers the file and loads value to corresponding objects
@@ -130,7 +132,7 @@ class Snapshot():
         status = dict()
         if not self.restore_values_loaded:
             # Nothing to restore
-            return(status)
+            return status
 
         if save_file_path:
             self.prepare_pvs_to_restore_from_file(save_file_path)
@@ -154,7 +156,7 @@ class Snapshot():
                         compare = (pv_ref.value == pv_ref.saved_value)
 
                     if not compare:
-                        if isinstance(pv_ref.saved_value, (str)):
+                        if isinstance(pv_ref.saved_value, str):
                             # Convert to bytes any string type value.
                             # Python3 distinguish between bytes and strings but pyepics
                             # passes string without conversion since it was not needed for
@@ -179,7 +181,7 @@ class Snapshot():
                     if pv.put_complete:
                         status[pv.pvname] = PvStatus.ok
 
-        return(status)
+        return status
 
     def start_continous_compare(self, callback=None, save_file_path=None):
         self.callback_func = callback
@@ -192,9 +194,9 @@ class Snapshot():
         for key in self.pvs:
             pv_ref = self.pvs[key]
             pv_ref.callback_id = pv_ref.add_callback(self.continous_compare)
-            #if pv_ref.connected:
-                # Send first callbacks for "initial" compare of each PV if
-                # already connected.
+            # if pv_ref.connected:
+            #     # Send first callbacks for "initial" compare of each PV if
+            #      already connected.
             self.continous_compare(pvname=pv_ref.pvname, value=pv_ref.value)
         
         self.compare_state = True
@@ -217,7 +219,7 @@ class Snapshot():
         # numpy.ndarray but instance of
         # <class 'epics.dbr.c_int_Array_0'>
         # Check if in this case saved value is None (empty array)
-        if pv_ref.is_array and not isinstance(value, (numpy.ndarray)):
+        if pv_ref.is_array and not isinstance(value, numpy.ndarray):
             value = None  # return None in callback
 
         if pv_ref:
@@ -267,7 +269,7 @@ class Snapshot():
                 req_pvs.append(pv_name)
 
         req_file.close()
-        return(req_pvs)
+        return req_pvs
 
     def parse_to_save_file(self, save_file_path, **kw):
         # This function is called at each save of PV values.
@@ -292,9 +294,9 @@ class Snapshot():
         save_file.close
 
     def parse_from_save_file(self, save_file_path):
-    #    # This function is called in compare function.
-    #    # This is a parser which has a desired value fro each PV.
-    #    # To support other format of file, override this method in subclass
+        # This function is called in compare function.
+        # This is a parser which has a desired value fro each PV.
+        # To support other format of file, override this method in subclass
 
         saved_pvs = dict()
         meta_data = dict()
@@ -316,7 +318,7 @@ class Snapshot():
                     # of proper type
                     pv_value = json.loads(pv_value_str)
 
-                    if isinstance(pv_value, (list)):
+                    if isinstance(pv_value, list):
                         # arrays as numpy array, because pyepics returns
                         # as numpy array
                         pv_value = numpy.asarray(pv_value)
