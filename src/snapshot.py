@@ -8,7 +8,7 @@ import argparse
 import re
 from enum import Enum
 
-from snapshot_ca import *
+from .snapshot_ca import *
 
 # close with ctrl+C
 import signal
