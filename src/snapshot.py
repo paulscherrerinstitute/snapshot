@@ -35,7 +35,7 @@ class SnapshotGui(QtGui.QWidget):
     thread where core of the application is running
     '''
 
-    def __init__(self, worker, req_file_name, req_file_macros=None,
+    def __init__(self, worker, req_file_name=None, req_file_macros=None,
                  save_dir=None, save_file_dft=None, mode=None, parent=None):
         QtGui.QWidget.__init__(self, parent)
         self.worker = worker
@@ -44,10 +44,20 @@ class SnapshotGui(QtGui.QWidget):
         # common_settings is a dictionary which holds common configuration of
         # the application (such as directory with save files, request file
         # path, etc). It is propagated to other snapshot widgets if needed
+        
+        self.configure_dialog = SnapshotConfigureDialog(self)
+        self.configure_dialog.accepted.connect(self.set_request_file)
+        self.configure_dialog.rejected.connect(self.close)
 
         self.common_settings = dict()
-        self.common_settings["req_file_name"] = req_file_name
-        self.common_settings["req_file_macros"] = req_file_macros
+        if not req_file_name:
+            self.hide()
+            self.configure_dialog.exec()
+
+        else:
+            self.common_settings["req_file_name"] = req_file_name
+            self.common_settings["req_file_macros"] = req_file_macros
+
         if not save_dir:
             # Set current dir as save dir
             save_dir = os.path.dirname(os.path.realpath(__file__))
@@ -113,6 +123,9 @@ class SnapshotGui(QtGui.QWidget):
         self.restore_widget.compare_widget.create_compare_list()
         self.restore_widget.compare_widget.create_compare_list()
 
+    def set_request_file(self):
+        self.common_settings["req_file_name"] = self.configure_dialog.file_path
+        self.common_settings["req_file_macros"] = self.configure_dialog.macros
 
 class SnapshotSaveWidget(QtGui.QWidget):
 
@@ -139,14 +152,11 @@ class SnapshotSaveWidget(QtGui.QWidget):
         self.worker = worker
 
         # Default saved file name: If req file name is PREFIX.req, then saved
-        # file name is: PREFIX_YYMMDD_hhmm (holds time info)
+        # file name is: PREFIX_YYMMDD_hhmmss (holds time info)
+        # Get the prefix ... use update_name() later
+        self.save_file_sufix = ".snap"
         self.name_base = os.path.split(
             common_settings["req_file_name"])[1].split(".")[0] + "_"
-        self.name_extension = datetime.datetime.fromtimestamp(
-            time.time()).strftime('%Y%m%d_%H%M%S')
-
-        self.file_path = os.path.join(self.common_settings["save_dir"],
-                                      self.name_base + self.name_extension)
 
         # Before creating elements that can use worker to signals from working
         # thread that are response of this widget actions. If this widget must
@@ -177,6 +187,8 @@ class SnapshotSaveWidget(QtGui.QWidget):
         file_name_label = QtGui.QLabel("File name: ", self)
         self.file_name_rb = QtGui.QLabel(self)
         self.file_name_rb.setMinimumWidth(300)
+        # Get first time stamp name
+        self.update_name()
         self.extension_input.setText(self.name_extension)
         extension_layout.addWidget(extension_label)
         extension_layout.addWidget(self.extension_input)
@@ -229,17 +241,25 @@ class SnapshotSaveWidget(QtGui.QWidget):
         layout.addWidget(self.save_report)
 
     def start_save(self):
-        # Disable button for the time of saving. Will be unlocked when save is
-        # finished.
-        self.save_button.setEnabled(False)
-        self.save_sts.setText("Saving ...")
-        self.save_sts.setStyleSheet("background-color : orange")
-        QtCore.QMetaObject.invokeMethod(self.worker, "save_pvs",
-                                        Qt.QueuedConnection,
-                                        QtCore.Q_ARG(str, self.file_path),
-                                        QtCore.Q_ARG(
-                                            str, self.keyword_input.text()),
-                                        QtCore.Q_ARG(str, self.comment_input.text()))
+        # Update file name and chek if exists. Then disable button for the time
+        #of saving. Will be unlocked when save is finished.
+        if not self.extension_input.text():
+            #  Update name with latest timestamp
+            self.update_name()
+        save = self.check_file_existance()
+        if save:
+            self.save_button.setEnabled(False)
+            self.save_sts.setText("Saving ...")
+            self.save_sts.setStyleSheet("background-color : orange")
+            QtCore.QMetaObject.invokeMethod(self.worker, "save_pvs",
+                                            Qt.QueuedConnection,
+                                            QtCore.Q_ARG(str, self.file_path),
+                                            QtCore.Q_ARG(
+                                                str, self.keyword_input.text()),
+                                            QtCore.Q_ARG(str, self.comment_input.text()))
+        else:
+            self.save_sts.setText("")
+            self.save_sts.setStyleSheet("background-color : white") 
 
     def save_done(self, status):
         # Enable saving
@@ -260,10 +280,31 @@ class SnapshotSaveWidget(QtGui.QWidget):
         self.save_report.insertPlainText(error_str)
 
     def update_name(self):
-        self.name_extension = self.extension_input.text() + ".snap"
+        name_extension_inp = self.extension_input.text()
+        if not name_extension_inp:
+            name_extension_rb = "{TIMESTAMP}" + self.save_file_sufix
+            self.name_extension = datetime.datetime.fromtimestamp(
+                time.time()).strftime('%Y%m%d_%H%M%S')
+        else:
+            self.name_extension = name_extension_inp
+            name_extension_rb = name_extension_inp + self.save_file_sufix
         self.file_path = os.path.join(self.common_settings["save_dir"],
-                                      self.name_base + self.name_extension)
-        self.file_name_rb.setText(self.name_base + self.name_extension)
+                                      self.name_base + self.name_extension + \
+                                      self.save_file_sufix)
+        self.file_name_rb.setText(self.name_base + name_extension_rb)
+
+    def check_file_existance(self):
+        if os.path.exists(self.file_path):
+            msg = "File already exists.Do you want to override it?\n" + \
+                  self.file_path
+            reply = QtGui.QMessageBox.question(self, 'Message', msg,
+                                               QtGui.QMessageBox.Yes,
+                                               QtGui.QMessageBox.No)
+
+            if reply == QtGui.QMessageBox.No:
+                return False
+        return True
+
 
 
 class SnapshotRestoreWidget(QtGui.QWidget):
@@ -1005,7 +1046,7 @@ class SnapshotFileSelector(QtGui.QWidget):
 
     ''' Widget to select file with dialog box '''
 
-    def __init__(self, parent=None, label_text="File", button_text="Browse",
+    def __init__(self, parent=None, label_text="File:", button_text="Browse",
                  init_path=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
         self.file_path = init_path
@@ -1013,12 +1054,13 @@ class SnapshotFileSelector(QtGui.QWidget):
         # Create main layout
         layout = QtGui.QHBoxLayout(self)
         layout.setMargin(0)
-        layout.setSpacing(0)
+        layout.setSpacing(10)
         self.setLayout(layout)
 
         # Create file dialog box. When file is selected set file path to be
         # shown in input field (can be then edited manually)
         self.req_file_dialog = QtGui.QFileDialog(self)
+        #self.req_file_dialog.setOptions(QtGui.QFileDialog.DontUseNativeDialog)
         self.req_file_dialog.fileSelected.connect(self.set_file_input_text)
 
         # This widget has 3 parts:
@@ -1026,6 +1068,7 @@ class SnapshotFileSelector(QtGui.QWidget):
         #   input field (when value of input is changed, it is stored locally)
         #   icon button to open file dialog
         label = QtGui.QLabel(label_text, self)
+        label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
         file_path_button = QtGui.QToolButton(self)
         icon = QtGui.QIcon.fromTheme("folder")
         file_path_button.setIcon(icon)
@@ -1046,14 +1089,14 @@ class SnapshotFileSelector(QtGui.QWidget):
 
 
 class SnapshotConfigureDialog(QtGui.QDialog):
-    # NOT USED YET#
 
     ''' Dialog window to select and apply file'''
 
     def __init__(self, parent=None, **kw):
         QtGui.QDialog.__init__(self, parent, **kw)
-        self.file_path = None
-        layout = QtGui.QVBoxLayout(self)
+        self.file_path = ""
+        self.macros = ""
+        layout = QtGui.QVBoxLayout()
         layout.setMargin(10)
         layout.setSpacing(10)
         self.setLayout(layout)
@@ -1061,9 +1104,19 @@ class SnapshotConfigureDialog(QtGui.QDialog):
         # This Dialog consists of file selector and buttons to apply
         # or cancel the file selection
         self.file_selector = SnapshotFileSelector(self)
+        macros_layout = QtGui.QHBoxLayout()
+        macros_label = QtGui.QLabel("Macros:", self)
+        macros_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
+        self.macros_input = QtGui.QLineEdit(self)
+        self.macros_input.setPlaceholderText("MACRO1=M1,MACRO2=M2,...")
+        macros_layout.addWidget(macros_label)
+        macros_layout.addWidget(self.macros_input)
+        macros_layout.setSpacing(10)
+
         self.setMinimumSize(600, 50)
 
         layout.addWidget(self.file_selector)
+        layout.addItem(macros_layout)
 
         button_box = QtGui.QDialogButtonBox(
             QtGui.QDialogButtonBox.Ok | QtGui.QDialogButtonBox.Cancel)
@@ -1074,12 +1127,22 @@ class SnapshotConfigureDialog(QtGui.QDialog):
 
     def config_accepted(self):
         # Save to file path to local variable and emit signal
-        self.file_path = self.file_selector.file_path
-        self.accepted.emit()
-        self.close()
+        if not self.file_selector.file_path:
+            self.file_path = ""
+        else:
+            self.file_path = self.file_selector.file_path
+        if os.path.exists(self.file_path):
+            self.macros = parse_macros(self.macros_input.text())
+            self.accepted.emit()
+            self.close()
+        else:
+            warn = "File does not exist!"
+            warn_window = QtGui.QMessageBox.warning(self, "Warning", warn,
+                                                    QtGui.QMessageBox.Ok,
+                                                    QtGui.QMessageBox.NoButton)
 
     def config_rejected(self):
-        self.rejected.emmit()
+        self.rejected.emit()
         self.close()
 
 
@@ -1171,24 +1234,29 @@ class SnapshotWorker(QtCore.QObject):
         self.emit(SIGNAL("pv_changed(PyQt_PyObject)"), kw)
 
 
+def parse_macros(macros_str):
+    ''' Comma separated macros string to dictionary'''
+    macros = dict()
+    if macros_str:
+        macros_list = macros_str.split(',')
+        for macro in macros_list:
+            split_macro = macro.split('=')
+            macros[split_macro[0]] = split_macro[1]
+    return(macros)
+
 def main():
-    """ Main logic """
+    ''' Main logic '''
 
     args_pars = argparse.ArgumentParser()
-    args_pars.add_argument('req_file', help='Request file')
-    args_pars.add_argument('-macros',
+    args_pars.add_argument('-req', '-r', help='Request file')
+    args_pars.add_argument('-macros', '-m',
                            help="Macros for request file e.g.: \"SYS=TEST,DEV=D1\"")
-    args_pars.add_argument('-dir',
+    args_pars.add_argument('-dir', '-d',
                            help="Directory for saved files")
     args = args_pars.parse_args()
 
     # Parse macros string if exists
-    macros = dict()
-    if args.macros:
-        macros_list = args.macros.split(',')
-        for macro in macros_list:
-            split_macro = macro.split('=')
-            macros[split_macro[0]] = split_macro[1]
+    macros = parse_macros(args.macros)
 
     # Create application which consists of two threads. "gui" runs in main
     # GUI thread. Time consuming functions are executed in worker thread.
@@ -1198,7 +1266,7 @@ def main():
     worker.moveToThread(worker_thread)
     worker_thread.start()
 
-    gui = SnapshotGui(worker, args.req_file, macros, args.dir)
+    gui = SnapshotGui(worker, args.req, macros, args.dir)
 
     sys.exit(app.exec_())
 
