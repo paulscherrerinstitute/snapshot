@@ -143,7 +143,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
         self.name_base = os.path.split(
             common_settings["req_file_name"])[1].split(".")[0] + "_"
         self.name_extension = datetime.datetime.fromtimestamp(
-            time.time()).strftime('%Y%m%d_%H%M')
+            time.time()).strftime('%Y%m%d_%H%M%S')
 
         self.file_path = os.path.join(self.common_settings["save_dir"],
                                       self.name_base + self.name_extension)
