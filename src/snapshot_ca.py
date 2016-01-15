@@ -16,7 +16,7 @@ class SnapshotPv(PV):
     def __init__(self, pvname, **kw):
         PV.__init__(self, pvname,
                     connection_callback=self.connection_callback_pvt,
-                    auto_monitor=True, connection_timeout=0.01, **kw)
+                    auto_monitor=True, connection_timeout=None, **kw)
         self.connection_lost = not self.connected
         self.value_to_save = None
         self.saved_value = None  # This holds value from last loaded save file

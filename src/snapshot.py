@@ -28,6 +28,14 @@ class PvCompareFilter(Enum):
     show_eq = 2
 
 
+class SnapshotStatusLog(QtGui.QPlainTextEdit):
+    def log_line(self, text):
+        time_stamp = "[" + datetime.datetime.fromtimestamp(
+                time.time()).strftime('%H:%M:%S.%f') + "] "
+        self.insertPlainText(time_stamp + text + "\n")
+        self.ensureCursorVisible()
+
+
 class SnapshotGui(QtGui.QWidget):
 
     '''
@@ -44,7 +52,7 @@ class SnapshotGui(QtGui.QWidget):
         # common_settings is a dictionary which holds common configuration of
         # the application (such as directory with save files, request file
         # path, etc). It is propagated to other snapshot widgets if needed
-        
+
         self.configure_dialog = SnapshotConfigureDialog(self)
         self.configure_dialog.accepted.connect(self.set_request_file)
         self.configure_dialog.rejected.connect(self.close)
@@ -87,9 +95,15 @@ class SnapshotGui(QtGui.QWidget):
         # is selected depending on mode parameter TODO
         main_layout = QtGui.QVBoxLayout(self)
         self.setLayout(main_layout)
+
+        # Log widget
+        separator = QtGui.QFrame(self)
+        separator.setFrameShape(QtGui.QFrame.HLine)
+        sts_log = SnapshotStatusLog(self)
+        sts_log.setMaximumHeight(100)
+        sts_log.setReadOnly(True)
+        self.common_settings["sts_log"] = sts_log
         tabs = QtGui.QTabWidget(self)
-        tabs.setMinimumSize(900, 450)
-        main_layout.addWidget(tabs)
 
         # Each tab has it's own widget. Need one for save and one for restore.
         self.save_widget = SnapshotSaveWidget(self.worker,
@@ -101,11 +115,15 @@ class SnapshotGui(QtGui.QWidget):
         tabs.addTab(self.restore_widget, "Restore")
 
         # Compare widget ("separator" line before)
-        separator = QtGui.QFrame(self)
-        separator.setFrameShape(QtGui.QFrame.HLine)
         self.compare_widget = SnapshotCompareWidget(self.worker,
                                                     self.common_settings, self)
+
+
+        # Add to main layout
+        main_layout.addWidget(tabs)
         main_layout.addWidget(self.compare_widget)
+        main_layout.addWidget(separator)
+        main_layout.addWidget(sts_log)
 
         # Show GUI and manage window properties
         self.show()
@@ -127,12 +145,13 @@ class SnapshotGui(QtGui.QWidget):
         # Store pv names list to common settings and call all widgets that need to
         # be updated
         self.common_settings["pvs_to_restore"] = pvs_names_list
-        self.restore_widget.compare_widget.create_compare_list()
-        self.restore_widget.compare_widget.create_compare_list()
+        self.compare_widget.create_compare_list()
+        self.compare_widget.create_compare_list()
 
     def set_request_file(self):
         self.common_settings["req_file_name"] = self.configure_dialog.file_path
         self.common_settings["req_file_macros"] = self.configure_dialog.macros
+
 
 class SnapshotSaveWidget(QtGui.QWidget):
 
@@ -237,15 +256,13 @@ class SnapshotSaveWidget(QtGui.QWidget):
         save_layout.addWidget(self.save_sts)
 
         # Full status report ("error log")
-        self.save_report = QtGui.QPlainTextEdit(self)
-        self.save_report.setReadOnly(True)
-
+        self.sts_log = self.common_settings["sts_log"]
         # Add to main layout
         layout.addItem(extension_layout)
         layout.addItem(comment_layout)
         layout.addItem(keyword_layout)
+        layout.addStretch()
         layout.addItem(save_layout)
-        layout.addWidget(self.save_report)
 
     def start_save(self):
         # Update file name and chek if exists. Then disable button for the time
@@ -256,6 +273,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
         save = self.check_file_existance()
         if save:
             self.save_button.setEnabled(False)
+            self.sts_log.log_line("Save started.")
             self.save_sts.setText("Saving ...")
             self.save_sts.setStyleSheet("background-color : orange")
             QtCore.QMetaObject.invokeMethod(self.worker, "save_pvs",
@@ -274,17 +292,16 @@ class SnapshotSaveWidget(QtGui.QWidget):
         self.save_sts.setText("Save done")
         self.save_sts.setStyleSheet("background-color : #64C864")
 
-        error_str = ""
         for key in status:
             sts = status[key]
             if status[key] == PvStatus.access_err:
-                error_str = error_str + "ERROR: " + key + \
-                    ": Not saved (no connection or no read access)\n"
+                self.sts_log.log_line("ERROR: " + key + \
+                    ": Not saved (no connection or no read access)")
 
                 self.save_sts.setText("Error during save.")
                 self.save_sts.setStyleSheet("background-color : #F06464")
 
-        self.save_report.insertPlainText(error_str)
+        self.sts_log.log_line("Save done.")
 
     def update_name(self):
         name_extension_inp = self.extension_input.text()
@@ -311,7 +328,6 @@ class SnapshotSaveWidget(QtGui.QWidget):
             if reply == QtGui.QMessageBox.No:
                 return False
         return True
-
 
 
 class SnapshotRestoreWidget(QtGui.QWidget):
@@ -379,6 +395,8 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
         # Create list with: file names, keywords, comments
         self.file_selector = QtGui.QTreeWidget(self)
+        self.file_selector.setIndentation(0)
+        self.file_selector.setStyleSheet("QTreeWidget::item:pressed,QTreeWidget::item:selected{background-color:#FF6347;color:#FFFFFF}‌​")
         self.file_selector.setColumnCount(3)
         self.file_selector.setHeaderLabels(["File", "Keywords", "Comment"])
         self.file_selector.header().resizeSection(0, 300)
@@ -399,33 +417,23 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         restore_layout.addWidget(self.restore_button)
         restore_layout.addWidget(self.restore_sts)
         # Full status report ("error log")
-        self.restore_report = QtGui.QPlainTextEdit(self)
-        self.restore_report.setReadOnly(True)
+        self.sts_log = self.common_settings["sts_log"]
 
         restore_layout_main.addWidget(self.file_selector)
         restore_layout_main.addItem(restore_layout)
-        restore_layout_main.addWidget(self.restore_report)
 
         # Create file list for first time (this is done  by worker)
         self.start_file_list_update()
 
-        # Compare widget ("separator" line before)
-        separator = QtGui.QFrame(self)
-        separator.setFrameShape(QtGui.QFrame.HLine)
-        self.compare_widget = SnapshotCompareWidget(self.worker,
-                                                    self.common_settings, self)
-
         # Add all widgets to main layout
         layout.addWidget(self.filter_input)
         layout.addItem(restore_layout_main)
-        layout.addWidget(separator)
-        layout.addWidget(self.compare_widget)
 
     def start_restore(self):
         # First disable restore button (will be enabled when finished)
         # Then Use one of the preloaded saved files to restore
         self.restore_button.setEnabled(False)
-        self.restore_report.setPlainText("")
+        self.sts_log.log_line("Restore started.")
         self.restore_sts.setText("Restoring ...")
         self.restore_sts.setStyleSheet("background-color : orange")
 
@@ -439,23 +447,21 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.restore_sts.setText("Restore done")
         self.restore_sts.setStyleSheet("background-color : #64C864")
 
-        error_str = ""
         if not status:
-            error_str = error_str + "ERROR: File is not selected.\n"
+            self.sts_log.log_line("ERROR: No file selected.")
             self.restore_sts.setText("Cannot restore")
             self.restore_sts.setStyleSheet("background-color : #F06464")
         else:
             for key in status:
                 sts = status[key]
                 if status[key] == PvStatus.access_err:
-                    error_str = error_str + "ERROR: " + key + \
-                        ": Not restored (no connection or readonly)\n"
+                    self.sts_log.log_line("ERROR: " + key + \
+                        ": Not restored (no connection or readonly)")
 
                     self.restore_sts.setText("Error during restore.")
                     self.restore_sts.setStyleSheet(
                         "background-color : #F06464")
-
-        self.restore_report.insertPlainText(error_str)
+        self.sts_log.log_line("Restore done.")
 
     def start_file_list_update(self):
         # Rescans directory and adds new/modified files and removes none
@@ -491,10 +497,10 @@ class SnapshotRestoreWidget(QtGui.QWidget):
             # check if already on list (was just modified) and modify file
             # selector
             if key not in self.file_list:
-                slector_item = QtGui.QTreeWidgetItem([key, keywords, comment])
-                self.file_selector.addTopLevelItem(slector_item)
+                selector_item = QtGui.QTreeWidgetItem([key, keywords, comment])
+                self.file_selector.addTopLevelItem(selector_item)
                 self.file_list[key] = file_list[key]
-                self.file_list[key]["file_selector"] = slector_item
+                self.file_list[key]["file_selector"] = selector_item
             else:
                 # If everything ok only one file should exist in list
                 to_modify = self.file_list[key]["file_selector"]
@@ -945,6 +951,8 @@ class SnapshotDateSelectorInput(QtGui.QLineEdit):
         self.selected_date = None
 
     def mousePressEvent(self, event):
+        print(self.mapToGlobal(self.pos()).x)
+        self.selector.move(self.mapToGlobal(self.pos()))
         self.selector.show()
 
     def update_date(self):
