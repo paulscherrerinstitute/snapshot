@@ -100,6 +100,13 @@ class SnapshotGui(QtGui.QWidget):
         tabs.addTab(self.save_widget, "Save")
         tabs.addTab(self.restore_widget, "Restore")
 
+        # Compare widget ("separator" line before)
+        separator = QtGui.QFrame(self)
+        separator.setFrameShape(QtGui.QFrame.HLine)
+        self.compare_widget = SnapshotCompareWidget(self.worker,
+                                                    self.common_settings, self)
+        main_layout.addWidget(self.compare_widget)
+
         # Show GUI and manage window properties
         self.show()
         self.setWindowTitle('Snapshot')
