@@ -16,7 +16,7 @@ class SnapshotPv(PV):
     def __init__(self, pvname, **kw):
         PV.__init__(self, pvname,
                     connection_callback=self.connection_callback_pvt,
-                    auto_monitor=True, connection_timeout=1, **kw)
+                    auto_monitor=True, connection_timeout=0.01, **kw)
         self.connection_lost = not self.connected
         self.value_to_save = None
         self.saved_value = None  # This holds value from last loaded save file
@@ -41,8 +41,7 @@ class SnapshotPv(PV):
         self.connection_lost = not conn
 
         if not conn:
-            self.run_callbacks()
-
+            self.run_callbacks() 
 
 class Snapshot():
     def __init__(self, req_file_path, macros=None, **kw):
@@ -325,7 +324,7 @@ class Snapshot():
 
                 saved_pvs[pv_name] = dict()
                 saved_pvs[pv_name]['pv_value'] = pv_value
-        saved_file.close() 
+        saved_file.close()
         return(saved_pvs, meta_data)
 
     def macros_substitutuion(self, string, macros):

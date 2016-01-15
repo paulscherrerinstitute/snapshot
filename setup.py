@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 import os
-#from setuptools import setup, find_packages
-from distutils.core import setup
+from setuptools import setup, find_packages
+#from distutils.core import setup
 
 here = os.path.abspath(os.path.dirname(__file__))
 README = open(os.path.join(here, 'Readme.md')).read()

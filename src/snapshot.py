@@ -588,7 +588,10 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
     def update_filter(self):
         self.file_filter["time"] = [
             self.date_from.selected_date, self.date_to.selected_date]
-        self.file_filter["keys"] = self.keys_input.text().strip('').split(',')
+        if self.keys_input.text().strip(''):
+            self.file_filter["keys"] = self.keys_input.text().strip('').split(',')
+        else:
+            self.file_filter["keys"] = list()
         self.file_filter["comment"] = self.comment_input.text().strip('')
 
         self.emit(SIGNAL("file_filter_updated"))
