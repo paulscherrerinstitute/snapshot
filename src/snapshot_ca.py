@@ -283,9 +283,9 @@ class Snapshot():
             pv_ref = self.pvs[key]
             if pv_ref.value_to_save is not None:
                 if pv_ref.is_array:
-                    save_file.write(key + ";" + json.dumps(pv_ref.value_to_save.tolist()) + "\n")
+                    save_file.write(key + "," + json.dumps(pv_ref.value_to_save.tolist()) + "\n")
                 else:
-                    save_file.write(key + ";" + json.dumps(pv_ref.value_to_save) + "\n")
+                    save_file.write(key + "," + json.dumps(pv_ref.value_to_save) + "\n")
             else:
                 save_file.write(key + "\n")
         save_file.close
@@ -307,7 +307,7 @@ class Snapshot():
                 meta_loaded = True
             # skip empty lines and all rest with #
             elif line.strip() and not line.startswith('#'):
-                split_line = line.strip().split(';')
+                split_line = line.strip().split(',')
                 pv_name = split_line[0]
                 if len(split_line) > 1:
                     pv_value_str = split_line[1]
