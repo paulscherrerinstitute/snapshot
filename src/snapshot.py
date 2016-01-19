@@ -58,9 +58,12 @@ class SnapshotGui(QtGui.QWidget):
         self.configure_dialog.rejected.connect(self.close)
 
         self.common_settings = dict()
+        self.common_settings["req_file_name"] = ""
+        self.common_settings["req_file_macros"] = dict()
+
         if not req_file_name:
             self.hide()
-            self.configure_dialog.exec()
+            self.configure_dialog.exec_()
 
         else:
             self.common_settings["req_file_name"] = req_file_name

@@ -1,10 +1,8 @@
 package:
     name: snapshot
-    version: v0.0.2
+    version: 0.0.3
 source:
-    git_tag: v0.0.2
-    #git_url: https://git.psi.ch/cosylab/snapshot_tool.git
-    git_url: /home/rvintar/workspace/CSL/SaveRestore/git/snapshot_tool
+    path: ..
 
 requirements:
     build:
