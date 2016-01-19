@@ -8,7 +8,7 @@ import argparse
 import re
 from enum import Enum
 
-from .snapshot_ca import *
+from snapshot_ca import *
 
 # close with ctrl+C
 import signal
@@ -55,7 +55,7 @@ class SnapshotGui(QtGui.QWidget):
 
         self.configure_dialog = SnapshotConfigureDialog(self)
         self.configure_dialog.accepted.connect(self.set_request_file)
-        self.configure_dialog.rejected.connect(self.close)
+        self.configure_dialog.rejected.connect(self.close_gui)
 
         self.common_settings = dict()
         self.common_settings["req_file_name"] = ""
@@ -154,6 +154,12 @@ class SnapshotGui(QtGui.QWidget):
     def set_request_file(self):
         self.common_settings["req_file_name"] = self.configure_dialog.file_path
         self.common_settings["req_file_macros"] = self.configure_dialog.macros
+
+    def close_gui(self):
+        # Stop worker thread and exit the program if there is
+        # no request file 
+        self.worker.thread().quit()
+        sys.exit()
 
 
 class SnapshotSaveWidget(QtGui.QWidget):
@@ -1141,7 +1147,7 @@ class SnapshotConfigureDialog(QtGui.QDialog):
         layout.addWidget(button_box)
 
         button_box.accepted.connect(self.config_accepted)
-        button_box.rejected.connect(self.config_rejected)
+        button_box.rejected.connect(self.reject)
 
     def config_accepted(self):
         # Save to file path to local variable and emit signal
@@ -1151,17 +1157,13 @@ class SnapshotConfigureDialog(QtGui.QDialog):
             self.file_path = self.file_selector.file_path
         if os.path.exists(self.file_path):
             self.macros = parse_macros(self.macros_input.text())
-            self.accepted.emit()
-            self.close()
+            self.accept()
         else:
             warn = "File does not exist!"
             warn_window = QtGui.QMessageBox.warning(self, "Warning", warn,
                                                     QtGui.QMessageBox.Ok,
                                                     QtGui.QMessageBox.NoButton)
 
-    def config_rejected(self):
-        self.rejected.emit()
-        self.close()
 
 
 class SnapshotWorker(QtCore.QObject):
