@@ -781,7 +781,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
 
     def start_compare(self):
         # Just invoke worker, to set snapshot sending a callbacks
-        QtCore.QMetaObject.invokeMethod(self.worker, "start_continous_compare",
+        QtCore.QMetaObject.invokeMethod(self.worker, "start_continuous_compare",
                                         Qt.QueuedConnection)
 
     def update_pv(self, data):
@@ -1242,12 +1242,12 @@ class SnapshotWorker(QtCore.QObject):
             SIGNAL("save_files_loaded(PyQt_PyObject)"), parsed_save_files)
 
     @pyqtSlot()
-    def start_continous_compare(self):
-        self.snapshot.start_continous_compare(self.process_callbacks)
+    def start_continuous_compare(self):
+        self.snapshot.start_continuous_compare(self.process_callbacks)
 
     @pyqtSlot()
-    def stop_continous_compare(self):
-        self.snapshot.stop_continous_compare()
+    def stop_continuous_compare(self):
+        self.snapshot.stop_continuous_compare()
 
     def process_callbacks(self, **kw):
         self.emit(SIGNAL("pv_changed(PyQt_PyObject)"), kw)
