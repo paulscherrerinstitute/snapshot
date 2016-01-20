@@ -8,7 +8,7 @@ import argparse
 import re
 from enum import Enum
 
-from snapshot_ca import *
+from .snapshot_ca import *
 
 # close with ctrl+C
 import signal
@@ -960,7 +960,6 @@ class SnapshotDateSelectorInput(QtGui.QLineEdit):
         self.selected_date = None
 
     def mousePressEvent(self, event):
-        print(self.mapToGlobal(self.pos()).x)
         self.selector.move(self.mapToGlobal(self.pos()))
         self.selector.show()
 
