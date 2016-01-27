@@ -1,5 +1,5 @@
 # Snapshot tool
-Snapshot tool is python based tool with graphical user interface which is able to store (and later restore) values of channel access process variables. PVs). 
+Snapshot tool is python based tool with graphical user interface which is able to store (and later restore) values of channel access process variables. PVs).
 
 ## Dependencies:
  - python 3 (conda python 3.5 was used for development)
@@ -37,3 +37,10 @@ TODO:
 - filtering pvs on compare view by status
 - improve Readme
 - dialog to select request file from the GUI
+
+# Anaconda
+To build anaconda package use:
+
+```bash
+conda build conda-recipe
+```
