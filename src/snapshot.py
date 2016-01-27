@@ -7,8 +7,11 @@ import datetime
 import argparse
 import re
 from enum import Enum
+import os
+from epics_snapshot import PvStatus, Snapshot
+import json
+import numpy
 
-from epics_snapshot import *
 
 # close with ctrl+C
 import signal
@@ -115,7 +118,7 @@ class SnapshotGui(QtGui.QWidget):
 
 class SnapshotSaveWidget(QtGui.QWidget):
 
-    '''
+    """
     Save widget is a widget that enables user to save current state of PVs
     listed in request file. Widget includes:
     Save widget consists of:
@@ -128,8 +131,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
 
     Data about current app state (such as request file) must be provided as
     part of the structure "common_settings".
-
-    '''
+    """
 
     def __init__(self, worker, common_settings, parent=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
@@ -267,7 +269,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
 
 class SnapshotRestoreWidget(QtGui.QWidget):
 
-    '''
+    """
     restore widget is a widget that enables user to restore saved state of PVs
     listed in request file from one of the saved files.
     Save widget consists of:
@@ -279,8 +281,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
     Data about current app state (such as request file) must be provided as
     part of the structure "common_settings".
-
-    '''
+    """
 
     def __init__(self, worker, common_settings, parent=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
@@ -510,15 +511,14 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
 
 class SnapshotFileFilterWidget(QtGui.QWidget):
-
-    '''
+    """
         Is a widget with 3 filter options:
             - by time
             - by keywords
             - by name
 
         Emits signal: filter_changed when any of the filter changed.
-    '''
+    """
 
     def __init__(self, common_settings, parent=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
@@ -596,13 +596,11 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
 # PV Compare part
 class SnapshotCompareWidget(QtGui.QWidget):
 
-    '''
-
+    """
     Widget for live comparing pv values. All infos about PVs that needs to be
     monitored are already in the "snapshot" object controlled by worker. They
     were loaded with
-
-    '''
+    """
 
     def __init__(self, worker, common_settings, parent=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
@@ -683,13 +681,13 @@ class SnapshotCompareWidget(QtGui.QWidget):
         self.pv_view.setFocusPolicy(Qt.NoFocus)
 
     def create_compare_list(self):
-        '''
+        """
         Create tree item for each PV. List of pv names was returned after
         parsing the request file. Attributes except PV name are empty at
         init. Will be updated when monitor happens, snapshot object will
         raise a callback which is then catched in worker and passed with
         signal. TODO which function handles.
-        '''
+        """
 
         # First remove all existing entries
         while self.pv_view.topLevelItemCount() > 0:
@@ -728,10 +726,10 @@ class SnapshotCompareWidget(QtGui.QWidget):
 
 class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
 
-    '''
+    """
     Extended to hold last info about connection status and value. Also
     implements methods to set visibility according to filter
-    '''
+    """
 
     def __init__(self, pv_name, parent=None):
         # Item with [pv_name, current_value, saved_value, status]
@@ -741,6 +739,7 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
         # Have data stored in native types, for easier filtering etc.
         self.connect_sts = None
         self.saved_value = None
+        self.saved_sts = None
         self.value = None
         self.compare = None
         self.has_error = None
@@ -827,7 +826,7 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
 
     def apply_filter(self, compare_filter=PvCompareFilter.show_all,
                      completeness_filter=True, name_filter=None):
-        ''' Controls visibility of item, depending on filter conditions. '''
+        """ Controls visibility of item, depending on filter conditions. """
 
         # Save filters to use the when processed by value change
         self.compare_filter = compare_filter
@@ -841,7 +840,7 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
             name_match = True
 
         compare_match = ((PvCompareFilter(compare_filter) == PvCompareFilter.show_eq) and
-                         (self.compare)) or ((PvCompareFilter(compare_filter) == PvCompareFilter.show_neq) and
+                         self.compare) or ((PvCompareFilter(compare_filter) == PvCompareFilter.show_neq) and
                                              (not self.compare)) or (PvCompareFilter(compare_filter) == PvCompareFilter.show_all)
 
         # Do show values which has incomplete data?
@@ -907,6 +906,9 @@ class SnapshotDateSelectorInput(QtGui.QLineEdit):
 class SnapshotDateSelectorWindow(QtGui.QWidget):
 
     def __init__(self, parent=None, dft_date=None, day_end=False, **kw):
+
+        self.date_valid = False
+
         QtGui.QWidget.__init__(self, parent, **kw)
         self.dft_date = dft_date
         self.day_end = day_end
@@ -1000,7 +1002,9 @@ class SnapshotDateSelectorWindow(QtGui.QWidget):
 
 class SnapshotFileSelector(QtGui.QWidget):
 
-    ''' Widget to select file with dialog box '''
+    """
+     Widget to select file with dialog box
+    """
 
     def __init__(self, parent=None, label_text="File", button_text="Browse",
                  init_path=None, **kw):
@@ -1045,7 +1049,7 @@ class SnapshotFileSelector(QtGui.QWidget):
 class SnapshotConfigureDialog(QtGui.QDialog):
     # NOT USED YET#
 
-    ''' Dialog window to select and apply file'''
+    """ Dialog window to select and apply file """
 
     def __init__(self, parent=None, **kw):
         QtGui.QDialog.__init__(self, parent, **kw)
@@ -1082,7 +1086,7 @@ class SnapshotConfigureDialog(QtGui.QDialog):
 
 class SnapshotWorker(QtCore.QObject):
 
-    '''
+    """
     This is a worker object running in separate thread. It holds core of the
     application, snapshot object, so it does all time consuming tasks such as
     saving and restoring, loading files etc.
@@ -1094,7 +1098,7 @@ class SnapshotWorker(QtCore.QObject):
     * new_snapshot(snapshot) --> new snapshot was instantiated
     * save_done(status) --> save was finished
     * restore_done(save_file_path, status) --> restore was finished
-    '''
+    """
 
     def __init__(self, parent=None):
 
