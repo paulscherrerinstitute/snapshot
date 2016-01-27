@@ -8,7 +8,7 @@ import argparse
 import re
 from enum import Enum
 import os
-from snapshot_ca import PvStatus, Snapshot
+from .snapshot_ca import PvStatus, Snapshot
 import json
 import numpy
 
