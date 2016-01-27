@@ -17,4 +17,5 @@ setup(name='snapshot',
       packages=['snapshot'],
       package_dir={'snapshot': 'src'},
       platforms=["any"],
+      requires=['pyepics', 'pyqt4', 'numpy'],
       )

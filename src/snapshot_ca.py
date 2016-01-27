@@ -246,7 +246,7 @@ class Snapshot:
 
     def get_pvs_names(self):
         # To access a list of all pvs that are under control of snapshot object
-        return self.pvs.keys()
+        return list(self.pvs.keys())
 
     # Parser functions
 
