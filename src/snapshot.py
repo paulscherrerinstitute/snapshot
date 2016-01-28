@@ -8,9 +8,10 @@ import argparse
 import re
 from enum import Enum
 import os
-from .snapshot_ca import PvStatus, Snapshot
+from .snapshot_ca import PvStatus, ActionStatus, Snapshot
 import json
 import numpy
+import epics
 
 # close with ctrl+C
 import signal
@@ -44,10 +45,10 @@ class SnapshotGui(QtGui.QWidget):
     thread where core of the application is running
     """
 
-    def __init__(self, worker, req_file_name=None, req_file_macros=None,
+    def __init__(self, req_file_name=None, req_file_macros=None,
                  save_dir=None, save_file_dft=None, mode=None, parent=None):
         QtGui.QWidget.__init__(self, parent)
-        self.worker = worker
+
         self.setMinimumSize(1100, 900)
 
         # common_settings is a dictionary which holds common configuration of
@@ -79,20 +80,9 @@ class SnapshotGui(QtGui.QWidget):
 
         self.common_settings["pvs_to_restore"] = list()
 
-        # Before first interaction with the worker object list all signals
-        # on which action must be taken
-        self.connect(self.worker, SIGNAL("save_done(PyQt_PyObject)"),
-                     self.save_done)
-        self.connect(self.worker, SIGNAL("new_snapshot_loaded(PyQt_PyObject)"),
-                     self.handle_new_snapshot)
-
-        # Before creating GUI, snapshot must be initialized. This must be
-        # blocking operation. Cannot proceed without snapshot instance.
-        QtCore.QMetaObject.invokeMethod(self.worker, "init_snapshot",
-                                        Qt.BlockingQueuedConnection,
-                                        QtCore.Q_ARG(
-                                            str, self.common_settings["req_file_name"]),
-                                        QtCore.Q_ARG(dict, self.common_settings["req_file_macros"]))
+        # Before creating GUI, snapshot must be initialized.
+        self.init_snapshot(self.common_settings["req_file_name"],
+                           self.common_settings["req_file_macros"])
 
         # Create snapshot GUI:
         # Snapshot gui consists of two tabs: "Save" and "Restore" default
@@ -110,18 +100,19 @@ class SnapshotGui(QtGui.QWidget):
         tabs = QtGui.QTabWidget(self)
 
         # Each tab has it's own widget. Need one for save and one for restore.
-        self.save_widget = SnapshotSaveWidget(self.worker,
+        self.save_widget = SnapshotSaveWidget(self.snapshot,
                                               self.common_settings, tabs)
-        self.restore_widget = SnapshotRestoreWidget(self.worker,
+        self.connect(self.save_widget, SIGNAL("save_done"),
+                     self.save_done)
+        self.restore_widget = SnapshotRestoreWidget(self.snapshot,
                                                     self.common_settings, tabs)
 
         tabs.addTab(self.save_widget, "Save")
         tabs.addTab(self.restore_widget, "Restore")
 
         # Compare widget ("separator" line before)
-        self.compare_widget = SnapshotCompareWidget(self.worker,
+        self.compare_widget = SnapshotCompareWidget(self.snapshot,
                                                     self.common_settings, self)
-
 
         # Add to main layout
         main_layout.addWidget(tabs)
@@ -133,34 +124,23 @@ class SnapshotGui(QtGui.QWidget):
         self.show()
         self.setWindowTitle('Snapshot')
 
-    def make_file_list(self, file_list):
-        # Just pass data to Restore widget
-        self.restore_widget.make_file_list(file_list)
-
-    def save_done(self, status):
+    def save_done(self):
         # When save is done, save widget is updated by itself
         # Update restore widget (new file in directory)
         self.restore_widget.start_file_list_update()
-
-    def handle_new_snapshot(self, pvs_names_list):
-        # This function should do anything that is needed when new worker
-        # creates new instance of snapshot
-
-        # Store pv names list to common settings and call all widgets that need to
-        # be updated
-        self.common_settings["pvs_to_restore"] = pvs_names_list
-        self.compare_widget.create_compare_list()
-        self.compare_widget.create_compare_list()
 
     def set_request_file(self):
         self.common_settings["req_file_name"] = self.configure_dialog.file_path
         self.common_settings["req_file_macros"] = self.configure_dialog.macros
 
     def close_gui(self):
-        # Stop worker thread and exit the program if there is
-        # no request file 
-        self.worker.thread().quit()
         sys.exit()
+
+    def init_snapshot(self, req_file_path, req_macros=None):
+        # creates new instance of snapshot loads the request file and emits
+        # the signal new_snapshot to update the GUI
+        self.snapshot = Snapshot(req_file_path, req_macros)
+        self.common_settings["pvs_to_restore"] = self.snapshot.get_pvs_names()
 
 
 class SnapshotSaveWidget(QtGui.QWidget):
@@ -180,11 +160,11 @@ class SnapshotSaveWidget(QtGui.QWidget):
     part of the structure "common_settings".
     """
 
-    def __init__(self, worker, common_settings, parent=None, **kw):
+    def __init__(self, snapshot, common_settings, parent=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
 
         self.common_settings = common_settings
-        self.worker = worker
+        self.snapshot = snapshot
 
         # Default saved file name: If req file name is PREFIX.req, then saved
         # file name is: PREFIX_YYMMDD_hhmmss (holds time info)
@@ -192,16 +172,6 @@ class SnapshotSaveWidget(QtGui.QWidget):
         self.save_file_sufix = ".snap"
         self.name_base = os.path.split(
             common_settings["req_file_name"])[1].split(".")[0] + "_"
-
-        # Before creating elements that can use worker to signals from working
-        # thread that are response of this widget actions. If this widget must
-        # be updated by other widget actions, catch appropriate signals outside
-        # and call methods from outside.
-        #
-        # * "save_done" is response of the worker when save is finished. Returns
-        #   (file_path, status).
-        self.connect(self.worker, SIGNAL("save_done(PyQt_PyObject)"),
-                     self.save_done)
 
         # Create layout and add GUI elements (input fields, buttons, ...)
         layout = QtGui.QVBoxLayout(self)
@@ -279,27 +249,36 @@ class SnapshotSaveWidget(QtGui.QWidget):
         if not self.extension_input.text():
             #  Update name with latest timestamp
             self.update_name()
-        save = self.check_file_existance()
-        if save:
+
+        if self.check_file_existance():
             self.save_button.setEnabled(False)
             self.sts_log.log_line("Save started.")
             self.save_sts.setText("Saving ...")
             self.save_sts.setStyleSheet("background-color : orange")
-            QtCore.QMetaObject.invokeMethod(self.worker, "save_pvs",
-                                            Qt.QueuedConnection,
-                                            QtCore.Q_ARG(str, self.file_path),
-                                            QtCore.Q_ARG(
-                                                str, self.keyword_input.text()),
-                                            QtCore.Q_ARG(str, self.comment_input.text()))
+        
+            # Start saving process and notify when finished
+            status, pvs_status = self.snapshot.save_pvs(self.file_path,
+                                                        keyword=self.keyword_input.text(),
+                                                        comments=self.comment_input.text())
+            
+            if status == ActionStatus.no_cnct:
+                self.sts_log.log_line("ERROR: Save rejected. One or more PVs not connected.")
+                self.save_sts.setText("Cannot save")
+                self.save_sts.setStyleSheet("background-color : #F06464")
+                self.save_button.setEnabled(True)
+            
+            else:
+                # If not no_cnct, then .ok
+                self.save_done(pvs_status)
         else:
+            # User rejected saving into same file. No error.
             self.save_sts.setText("")
             self.save_sts.setStyleSheet("background-color : white") 
 
     def save_done(self, status):
         # Enable saving
-        self.save_button.setEnabled(True)
-        self.save_sts.setText("Save done")
-        self.save_sts.setStyleSheet("background-color : #64C864")
+        status_txt = "Save done"
+        status_style = "background-color : #64C864"
 
         for key in status:
             sts = status[key]
@@ -307,10 +286,15 @@ class SnapshotSaveWidget(QtGui.QWidget):
                 self.sts_log.log_line("ERROR: " + key + \
                     ": Not saved (no connection or no read access)")
 
-                self.save_sts.setText("Error during save.")
-                self.save_sts.setStyleSheet("background-color : #F06464")
+                status_txt = "Error during save."
+                status_style = "background-color : #F06464"
 
         self.sts_log.log_line("Save done.")
+        self.save_button.setEnabled(True)
+        self.save_sts.setText(status_txt)
+        self.save_sts.setStyleSheet(status_style)
+
+        self.emit(SIGNAL("save_done"))
 
     def update_name(self):
         name_extension_inp = self.extension_input.text()
@@ -355,29 +339,14 @@ class SnapshotRestoreWidget(QtGui.QWidget):
     part of the structure "common_settings".
     """
 
-    def __init__(self, worker, common_settings, parent=None, **kw):
+    def __init__(self, snapshot, common_settings, parent=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
 
-        self.worker = worker
+        self.snapshot = snapshot
         self.common_settings = common_settings
         # dict of available files to avoid multiple openings of one file when
-        # not needed. It is shared with worker thread (currently only for
-        # reading)
+        # not needed.
         self.file_list = dict()
-
-        # Before creating elements that can use worker, connect to signals from
-        # working thread that are response of this widget actions. If this
-        # widget must be updated by other widget actions, catch appropriate
-        # signals outside and call methods from outside.
-        #
-        # * "restore_done" is response of the worker when restore is finished.
-        #   Returns (file_path, status)
-        # * "save_files_loaded" response of the worker when file parsing done.
-        #   Returns (file_list)
-        self.connect(self.worker, SIGNAL("restore_done(PyQt_PyObject)"),
-                     self.restore_done)
-        self.connect(self.worker, SIGNAL("save_files_loaded(PyQt_PyObject)"),
-                     self.update_file_list_selector)
 
         # Create main layout
         layout = QtGui.QVBoxLayout(self)
@@ -430,7 +399,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         restore_layout_main.addWidget(self.file_selector)
         restore_layout_main.addItem(restore_layout)
 
-        # Create file list for first time (this is done  by worker)
+        # Create file list for first time
         self.start_file_list_update()
 
         # Add all widgets to main layout
@@ -444,13 +413,23 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.sts_log.log_line("Restore started.")
         self.restore_sts.setText("Restoring ...")
         self.restore_sts.setStyleSheet("background-color : orange")
+        status = self.snapshot.restore_pvs(callback=self.restore_done)
+        if status == ActionStatus.no_data:
+            self.sts_log.log_line("ERROR: No file selected.")
+            self.restore_sts.setText("Restore rejected")
+            self.restore_sts.setStyleSheet("background-color : #F06464")
+            self.restore_button.setEnabled(True)
+        elif status == ActionStatus.no_cnct:
+            self.sts_log.log_line("ERROR: Restore rejected. One or more PVs not connected.")
+            self.restore_sts.setText("Restore rejected")
+            self.restore_sts.setStyleSheet("background-color : #F06464")
+            self.restore_button.setEnabled(True)
+        elif status == ActionStatus.busy:
+            # Since enabling/disabling buttons this case should not happen.
+            self.sts_log.log_line("ERROR: Restore rejected. Previous restore not finished.")
 
-        QtCore.QMetaObject.invokeMethod(self.worker,
-                                        "restore_pvs",
-                                        Qt.QueuedConnection)
-
-    def restore_done(self, status):
-        # Enable button when restore is finished (worker notifies)
+    def restore_done(self, status, **kw):
+        # Enable button when restore is finished
         self.restore_button.setEnabled(True)
         self.restore_sts.setText("Restore done")
         self.restore_sts.setStyleSheet("background-color : #64C864")
@@ -467,34 +446,38 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                         ": Not restored (no connection or readonly)")
 
                     self.restore_sts.setText("Error during restore.")
-                    self.restore_sts.setStyleSheet(
-                        "background-color : #F06464")
+                    self.restore_sts.setStyleSheet("background-color : #F06464")
         self.sts_log.log_line("Restore done.")
 
     def start_file_list_update(self):
         # Rescans directory and adds new/modified files and removes none
         # existing ones from the list.
-
-        # set prefix of the files (do outside invokeMethod because looks less
-        # ugly :D)
         file_prefix = os.path.split(
             self.common_settings["req_file_name"])[1].split(".")[0] + "_"
 
-        QtCore.QMetaObject.invokeMethod(self.worker, "get_save_files",
-                                        Qt.QueuedConnection,
-                                        QtCore.Q_ARG(str, self.common_settings["save_dir"]),
-                                        QtCore.Q_ARG(str, file_prefix),
-                                        QtCore.Q_ARG(dict, self.file_list))
+        self.update_file_list_selector(self.get_save_files(self.common_settings["save_dir"], file_prefix, self.file_list ))
+        self.filter_file_list_selector() #TODO check if neccary
 
-        self.filter_file_list_selector()
 
-    def choose_file(self):
-        pvs = self.file_list[
-            self.file_selector.selectedItems()[0].text(0)]["pvs_list"]
-        QtCore.QMetaObject.invokeMethod(self.worker,
-                                        "load_pvs_to_snapshot",
-                                        Qt.QueuedConnection,
-                                        QtCore.Q_ARG(dict, pvs))
+    def get_save_files(self, save_dir, name_prefix, current_files):
+        parsed_save_files = dict()
+        # Check if any file added or modified (time of modification)
+        for file_name in os.listdir(save_dir):
+            file_path = os.path.join(save_dir, file_name)
+            if os.path.isfile(file_path) and file_name.startswith(name_prefix):
+                if (file_name not in current_files) or \
+                   (current_files[file_name]["modif_time"] != os.path.getmtime(file_path)):
+
+                    pvs_list, meta_data = self.snapshot.parse_from_save_file(
+                        file_path)
+
+                    # save data (no need to open file again later))
+                    parsed_save_files[file_name] = dict()
+                    parsed_save_files[file_name]["pvs_list"] = pvs_list
+                    parsed_save_files[file_name]["meta_data"] = meta_data
+                    parsed_save_files[file_name]["modif_time"] = os.path.getmtime(file_path)
+        
+        return parsed_save_files
 
     def update_file_list_selector(self, file_list):
         for key in file_list:
@@ -570,6 +553,11 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                 # Set visibility if any of the filters conditions met
                 file_line.setHidden(
                     not(time_status and keys_status and comment_status))
+
+    def choose_file(self):
+        pvs = self.file_list[
+            self.file_selector.selectedItems()[0].text(0)]["pvs_list"]
+        self.snapshot.prepare_pvs_to_restore_from_list(pvs)
 
 
 class SnapshotFileFilterWidget(QtGui.QWidget):
@@ -667,25 +655,16 @@ class SnapshotCompareWidget(QtGui.QWidget):
     were loaded with
     """
 
-    def __init__(self, worker, common_settings, parent=None, **kw):
+    def __init__(self, snapshot, common_settings, parent=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
-
-        self.worker = worker
+        self.snapshot = snapshot
         self.common_settings = common_settings
-
-        # Before creating elements that can use worker to signals from working
-        # thread that are response of this widget actions. If this widget must
-        # be updated by other widget actions, catch appropriate signals outside
-        # and call methods from outside.
-        self.connect(self.worker, SIGNAL("pv_changed(PyQt_PyObject)"),
-                     self.update_pv)
 
         # Create main layout
         layout = QtGui.QVBoxLayout(self)
         layout.setMargin(10)
         layout.setSpacing(10)
         self.setLayout(layout)
-
         # Create filter selectors
         # - text input to filter by name
         # - drop down to filter by compare status
@@ -697,7 +676,6 @@ class SnapshotCompareWidget(QtGui.QWidget):
         pv_filter_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
         self.pv_filter_inp = QtGui.QLineEdit(self)
         self.pv_filter_inp.textChanged.connect(self.filter_list)
-
         pv_filter_layout.addWidget(pv_filter_label)
         pv_filter_layout.addWidget(self.pv_filter_inp)
 
@@ -711,7 +689,6 @@ class SnapshotCompareWidget(QtGui.QWidget):
         self.completnes_filter_inp.setChecked(True)
         self.completnes_filter_inp.stateChanged.connect(self.filter_list)
         self.completnes_filter_inp.setMaximumWidth(500)
-
         filter_layout.addItem(pv_filter_layout)
         filter_layout.addWidget(self.compare_filter_inp)
         filter_layout.addWidget(self.completnes_filter_inp)
@@ -731,9 +708,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         self.pv_view.header().resizeSection(1, 200)
         self.pv_view.header().resizeSection(2, 100)
         self.pv_view.setAlternatingRowColors(True)
-
         # Add all widgets to main layout
-        # TODO add filter selector widget
         layout.addItem(filter_layout)
         layout.addWidget(self.pv_view)
 
@@ -777,11 +752,9 @@ class SnapshotCompareWidget(QtGui.QWidget):
                                    self.pv_filter_inp.text())
 
     def start_compare(self):
-        # Just invoke worker, to set snapshot sending a callbacks
-        QtCore.QMetaObject.invokeMethod(self.worker, "start_continuous_compare",
-                                        Qt.QueuedConnection)
+        self.snapshot.start_continuous_compare(self.update_pv)
 
-    def update_pv(self, data):
+    def update_pv(self, **data):
         # If everything ok, only one line should match
         line_to_update = self.pv_view.findItems(
             data["pv_name"], Qt.MatchCaseSensitive, 0)[0]
@@ -798,7 +771,7 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
 
     def __init__(self, pv_name, parent=None):
         # Item with [pv_name, current_value, saved_value, status]
-        QtGui.QTreeWidgetItem.__init__(self, parent, [pv_name, "", "", ""])
+        QtGui.QTreeWidgetItem.__init__(self, parent, [pv_name, "", "", "PV not connected!"])
         self.pv_name = pv_name
 
         # Have data stored in native types, for easier filtering etc.
@@ -842,34 +815,30 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
             else:
                 self.setText(1, "")
 
-        if not self.saved_sts:
-            self.setText(2, "")  # not loaded list of saved PVs means no value
-            self.setText(3, "Set of saved PVs not selected!")
-            self.has_error = True
-        else:
+        if self.saved_value is not None:
             if isinstance(self.saved_value, numpy.ndarray):
+                # Handle arrays
                 self.setText(2, json.dumps(self.saved_value.tolist()))
-            elif self.saved_value is not None:
-                # if string do not dump it will add "" to a string
-                if isinstance(self.saved_value, str):
-                    self.setText(2, self.saved_value)
-                else:
-                    # dump other values
-                    self.setText(2, json.dumps(self.saved_value))
+            elif isinstance(self.saved_value, str):
+                # If string do not dump it will add "" to a string
+                self.setText(2, self.saved_value)
             else:
-                self.setText(2, "Not Saved")
-                self.setText(3, "PV value not saved in this set.")
-                self.has_error = True
+                # dump other values
+                self.setText(2, json.dumps(self.saved_value))
+        else:
+            self.setText(2, "")
+            self.setText(3, "No saved value.")
+            self.has_error = True
 
-            if self.has_error or (self.compare is None):
-                self.set_color(PvViewStatus.err)
+        if self.has_error or (self.compare is None):
+            self.set_color(PvViewStatus.err)
+        else:
+            if self.compare:
+                self.setText(3, "Equal")
+                self.set_color(PvViewStatus.eq)
             else:
-                if self.compare:
-                    self.setText(3, "Equal")
-                    self.set_color(PvViewStatus.eq)
-                else:
-                    self.setText(3, "Not equal")
-                    self.set_color(PvViewStatus.neq)
+                self.setText(3, "Not equal")
+                self.set_color(PvViewStatus.neq)
 
         # Filter with saved filter data, to check conditions with new values.
         self.apply_filter(self.compare_filter, self.completeness_filter,
@@ -1067,9 +1036,7 @@ class SnapshotDateSelectorWindow(QtGui.QWidget):
 
 class SnapshotFileSelector(QtGui.QWidget):
 
-    """
-     Widget to select file with dialog box
-    """
+    """ Widget to select file with dialog box. """
 
     def __init__(self, parent=None, label_text="File:", button_text="Browse",
                  init_path=None, **kw):
@@ -1115,7 +1082,7 @@ class SnapshotFileSelector(QtGui.QWidget):
 
 class SnapshotConfigureDialog(QtGui.QDialog):
 
-    """ Dialog window to select and apply file """
+    """ Dialog window to select and apply file. """
 
     def __init__(self, parent=None, **kw):
         QtGui.QDialog.__init__(self, parent, **kw)
@@ -1165,98 +1132,8 @@ class SnapshotConfigureDialog(QtGui.QDialog):
                                                     QtGui.QMessageBox.Ok,
                                                     QtGui.QMessageBox.NoButton)
 
-
-
-class SnapshotWorker(QtCore.QObject):
-
-    """
-    This is a worker object running in separate thread. It holds core of the
-    application, snapshot object, so it does all time consuming tasks such as
-    saving and restoring, loading files etc.
-
-    Its slots (methods with @pyqtSlot) can be invoked with
-    QtCore.QMetaObject.invokeMethod().
-
-    To notify GUI this worker emits following signals
-    * new_snapshot(snapshot) --> new snapshot was instantiated
-    * save_done(status) --> save was finished
-    * restore_done(save_file_path, status) --> restore was finished
-    """
-
-    def __init__(self, parent=None):
-
-        QtCore.QObject.__init__(self, parent)
-        # Instance of snapshot will be created with  init_snapshot() so just
-        # create a placeholder
-        self.snapshot = None
-
-    @pyqtSlot(str, dict)
-    def init_snapshot(self, req_file_path, req_macros=None):
-        # creates new instance of snapshot loads the request file and emits
-        # the signal new_snapshot to update the GUI
-        self.snapshot = Snapshot(req_file_path, req_macros)
-        pvs_names = self.snapshot.get_pvs_names()
-        self.emit(SIGNAL("new_snapshot_loaded(PyQt_PyObject)"), pvs_names)
-
-    @pyqtSlot(str, str, str)
-    def save_pvs(self, save_file_path, keywords=None, comment=None):
-        # Start saving process and notify when finished
-        status = self.snapshot.save_pvs(save_file_path, keywords=keywords,
-                                        comment=comment)
-        self.emit(
-            SIGNAL("save_done(PyQt_PyObject)"), status)
-
-    @pyqtSlot()
-    def restore_pvs(self):
-        # Just calling snapshot restore.
-        status = self.snapshot.restore_pvs()
-
-        self.emit(SIGNAL("restore_done(PyQt_PyObject)"), status)
-
-    @pyqtSlot(dict)
-    def load_pvs_to_snapshot(self, saved_pvs):
-        # Sets list of pvs to snapshot object
-
-        self.snapshot.prepare_pvs_to_restore_from_list(saved_pvs)
-        self.emit(SIGNAL("load_for_restore_done()"))
-
-    @pyqtSlot(str, str, dict)
-    def get_save_files(self, save_dir, name_prefix, current_files):
-        parsed_save_files = dict()
-        # Check if any file added or modified (time of modification)
-        for file_name in os.listdir(save_dir):
-            file_path = os.path.join(save_dir, file_name)
-            if os.path.isfile(file_path) and file_name.startswith(name_prefix):
-                if (file_name not in current_files) or \
-                   (current_files[file_name]["modif_time"] != os.path.getmtime(file_path)):
-
-                    pvs_list, meta_data = self.snapshot.parse_from_save_file(
-                        file_path)
-
-                    # save data (no need to open file again later))
-                    parsed_save_files[file_name] = dict()
-                    parsed_save_files[file_name]["pvs_list"] = pvs_list
-                    parsed_save_files[file_name]["meta_data"] = meta_data
-                    parsed_save_files[file_name][
-                        "modif_time"] = os.path.getmtime(file_path)
-
-        self.emit(
-            SIGNAL("save_files_loaded(PyQt_PyObject)"), parsed_save_files)
-
-    @pyqtSlot()
-    def start_continuous_compare(self):
-        self.snapshot.start_continuous_compare(self.process_callbacks)
-
-    @pyqtSlot()
-    def stop_continuous_compare(self):
-        self.snapshot.stop_continuous_compare()
-
-    def process_callbacks(self, **kw):
-        self.emit(SIGNAL("pv_changed(PyQt_PyObject)"), kw)
-
-
 def parse_macros(macros_str):
-    ''' Comma separated macros string to dictionary'''
+    """ Comma separated macros string to dictionary. """
     macros = dict()
     if macros_str:
         macros_list = macros_str.split(',')
@@ -1283,12 +1160,8 @@ def main():
     # Create application which consists of two threads. "gui" runs in main
     # GUI thread. Time consuming functions are executed in worker thread.
     app = QtGui.QApplication(sys.argv)
-    worker = SnapshotWorker()  # this is working object manipulating snapshot
-    worker_thread = QtCore.QThread()
-    worker.moveToThread(worker_thread)
-    worker_thread.start()
 
-    gui = SnapshotGui(worker, args.req, macros, args.dir)
+    gui = SnapshotGui(args.req, macros, args.dir)
 
     sys.exit(app.exec_())
 
