@@ -8,7 +8,7 @@ import argparse
 import re
 from enum import Enum
 import os
-from .snapshot_ca import PvStatus, ActionStatus, Snapshot
+from snapshot_ca import PvStatus, ActionStatus, Snapshot
 import json
 import numpy
 import epics
@@ -152,7 +152,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
      - input-fields:
         * file extension (default YYMMDD_hhmm)
         * comment
-        * keywords
+        * labels
      - read-back showing whole file name
      - Save button
 
@@ -210,15 +210,15 @@ class SnapshotSaveWidget(QtGui.QWidget):
         comment_layout.addWidget(comment_label)
         comment_layout.addWidget(self.comment_input)
 
-        # Make field for keywords
-        keyword_layout = QtGui.QHBoxLayout()
-        keyword_layout.setSpacing(10)
-        keyword_label = QtGui.QLabel("Keywords:", self)
-        keyword_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
-        keyword_label.setMinimumWidth(min_label_width)
-        self.keyword_input = QtGui.QLineEdit(self)
-        keyword_layout.addWidget(keyword_label)
-        keyword_layout.addWidget(self.keyword_input)
+        # Make field for labels
+        labels_layout = QtGui.QHBoxLayout()
+        labels_layout.setSpacing(10)
+        labels_label = QtGui.QLabel("Labels:", self)
+        labels_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
+        labels_label.setMinimumWidth(min_label_width)
+        self.labels_input = QtGui.QLineEdit(self)
+        labels_layout.addWidget(labels_label)
+        labels_layout.addWidget(self.labels_input)
 
         # Make Save button, status indicator and save report
         save_layout = QtGui.QHBoxLayout()
@@ -239,7 +239,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
         # Add to main layout
         layout.addItem(extension_layout)
         layout.addItem(comment_layout)
-        layout.addItem(keyword_layout)
+        layout.addItem(labels_layout)
         layout.addStretch()
         layout.addItem(save_layout)
 
@@ -258,7 +258,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
         
             # Start saving process and notify when finished
             status, pvs_status = self.snapshot.save_pvs(self.file_path,
-                                                        keyword=self.keyword_input.text(),
+                                                        labels=self.labels_input.text(),
                                                         comments=self.comment_input.text())
             
             if status == ActionStatus.no_cnct:
@@ -370,12 +370,12 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         # Make restore button, status indicator and restore report
         restore_layout_main = QtGui.QVBoxLayout()
 
-        # Create list with: file names, keywords, comments
+        # Create list with: file names, labels, comments
         self.file_selector = QtGui.QTreeWidget(self)
         self.file_selector.setIndentation(0)
         self.file_selector.setStyleSheet("QTreeWidget::item:pressed,QTreeWidget::item:selected{background-color:#FF6347;color:#FFFFFF}‌​")
         self.file_selector.setColumnCount(3)
-        self.file_selector.setHeaderLabels(["File", "Keywords", "Comment"])
+        self.file_selector.setHeaderLabels(["File", "Labels", "Comment"])
         self.file_selector.header().resizeSection(0, 300)
         self.file_selector.header().resizeSection(1, 300)
         self.file_selector.setAlternatingRowColors(True)
@@ -482,20 +482,20 @@ class SnapshotRestoreWidget(QtGui.QWidget):
     def update_file_list_selector(self, file_list):
         for key in file_list:
             meta_data = file_list[key]["meta_data"]
-            keywords = meta_data.get("keywords", "")
+            labels = meta_data.get("labels", "")
             comment = meta_data.get("comment", "")
 
             # check if already on list (was just modified) and modify file
             # selector
             if key not in self.file_list:
-                selector_item = QtGui.QTreeWidgetItem([key, keywords, comment])
+                selector_item = QtGui.QTreeWidgetItem([key, labels, comment])
                 self.file_selector.addTopLevelItem(selector_item)
                 self.file_list[key] = file_list[key]
                 self.file_list[key]["file_selector"] = selector_item
             else:
                 # If everything ok only one file should exist in list
                 to_modify = self.file_list[key]["file_selector"]
-                to_modify.setText(1, keywords)
+                to_modify.setText(1, labels)
                 to_modify.setText(2, comment)
 
         # Sort by file name (alphabetical order)
@@ -532,11 +532,11 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
                 if keys_filter:
                     # get file keys as list
-                    keywords = file_to_filter[
-                        "meta_data"]["keywords"].split(',')
+                    labels = file_to_filter[
+                        "meta_data"]["labels"].split(' ')
                     keys_status = False
 
-                    for key in keywords:
+                    for key in labels:
                         # Breake when first found
                         if key and (key in keys_filter):
                             keys_status = True
@@ -564,7 +564,7 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
     """
         Is a widget with 3 filter options:
             - by time
-            - by keywords
+            - by labels
             - by name
 
         Emits signal: filter_changed when any of the filter changed.
@@ -581,7 +581,7 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
 
         # Create filter selectors (with readbacks)
         # - date selector
-        # - check_boxes for keywords
+        # - check_boxes for labels
         # - text input to filter comments
 
         # date selector
@@ -613,9 +613,9 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
 
         # Key filter
         key_layout = QtGui.QHBoxLayout()
-        key_label = QtGui.QLabel("Keywords:", self)
+        key_label = QtGui.QLabel("Labels:", self)
         self.keys_input = QtGui.QLineEdit(self)
-        self.keys_input.setPlaceholderText("key1,key2,...")
+        self.keys_input.setPlaceholderText("label_1 label_2 ...")
         self.keys_input.textChanged.connect(self.update_filter)
         key_layout.addWidget(key_label)
         key_layout.addWidget(self.keys_input)
