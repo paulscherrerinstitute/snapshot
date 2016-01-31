@@ -192,9 +192,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
         file_name_label = QtGui.QLabel("File name: ", self)
         self.file_name_rb = QtGui.QLabel(self)
         self.file_name_rb.setMinimumWidth(300)
-        # Get first time stamp name
-        self.update_name()
-        self.extension_input.setText(self.name_extension)
+
         extension_layout.addWidget(extension_label)
         extension_layout.addWidget(self.extension_input)
         extension_layout.addWidget(file_name_label)
@@ -255,18 +253,16 @@ class SnapshotSaveWidget(QtGui.QWidget):
             self.sts_log.log_line("Save started.")
             self.save_sts.setText("Saving ...")
             self.save_sts.setStyleSheet("background-color : orange")
-        
+
             # Start saving process and notify when finished
             status, pvs_status = self.snapshot.save_pvs(self.file_path,
                                                         labels=self.labels_input.text(),
                                                         comments=self.comment_input.text())
-            
             if status == ActionStatus.no_cnct:
                 self.sts_log.log_line("ERROR: Save rejected. One or more PVs not connected.")
                 self.save_sts.setText("Cannot save")
                 self.save_sts.setStyleSheet("background-color : #F06464")
                 self.save_button.setEnabled(True)
-            
             else:
                 # If not no_cnct, then .ok
                 self.save_done(pvs_status)
@@ -456,7 +452,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
             self.common_settings["req_file_name"])[1].split(".")[0] + "_"
 
         self.update_file_list_selector(self.get_save_files(self.common_settings["save_dir"], file_prefix, self.file_list ))
-        self.filter_file_list_selector() #TODO check if neccary
+        #self.filter_file_list_selector() #TODO check if neccary
 
 
     def get_save_files(self, save_dir, name_prefix, current_files):
