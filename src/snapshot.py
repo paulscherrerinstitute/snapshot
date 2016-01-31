@@ -39,6 +39,28 @@ class SnapshotStatusLog(QtGui.QPlainTextEdit):
         self.ensureCursorVisible()
 
 
+class SnapshotStatus(QtGui.QLabel):
+    def __init__(self, parent=None):
+        QtGui.QLabel.__init__(self, parent=parent)
+        self.setMinimumWidth(200)
+        self.setMaximumWidth(200)
+        self.setMaximumHeight(30)
+        self.setMargin(5)
+        self.setStyleSheet("background-color : white")
+        self.timer = QtCore.QTimer(self)
+        self.timer.timeout.connect(self.clear_status)
+
+    def set_status(self, text="", duration=0, background="white"):
+        self.setText(text)
+        style = "background-color : " + background
+        self.setStyleSheet(style)
+        if duration:
+            self.timer.start(duration)
+
+    def clear_status(self):
+        self.set_status("", 0, "white")
+
+
 class SnapshotGui(QtGui.QWidget):
     """
     Main GUI class for Snapshot application. It needs separate working
@@ -97,6 +119,9 @@ class SnapshotGui(QtGui.QWidget):
         sts_log.setMaximumHeight(100)
         sts_log.setReadOnly(True)
         self.common_settings["sts_log"] = sts_log
+        status = SnapshotStatus()
+        self.common_settings["sts_info"] = status
+
         tabs = QtGui.QTabWidget(self)
 
         # Each tab has it's own widget. Need one for save and one for restore.
@@ -113,13 +138,16 @@ class SnapshotGui(QtGui.QWidget):
         # Compare widget ("separator" line before)
         self.compare_widget = SnapshotCompareWidget(self.snapshot,
                                                     self.common_settings, self)
-
+        # Status bar
+        status_bar = QtGui.QStatusBar(self)
+        status_bar.addPermanentWidget(status)
         # Add to main layout
         main_layout.addWidget(tabs)
         main_layout.addWidget(self.compare_widget)
         main_layout.addWidget(separator)
         main_layout.addWidget(sts_log)
-
+        main_layout.addWidget(status_bar)
+        
         # Show GUI and manage window properties
         self.show()
         self.setWindowTitle('Snapshot')
@@ -192,6 +220,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
         file_name_label = QtGui.QLabel("File name: ", self)
         self.file_name_rb = QtGui.QLabel(self)
         self.file_name_rb.setMinimumWidth(300)
+        self.update_name()
 
         extension_layout.addWidget(extension_label)
         extension_layout.addWidget(self.extension_input)
@@ -223,17 +252,13 @@ class SnapshotSaveWidget(QtGui.QWidget):
         save_layout.setSpacing(10)
         self.save_button = QtGui.QPushButton("Save", self)
         self.save_button.clicked.connect(self.start_save)
-        self.save_sts = QtGui.QLabel(self)
 
-        self.save_sts.setMaximumWidth(200)
-        self.save_sts.setMaximumHeight(30)
-        self.save_sts.setMargin(5)
-        self.save_sts.setStyleSheet("background-color : white")
         save_layout.addWidget(self.save_button)
-        save_layout.addWidget(self.save_sts)
 
-        # Full status report ("error log")
+        # Status widgets
         self.sts_log = self.common_settings["sts_log"]
+        self.sts_info = self.common_settings["sts_info"]
+
         # Add to main layout
         layout.addItem(extension_layout)
         layout.addItem(comment_layout)
@@ -251,30 +276,27 @@ class SnapshotSaveWidget(QtGui.QWidget):
         if self.check_file_existance():
             self.save_button.setEnabled(False)
             self.sts_log.log_line("Save started.")
-            self.save_sts.setText("Saving ...")
-            self.save_sts.setStyleSheet("background-color : orange")
+            self.sts_info.set_status("Saving ...", 0, "orange")
 
             # Start saving process and notify when finished
             status, pvs_status = self.snapshot.save_pvs(self.file_path,
                                                         labels=self.labels_input.text(),
-                                                        comments=self.comment_input.text())
+                                                        comment=self.comment_input.text())
             if status == ActionStatus.no_cnct:
                 self.sts_log.log_line("ERROR: Save rejected. One or more PVs not connected.")
-                self.save_sts.setText("Cannot save")
-                self.save_sts.setStyleSheet("background-color : #F06464")
+                self.sts_info.set_status("Cannot save", 3000, "#F06464")
                 self.save_button.setEnabled(True)
             else:
                 # If not no_cnct, then .ok
                 self.save_done(pvs_status)
         else:
             # User rejected saving into same file. No error.
-            self.save_sts.setText("")
-            self.save_sts.setStyleSheet("background-color : white") 
+            self.sts_info.clear_status()
 
     def save_done(self, status):
         # Enable saving
         status_txt = "Save done"
-        status_style = "background-color : #64C864"
+        status_background = "#64C864"
 
         for key in status:
             sts = status[key]
@@ -282,13 +304,12 @@ class SnapshotSaveWidget(QtGui.QWidget):
                 self.sts_log.log_line("ERROR: " + key + \
                     ": Not saved (no connection or no read access)")
 
-                status_txt = "Error during save."
-                status_style = "background-color : #F06464"
+                status_txt = "Save error"
+                status_background = "#F06464"
 
         self.sts_log.log_line("Save done.")
         self.save_button.setEnabled(True)
-        self.save_sts.setText(status_txt)
-        self.save_sts.setStyleSheet(status_style)
+        self.sts_info.set_status(status_txt, 3000, status_background)
 
         self.emit(SIGNAL("save_done"))
 
@@ -366,14 +387,14 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         # Make restore button, status indicator and restore report
         restore_layout_main = QtGui.QVBoxLayout()
 
-        # Create list with: file names, labels, comments
+        # Create list with: file names, comment, labels
         self.file_selector = QtGui.QTreeWidget(self)
         self.file_selector.setIndentation(0)
         self.file_selector.setStyleSheet("QTreeWidget::item:pressed,QTreeWidget::item:selected{background-color:#FF6347;color:#FFFFFF}‌​")
         self.file_selector.setColumnCount(3)
-        self.file_selector.setHeaderLabels(["File", "Labels", "Comment"])
+        self.file_selector.setHeaderLabels(["File", "Comment", "Labels"])
         self.file_selector.header().resizeSection(0, 300)
-        self.file_selector.header().resizeSection(1, 300)
+        self.file_selector.header().resizeSection(1, 500)
         self.file_selector.setAlternatingRowColors(True)
         self.file_selector.itemSelectionChanged.connect(self.choose_file)
 
@@ -382,15 +403,11 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         restore_layout.setSpacing(10)
         self.restore_button = QtGui.QPushButton("Restore", self)
         self.restore_button.clicked.connect(self.start_restore)
-        self.restore_sts = QtGui.QLabel(self)
-        self.restore_sts.setMaximumWidth(200)
-        self.restore_sts.setMaximumHeight(30)
-        self.restore_sts.setMargin(5)
-        self.restore_sts.setStyleSheet("background-color : white")
         restore_layout.addWidget(self.restore_button)
-        restore_layout.addWidget(self.restore_sts)
-        # Full status report ("error log")
+
+        # Status widgets
         self.sts_log = self.common_settings["sts_log"]
+        self.sts_info = self.common_settings["sts_info"]
 
         restore_layout_main.addWidget(self.file_selector)
         restore_layout_main.addItem(restore_layout)
@@ -407,18 +424,15 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         # Then Use one of the preloaded saved files to restore
         self.restore_button.setEnabled(False)
         self.sts_log.log_line("Restore started.")
-        self.restore_sts.setText("Restoring ...")
-        self.restore_sts.setStyleSheet("background-color : orange")
+        self.sts_info.set_status("Restoring ...", 0, "orange")
         status = self.snapshot.restore_pvs(callback=self.restore_done)
         if status == ActionStatus.no_data:
             self.sts_log.log_line("ERROR: No file selected.")
-            self.restore_sts.setText("Restore rejected")
-            self.restore_sts.setStyleSheet("background-color : #F06464")
+            self.sts_info.set_status("Restore rejected", 3000, "#F06464")
             self.restore_button.setEnabled(True)
         elif status == ActionStatus.no_cnct:
             self.sts_log.log_line("ERROR: Restore rejected. One or more PVs not connected.")
-            self.restore_sts.setText("Restore rejected")
-            self.restore_sts.setStyleSheet("background-color : #F06464")
+            self.sts_info.set_status("Restore rejected", 3000, "#F06464")
             self.restore_button.setEnabled(True)
         elif status == ActionStatus.busy:
             # Since enabling/disabling buttons this case should not happen.
@@ -427,13 +441,11 @@ class SnapshotRestoreWidget(QtGui.QWidget):
     def restore_done(self, status, **kw):
         # Enable button when restore is finished
         self.restore_button.setEnabled(True)
-        self.restore_sts.setText("Restore done")
-        self.restore_sts.setStyleSheet("background-color : #64C864")
+        self.sts_info.set_status("Restore done", 3000, "#64C864")
 
         if not status:
             self.sts_log.log_line("ERROR: No file selected.")
-            self.restore_sts.setText("Cannot restore")
-            self.restore_sts.setStyleSheet("background-color : #F06464")
+            self.sts_info.set_status("Cannot restore", 3000, "#F06464")
         else:
             for key in status:
                 sts = status[key]
@@ -441,8 +453,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                     self.sts_log.log_line("ERROR: " + key + \
                         ": Not restored (no connection or readonly)")
 
-                    self.restore_sts.setText("Error during restore.")
-                    self.restore_sts.setStyleSheet("background-color : #F06464")
+                    self.sts_info.set_status("Restore error", 3000, "#F06464")
         self.sts_log.log_line("Restore done.")
 
     def start_file_list_update(self):
@@ -451,9 +462,10 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         file_prefix = os.path.split(
             self.common_settings["req_file_name"])[1].split(".")[0] + "_"
 
-        self.update_file_list_selector(self.get_save_files(self.common_settings["save_dir"], file_prefix, self.file_list ))
+        self.update_file_list_selector(self.get_save_files(self.common_settings["save_dir"],
+                                                           file_prefix,
+                                                           self.file_list))
         self.filter_file_list_selector()
-
 
     def get_save_files(self, save_dir, name_prefix, current_files):
         parsed_save_files = dict()
@@ -484,15 +496,15 @@ class SnapshotRestoreWidget(QtGui.QWidget):
             # check if already on list (was just modified) and modify file
             # selector
             if key not in self.file_list:
-                selector_item = QtGui.QTreeWidgetItem([key, labels, comment])
+                selector_item = QtGui.QTreeWidgetItem([key, comment, labels])
                 self.file_selector.addTopLevelItem(selector_item)
                 self.file_list[key] = file_list[key]
                 self.file_list[key]["file_selector"] = selector_item
             else:
                 # If everything ok only one file should exist in list
                 to_modify = self.file_list[key]["file_selector"]
-                to_modify.setText(1, labels)
-                to_modify.setText(2, comment)
+                to_modify.setText(1, comment)
+                to_modify.setText(2, labels)
 
         # Sort by file name (alphabetical order)
         self.file_selector.sortItems(0, Qt.AscendingOrder)
@@ -582,7 +594,7 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
         # Create filter selectors (with readbacks)
         # - date selector
         # - check_boxes for labels
-        # - text input to filter comments
+        # - text input to filter comment
 
         # date selector
         date_layout = QtGui.QHBoxLayout()
