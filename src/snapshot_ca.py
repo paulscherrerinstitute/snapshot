@@ -119,7 +119,7 @@ class SnapshotPv(PV):
         else:
             # Clear params for PVs that is not defined to avoid restoring
             # values from old configurations
-            pv_ref.value_to_restore = None
+            self.value_to_restore = None
 
     def compare(self, value):
         if self.is_array:

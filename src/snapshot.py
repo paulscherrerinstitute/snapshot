@@ -452,7 +452,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
             self.common_settings["req_file_name"])[1].split(".")[0] + "_"
 
         self.update_file_list_selector(self.get_save_files(self.common_settings["save_dir"], file_prefix, self.file_list ))
-        #self.filter_file_list_selector() #TODO check if neccary
+        self.filter_file_list_selector()
 
 
     def get_save_files(self, save_dir, name_prefix, current_files):
@@ -515,6 +515,10 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                     # valid names are all between this two dates
                     # convert file name back to date and check if between
                     modif_time = file_to_filter["meta_data"]["save_time"]
+
+                    if time_filter[0] is not None and time_filter is not None:
+                        time_filter.sort()
+
                     if time_filter[0] is not None:
                         time_status = (modif_time >= time_filter[0])
                     else:
@@ -522,7 +526,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
                     if time_filter[1] is not None:
                         time_status = time_status and (
-                            modif_time <= time_filter[1])
+                            modif_time <= time_filter[1]+86399)  # End of day
                 else:
                     time_status = True
 
@@ -1012,12 +1016,12 @@ class SnapshotDateSelectorWindow(QtGui.QWidget):
     def apply_date(self):
         if self.date_valid:
             if self.day_end:
-                time_str_full = self.date_line.text()+"/23:59:59"
+                time_str_full = self.date_line.text()
             else:
-                time_str_full = self.date_line.text()+"/0:0:0"
+                time_str_full = self.date_line.text()
             if self.date_line.text():
                 self.selected_date = time.mktime(
-                    time.strptime(time_str_full, '%d.%m.%Y/%H:%M:%S'))
+                    time.strptime(time_str_full, '%d.%m.%Y'))
             else:
                 self.selected_date = self.dft_date
 
