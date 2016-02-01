@@ -71,7 +71,7 @@ class SnapshotGui(QtGui.QWidget):
                  save_dir=None, save_file_dft=None, mode=None, parent=None):
         QtGui.QWidget.__init__(self, parent)
 
-        self.setMinimumSize(1100, 900)
+        self.resize(1500, 850)
 
         # common_settings is a dictionary which holds common configuration of
         # the application (such as directory with save files, request file
@@ -122,28 +122,32 @@ class SnapshotGui(QtGui.QWidget):
         status = SnapshotStatus()
         self.common_settings["sts_info"] = status
 
-        tabs = QtGui.QTabWidget(self)
-
         # Each tab has it's own widget. Need one for save and one for restore.
         self.save_widget = SnapshotSaveWidget(self.snapshot,
-                                              self.common_settings, tabs)
+                                              self.common_settings, self)
         self.connect(self.save_widget, SIGNAL("save_done"),
                      self.save_done)
         self.restore_widget = SnapshotRestoreWidget(self.snapshot,
-                                                    self.common_settings, tabs)
-
-        tabs.addTab(self.save_widget, "Save")
-        tabs.addTab(self.restore_widget, "Restore")
+                                                    self.common_settings, self)
 
         # Compare widget ("separator" line before)
         self.compare_widget = SnapshotCompareWidget(self.snapshot,
                                                     self.common_settings, self)
+        
+        sr_splitter = QtGui.QSplitter(self)
+        sr_splitter.addWidget(self.save_widget)
+        sr_splitter.addWidget(self.restore_widget)
+
+        main_splitter = QtGui.QSplitter(self)
+        main_splitter.addWidget(sr_splitter)
+        main_splitter.addWidget(self.compare_widget)
+        main_splitter.setOrientation(Qt.Vertical)
+
         # Status bar
         status_bar = QtGui.QStatusBar(self)
         status_bar.addPermanentWidget(status)
         # Add to main layout
-        main_layout.addWidget(tabs)
-        main_layout.addWidget(self.compare_widget)
+        main_layout.addWidget(main_splitter)
         main_layout.addWidget(separator)
         main_layout.addWidget(sts_log)
         main_layout.addWidget(status_bar)
@@ -215,17 +219,23 @@ class SnapshotSaveWidget(QtGui.QWidget):
         extension_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
         extension_label.setMinimumWidth(min_label_width)
         self.extension_input = QtGui.QLineEdit(self)
-        # Monitor any changes (by user, or by other methods)
-        self.extension_input.textChanged.connect(self.update_name)
-        file_name_label = QtGui.QLabel("File name: ", self)
-        self.file_name_rb = QtGui.QLabel(self)
-        self.file_name_rb.setMinimumWidth(300)
-        self.update_name()
 
         extension_layout.addWidget(extension_label)
         extension_layout.addWidget(self.extension_input)
-        extension_layout.addWidget(file_name_label)
-        extension_layout.addWidget(self.file_name_rb)
+
+        # "Monitor" any name changes (by user, or by other methods)
+        extension_rb_layout = QtGui.QHBoxLayout()
+        extension_rb_layout.setSpacing(10)
+        self.extension_input.textChanged.connect(self.update_name)
+        file_name_label = QtGui.QLabel("File name: ", self)
+        file_name_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
+        file_name_label.setMinimumWidth(min_label_width)
+        self.file_name_rb = QtGui.QLabel(self)
+        self.update_name()
+
+        extension_rb_layout.addWidget(file_name_label)
+        extension_rb_layout.addWidget(self.file_name_rb)
+        extension_rb_layout.addStretch()
 
         # Make a field to enable user adding a comment
         comment_layout = QtGui.QHBoxLayout()
@@ -261,6 +271,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
 
         # Add to main layout
         layout.addItem(extension_layout)
+        layout.addItem(extension_rb_layout)
         layout.addItem(comment_layout)
         layout.addItem(labels_layout)
         layout.addStretch()
