@@ -1217,7 +1217,7 @@ def main():
     ''' Main logic '''
 
     args_pars = argparse.ArgumentParser()
-    args_pars.add_argument('-req', '-r', help='Request file')
+    args_pars.add_argument('REQUEST_FILE', nargs='?')
     args_pars.add_argument('-macros', '-m',
                            help="Macros for request file e.g.: \"SYS=TEST,DEV=D1\"")
     args_pars.add_argument('-dir', '-d',
@@ -1231,7 +1231,7 @@ def main():
     # GUI thread. Time consuming functions are executed in worker thread.
     app = QtGui.QApplication(sys.argv)
 
-    gui = SnapshotGui(args.req, macros, args.dir)
+    gui = SnapshotGui(args.REQUEST_FILE, macros, args.dir)
 
     sys.exit(app.exec_())
 
