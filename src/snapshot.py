@@ -133,8 +133,9 @@ class SnapshotGui(QtGui.QWidget):
         # Compare widget ("separator" line before)
         self.compare_widget = SnapshotCompareWidget(self.snapshot,
                                                     self.common_settings, self)
-        
+
         sr_splitter = QtGui.QSplitter(self)
+        sr_splitter.setStyleSheet("color : black")
         sr_splitter.addWidget(self.save_widget)
         sr_splitter.addWidget(self.restore_widget)
 
@@ -151,7 +152,7 @@ class SnapshotGui(QtGui.QWidget):
         main_layout.addWidget(separator)
         main_layout.addWidget(sts_log)
         main_layout.addWidget(status_bar)
-        
+
         # Show GUI and manage window properties
         self.show()
         self.setWindowTitle('Snapshot')
@@ -159,7 +160,7 @@ class SnapshotGui(QtGui.QWidget):
     def save_done(self):
         # When save is done, save widget is updated by itself
         # Update restore widget (new file in directory)
-        self.restore_widget.start_file_list_update()
+        self.restore_widget.update_files()
 
     def set_request_file(self):
         self.common_settings["req_file_name"] = self.configure_dialog.file_path
@@ -359,7 +360,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
     Save widget consists of:
      - file selector (tree of all files)
      - restore button
-     TODO add meta data searcher/filter
+     - searcher/filter
 
     It also owns a compare widget.
 
@@ -382,32 +383,11 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         layout.setSpacing(10)
         self.setLayout(layout)
 
-        # Filter widgets
-        # Filter handling
-        self.file_filter = dict()
-        self.file_filter["time"] = list()  # star and end date
-        self.file_filter["keys"] = list()
-        self.file_filter["comment"] = ""
-
-        self.filter_input = SnapshotFileFilterWidget(self)
-        self.connect(self.filter_input, SIGNAL(
-            "file_filter_updated"), self.filter_file_list_selector)
-
-        self.filter_file_list_selector()
-
-        # Make restore button, status indicator and restore report
-        restore_layout_main = QtGui.QVBoxLayout()
-
         # Create list with: file names, comment, labels
-        self.file_selector = QtGui.QTreeWidget(self)
-        self.file_selector.setIndentation(0)
-        self.file_selector.setStyleSheet("QTreeWidget::item:pressed,QTreeWidget::item:selected{background-color:#FF6347;color:#FFFFFF}‌​")
-        self.file_selector.setColumnCount(3)
-        self.file_selector.setHeaderLabels(["File", "Comment", "Labels"])
-        self.file_selector.header().resizeSection(0, 300)
-        self.file_selector.header().resizeSection(1, 500)
-        self.file_selector.setAlternatingRowColors(True)
-        self.file_selector.itemSelectionChanged.connect(self.choose_file)
+        self.file_selector = SnapshotRestoreFileSelector(snapshot,
+                                                         common_settings, self)
+        self.connect(self.file_selector, SIGNAL("new_pvs"),
+                     self.load_new_pvs)
 
         # Button with short status
         restore_layout = QtGui.QHBoxLayout()
@@ -420,15 +400,12 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.sts_log = self.common_settings["sts_log"]
         self.sts_info = self.common_settings["sts_info"]
 
-        restore_layout_main.addWidget(self.file_selector)
-        restore_layout_main.addItem(restore_layout)
-
         # Create file list for first time
-        self.start_file_list_update()
+        self.file_selector.start_file_list_update()
 
         # Add all widgets to main layout
-        layout.addWidget(self.filter_input)
-        layout.addItem(restore_layout_main)
+        layout.addWidget(self.file_selector)
+        layout.addItem(restore_layout)
 
     def start_restore(self):
         # First disable restore button (will be enabled when finished)
@@ -467,6 +444,61 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                     self.sts_info.set_status("Restore error", 3000, "#F06464")
         self.sts_log.log_line("Restore done.")
 
+    def load_new_pvs(self):
+        self.snapshot.prepare_pvs_to_restore_from_list(self.file_selector.pvs)
+
+    def update_files(self):
+        self.file_selector.start_file_list_update()
+
+
+class SnapshotRestoreFileSelector(QtGui.QWidget):
+    def __init__(self, snapshot, common_settings, parent=None, **kw):
+        QtGui.QWidget.__init__(self, parent, **kw)
+
+        self.snapshot = snapshot
+        self.selected_file = None
+        self.common_settings = common_settings
+
+        self.file_list = dict()
+        self.pvs = dict()
+
+        # Filter handling
+        self.file_filter = dict()
+        self.file_filter["time"] = list()  # star and end date
+        self.file_filter["keys"] = list()
+        self.file_filter["comment"] = ""
+
+        self.filter_input = SnapshotFileFilterWidget(self)
+        self.connect(self.filter_input, SIGNAL(
+            ""), self.filter_file_list_selector)
+
+        # Create list with: file names, comment, labels
+        self.file_selector = QtGui.QTreeWidget(self)
+        self.file_selector.setIndentation(0)
+        self.file_selector.setStyleSheet("""
+            QTreeWidget::item:pressed,QTreeWidget::item:selected{
+            background-color:#FF6347;color:#FFFFFF}‌​
+            """)
+        self.file_selector.setColumnCount(3)
+        self.file_selector.setHeaderLabels(["File", "Comment", "Labels"])
+        self.file_selector.header().resizeSection(0, 300)
+        self.file_selector.header().resizeSection(1, 500)
+        self.file_selector.setAlternatingRowColors(True)
+        self.file_selector.itemSelectionChanged.connect(self.choose_file)
+        self.file_selector.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.file_selector.customContextMenuRequested.connect(self.open_menu)
+
+        self.filter_file_list_selector()
+
+        # Add to main layout
+        layout = QtGui.QVBoxLayout(self)
+        layout.addWidget(self.filter_input)
+        layout.addWidget(self.file_selector)
+
+        # Context menu
+        self.menu = QtGui.QMenu(self)
+        self.menu.addAction("Delete file", self.delete_file)
+
     def start_file_list_update(self):
         # Rescans directory and adds new/modified files and removes none
         # existing ones from the list.
@@ -495,7 +527,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                     parsed_save_files[file_name]["pvs_list"] = pvs_list
                     parsed_save_files[file_name]["meta_data"] = meta_data
                     parsed_save_files[file_name]["modif_time"] = os.path.getmtime(file_path)
-        
+
         return parsed_save_files
 
     def update_file_list_selector(self, file_list):
@@ -577,10 +609,25 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                 file_line.setHidden(
                     not(time_status and keys_status and comment_status))
 
+    def open_menu(self, point):
+        self.menu.show()
+        pos = self.file_selector.mapToGlobal(point)
+        pos += QtCore.QPoint(0, self.menu.sizeHint().height())
+        self.menu.move(pos)
+
     def choose_file(self):
-        pvs = self.file_list[
-            self.file_selector.selectedItems()[0].text(0)]["pvs_list"]
-        self.snapshot.prepare_pvs_to_restore_from_list(pvs)
+        if self.file_selector.selectedItems():
+            self.selected_file = self.file_selector.selectedItems()[0].text(0)
+            self.pvs = self.file_list[self.selected_file]["pvs_list"]
+
+        self.emit(SIGNAL("new_pvs"))
+
+    def delete_file(self):
+        if self.selected_file:
+            self.file_list.pop(self.selected_file)
+            self.pvs = dict()
+            os.remove(os.path.join(self.common_settings["save_dir"], self.selected_file))
+            self.file_selector.takeTopLevelItem(self.file_selector.indexOfTopLevelItem(self.file_selector.currentItem()))
 
 
 class SnapshotFileFilterWidget(QtGui.QWidget):
