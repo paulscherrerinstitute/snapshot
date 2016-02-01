@@ -341,7 +341,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
 
     def check_file_existance(self):
         if os.path.exists(self.file_path):
-            msg = "File already exists.Do you want to override it?\n" + \
+            msg = "File already exists. Do you want to override it?\n" + \
                   self.file_path
             reply = QtGui.QMessageBox.question(self, 'Message', msg,
                                                QtGui.QMessageBox.Yes,
@@ -624,11 +624,24 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
 
     def delete_file(self):
         if self.selected_file:
-            self.file_list.pop(self.selected_file)
-            self.pvs = dict()
-            os.remove(os.path.join(self.common_settings["save_dir"], self.selected_file))
-            self.file_selector.takeTopLevelItem(self.file_selector.indexOfTopLevelItem(self.file_selector.currentItem()))
-
+            file_path = os.path.join(self.common_settings["save_dir"],
+                                     self.selected_file)
+            
+            msg = "Do you want to delete file: " + file_path + "?"
+            reply = QtGui.QMessageBox.question(self, 'Message', msg,
+                                               QtGui.QMessageBox.Yes,
+                                               QtGui.QMessageBox.No)
+            if reply == QtGui.QMessageBox.Yes:
+                try:
+                    os.remove(file_path)
+                    self.file_list.pop(self.selected_file)
+                    self.pvs = dict()
+                    self.file_selector.takeTopLevelItem(self.file_selector.indexOfTopLevelItem(self.file_selector.currentItem()))
+                except OSError as e:
+                    warn = "Problem deleting file:\n" + str(e)
+                    QtGui.QMessageBox.warning(self, "Warning", warn,
+                                              QtGui.QMessageBox.Ok,
+                                              QtGui.QMessageBox.NoButton)
 
 class SnapshotFileFilterWidget(QtGui.QWidget):
     """
@@ -1198,9 +1211,10 @@ class SnapshotConfigureDialog(QtGui.QDialog):
             self.accept()
         else:
             warn = "File does not exist!"
-            warn_window = QtGui.QMessageBox.warning(self, "Warning", warn,
-                                                    QtGui.QMessageBox.Ok,
-                                                    QtGui.QMessageBox.NoButton)
+            QtGui.QMessageBox.warning(self, "Warning", warn,
+                                      QtGui.QMessageBox.Ok,
+                                      QtGui.QMessageBox.NoButton)
+
 
 def parse_macros(macros_str):
     """ Comma separated macros string to dictionary. """
