@@ -489,8 +489,9 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
             """)
         self.file_selector.setColumnCount(3)
         self.file_selector.setHeaderLabels(["File", "Comment", "Labels"])
-        self.file_selector.resizeColumnToContents(0)
-        #self.file_selector.header().resizeSection(1, 500)
+        self.file_selector.header().setResizeMode(0, QtGui.QHeaderView.Stretch)
+        self.file_selector.header().setResizeMode(1, QtGui.QHeaderView.Stretch)
+        self.file_selector.header().setResizeMode(2, QtGui.QHeaderView.Stretch)
         self.file_selector.setAlternatingRowColors(True)
         self.file_selector.itemSelectionChanged.connect(self.choose_file)
         self.file_selector.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -574,6 +575,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                 #time_filter = file_filter.get("time")
                 keys_filter = file_filter.get("keys")
                 comment_filter = file_filter.get("comment")
+                name_filter = file_filter.get("name")
 
                 #### DATE FILTER REMOVED ###
                 #if time_filter is not None:
@@ -595,7 +597,6 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                 #else:
                 #    time_status = True
                 #### DATE FILTER REMOVED ###
-                time_status = True
 
                 if keys_filter:
                     # get file keys as list
@@ -617,9 +618,14 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                 else:
                     comment_status = True
 
+                if name_filter:
+                    name_status = name_filter in key
+                else:
+                    name_status = True
+
                 # Set visibility if any of the filters conditions met
                 file_line.setHidden(
-                    not(time_status and keys_status and comment_status))
+                    not(name_status and keys_status and comment_status))
 
     def open_menu(self, point):
         self.menu.show()
@@ -658,7 +664,8 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
 class SnapshotFileFilterWidget(QtGui.QWidget):
     """
         Is a widget with 3 filter options:
-            - by time
+            - by time (removed)
+            - by comment
             - by labels
             - by name
 
@@ -675,9 +682,9 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
         self.setLayout(layout)
 
         # Create filter selectors (with readbacks)
-        # - date selector
-        # - check_boxes for labels
+        # - text input to filter by name
         # - text input to filter comment
+        # - labels selector
 
         #### DATE FILTER REMOVED ###
         # date selector
@@ -702,6 +709,7 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
         #    self.date_from.selected_date, self.date_to.selected_date]
         self.file_filter["keys"] = list()
         self.file_filter["comment"] = ""
+        self.file_filter["name"] = ""
 
         #### DATE FILTER REMOVED ###
         # Connect after file_filter exist
@@ -710,7 +718,7 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
         #self.connect(self.date_to, SIGNAL("date_updated"), self.update_filter)
         #### DATE FILTER REMOVED ###
 
-        # Key filter
+        # Labels filter
         key_layout = QtGui.QHBoxLayout()
         key_label = QtGui.QLabel("Labels:", self)
         self.keys_input = QtGui.QLineEdit(self)
@@ -723,17 +731,28 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
         comment_layout = QtGui.QHBoxLayout()
         comment_label = QtGui.QLabel("Comment:", self)
         self.comment_input = QtGui.QLineEdit(self)
-        self.comment_input.setPlaceholderText("Filter")
+        self.comment_input.setPlaceholderText("Filter by comment")
         self.comment_input.textChanged.connect(self.update_filter)
         comment_layout.addWidget(comment_label)
         comment_layout.addWidget(self.comment_input)
+
+        # File name filter
+        name_layout = QtGui.QHBoxLayout()
+        name_label = QtGui.QLabel("Name:", self)
+        self.name_input = QtGui.QLineEdit(self)
+        self.name_input.setPlaceholderText("Filter by name")
+        self.name_input.textChanged.connect(self.update_filter)
+        name_layout.addWidget(name_label)
+        name_layout.addWidget(self.name_input)
 
         # Add to main layout
         #### DATE FILTER REMOVED ###
         #layout.addItem(date_layout)
         #### DATE FILTER REMOVED ###
-        layout.addItem(key_layout)
+        layout.addItem(name_layout)
         layout.addItem(comment_layout)
+        layout.addItem(key_layout)
+
 
     def update_filter(self):
         #### DATE FILTER REMOVED ###
@@ -741,10 +760,11 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
         #    self.date_from.selected_date, self.date_to.selected_date]
         #### DATE FILTER REMOVED ###
         if self.keys_input.text().strip(''):
-            self.file_filter["keys"] = self.keys_input.text().strip('').split(',')
+            self.file_filter["keys"] = self.keys_input.text().strip('').split(' ')
         else:
             self.file_filter["keys"] = list()
         self.file_filter["comment"] = self.comment_input.text().strip('')
+        self.file_filter["name"] = self.name_input.text().strip('')
 
         self.emit(SIGNAL("file_filter_updated"))
 
@@ -778,6 +798,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         pv_filter_label = QtGui.QLabel("Filter:", self)
         pv_filter_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
         self.pv_filter_inp = QtGui.QLineEdit(self)
+        self.pv_filter_inp.setPlaceholderText("Filter by PV name")
         self.pv_filter_inp.textChanged.connect(self.filter_list)
         pv_filter_layout.addWidget(pv_filter_label)
         pv_filter_layout.addWidget(self.pv_filter_inp)
@@ -809,9 +830,10 @@ class SnapshotCompareWidget(QtGui.QWidget):
         self.pv_view.setColumnCount(4)
         self.pv_view.setHeaderLabels(
             ["PV", "Current value", "Saved value", "Status"])
-        self.pv_view.header().resizeSection(0, 400)
-        self.pv_view.header().resizeSection(1, 200)
-        self.pv_view.header().resizeSection(2, 100)
+        self.pv_view.header().setResizeMode(0, QtGui.QHeaderView.ResizeToContents)
+        self.pv_view.header().setResizeMode(1, QtGui.QHeaderView.ResizeToContents)
+        self.pv_view.header().setResizeMode(2, QtGui.QHeaderView.ResizeToContents)
+        self.pv_view.header().setResizeMode(3, QtGui.QHeaderView.Stretch)
         self.pv_view.setAlternatingRowColors(True)
         # Add all widgets to main layout
         layout.addItem(filter_layout)
