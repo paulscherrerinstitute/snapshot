@@ -224,12 +224,14 @@ class Snapshot:
             self.start_continuous_compare(callback)
 
     def restore_pvs(self, save_file_path=None, force=False, callback=None):
+        time.sleep(2)
         # If file with saved values specified then read file. If no file
         # then just use last stored values
         if self.restore_started:
             # Cannot do a restore, previous not finished
             return(ActionStatus.busy)
 
+        self.restore_started = True
         if save_file_path:
             self.prepare_pvs_to_restore_from_file(save_file_path)
 
@@ -246,18 +248,17 @@ class Snapshot:
             return(ActionStatus.no_cnct)
 
         # Do a restore
-        self.restore_started = True
         self.restored_pvs_list = list()
         self.restore_callback = callback
         for key in self.pvs:
             pv_ref = self.pvs[key]
             pv_ref.restore_pv(callback=self.check_restore_complete)
-
         return(ActionStatus.ok)
 
     def check_restore_complete(self, pv_name, status, **kw):
         self.restored_pvs_list.append((pv_name, status))
         if len(self.restored_pvs_list) == len(self.pvs) and self.restore_callback:
+            self.restore_started = False
             self.restore_callback(status=dict(self.restored_pvs_list))
             self.restore_callback = None
 
@@ -278,7 +279,6 @@ class Snapshot:
             if pv_ref.connected:
                 self.continuous_compare(pvname=pv_ref.pvname,
                                         value=pv_ref.value)
-        
         self.compare_state = True
 
     def stop_continuous_compare(self):

@@ -36,11 +36,12 @@ class SnapshotStatusLog(QtGui.QWidget):
         QtGui.QWidget.__init__(self, parent)
         self.sts_log = QtGui.QPlainTextEdit(self)
         self.sts_log.setReadOnly(True)
+
         layout = QtGui.QVBoxLayout()  # To have margin option
         layout.setMargin(10)
         layout.addWidget(self.sts_log)
         self.setLayout(layout)
-
+        
     def log_line(self, text):
         time_stamp = "[" + datetime.datetime.fromtimestamp(
                 time.time()).strftime('%H:%M:%S.%f') + "] "
@@ -48,26 +49,31 @@ class SnapshotStatusLog(QtGui.QWidget):
         self.sts_log.ensureCursorVisible()
 
 
-class SnapshotStatus(QtGui.QLabel):
+class SnapshotStatus(QtGui.QStatusBar):
     def __init__(self, parent=None):
-        QtGui.QLabel.__init__(self, parent=parent)
-        self.setMinimumWidth(200)
-        self.setMaximumWidth(200)
-        self.setMaximumHeight(30)
-        self.setMargin(5)
-        self.set_status()
+        QtGui.QStatusBar.__init__(self, parent)
+        self.setSizeGripEnabled(False)
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.clear_status)
 
-    def set_status(self, text="Idle", duration=0, background="white"):
-        self.setText(text)
+        self.status_txt = QtGui.QLineEdit()
+        self.status_txt.setStyleSheet("""
+            border : 0px;
+            background-color : transparent;
+            """)
+        self.addWidget(self.status_txt)
+        self.set_status()
+
+    def set_status(self, text="Ready", duration=0, background="#E5E5E5"):
+        self.status_txt.setText(text)
         style = "background-color : " + background
         self.setStyleSheet(style)
+
         if duration:
             self.timer.start(duration)
 
     def clear_status(self):
-        self.set_status("Idle", 0, "white")
+        self.set_status("Ready", 0, "#E5E5E5")
 
 
 class SnapshotGui(QtGui.QMainWindow):
@@ -124,10 +130,10 @@ class SnapshotGui(QtGui.QMainWindow):
         #
 
         # Status components are needed by other GUI elements
-        sts_log = SnapshotStatusLog(self)
-        self.common_settings["sts_log"] = sts_log
-        status = SnapshotStatus()
-        self.common_settings["sts_info"] = status
+        status_log = SnapshotStatusLog(self)
+        self.common_settings["sts_log"] = status_log
+        status_bar = SnapshotStatus()
+        self.common_settings["sts_info"] = status_bar
 
         # Creating main layout
         self.save_widget = SnapshotSaveWidget(self.snapshot,
@@ -142,19 +148,16 @@ class SnapshotGui(QtGui.QMainWindow):
         sr_splitter = QtGui.QSplitter(self)
         sr_splitter.addWidget(self.save_widget)
         sr_splitter.addWidget(self.restore_widget)
+        sr_splitter.setStretchFactor(0, 2)
+        sr_splitter.setStretchFactor(1, 1)
 
         main_splitter = QtGui.QSplitter(self)
         main_splitter.addWidget(sr_splitter)
         main_splitter.addWidget(self.compare_widget)
         main_splitter.addWidget(self.compare_widget)
-        main_splitter.addWidget(sts_log)
+        main_splitter.addWidget(status_log)
         main_splitter.setOrientation(Qt.Vertical)
 
-        # Status bar
-        status_bar = QtGui.QStatusBar(self)
-        status_bar.setSizeGripEnabled(False)
-        status_bar.addPermanentWidget(status)
-        
         # Set default widget and add status bar
         self.setCentralWidget(main_splitter)
         self.setStatusBar(status_bar)
@@ -162,6 +165,11 @@ class SnapshotGui(QtGui.QMainWindow):
         # Show GUI and manage window properties
         self.show()
         self.setWindowTitle(os.path.basename(self.common_settings["req_file_name"]) + ' - Snapshot')
+
+        # Status log default height should be 100px Set with splitter methods
+        widgets_sizes = main_splitter.sizes()
+        widgets_sizes[main_splitter.indexOf(main_splitter)] = 100
+        main_splitter.setSizes(widgets_sizes)
 
     def save_done(self):
         # When save is done, save widget is updated by itself
@@ -313,19 +321,22 @@ class SnapshotSaveWidget(QtGui.QWidget):
 
     def save_done(self, status):
         # Enable saving
-        status_txt = "Save done"
-        status_background = "#64C864"
-
+        error = False
         for key in status:
             sts = status[key]
             if status[key] == PvStatus.access_err:
+                error = True
                 self.sts_log.log_line("ERROR: " + key + \
                     ": Not saved (no connection or no read access)")
 
                 status_txt = "Save error"
                 status_background = "#F06464"
 
-        self.sts_log.log_line("Save done.")
+        if not error:
+            self.sts_log.log_line("Save successful.")
+            status_txt = "Save done"
+            status_background = "#64C864"
+
         self.save_button.setEnabled(True)
         self.sts_info.set_status(status_txt, 3000, status_background)
 
@@ -364,6 +375,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
         p = QtGui.QPainter(self)
         s = self.style()
         s.drawPrimitive(QtGui.QStyle.PE_Widget, opt, p, self)
+
 
 class SnapshotRestoreWidget(QtGui.QWidget):
 
@@ -416,13 +428,20 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         layout.addWidget(self.file_selector)
         layout.addWidget(self.restore_button)
 
+        self.connect(self, SIGNAL("restore_done_callback"), self.restore_done)
+
     def start_restore(self):
         # First disable restore button (will be enabled when finished)
         # Then Use one of the preloaded saved files to restore
         self.restore_button.setEnabled(False)
+        # Force updating the GUI and disabling the button before future actions
+        QtCore.QCoreApplication.processEvents()
         self.sts_log.log_line("Restore started.")
         self.sts_info.set_status("Restoring ...", 0, "orange")
-        status = self.snapshot.restore_pvs(callback=self.restore_done)
+        # Force updating the GUI with new status
+        QtCore.QCoreApplication.processEvents()
+
+        status = self.snapshot.restore_pvs(callback=self.restore_done_callback)
         if status == ActionStatus.no_data:
             self.sts_log.log_line("ERROR: No file selected.")
             self.sts_info.set_status("Restore rejected", 3000, "#F06464")
@@ -432,26 +451,35 @@ class SnapshotRestoreWidget(QtGui.QWidget):
             self.sts_info.set_status("Restore rejected", 3000, "#F06464")
             self.restore_button.setEnabled(True)
         elif status == ActionStatus.busy:
+            pass
             # Since enabling/disabling buttons this case should not happen.
             self.sts_log.log_line("ERROR: Restore rejected. Previous restore not finished.")
 
-    def restore_done(self, status, **kw):
-        # Enable button when restore is finished
-        self.restore_button.setEnabled(True)
-        self.sts_info.set_status("Restore done", 3000, "#64C864")
+    def restore_done_callback(self, status, **kw):
+        # Raise callback to handle GUI specific in GUI thread
+        self.emit(SIGNAL("restore_done_callback"), status)
 
+    def restore_done(self, status):
+        error = False
         if not status:
+            error = True
             self.sts_log.log_line("ERROR: No file selected.")
             self.sts_info.set_status("Cannot restore", 3000, "#F06464")
         else:
             for key in status:
-                sts = status[key]
-                if status[key] == PvStatus.access_err:
+                pv_status = status[key]
+                if pv_status == PvStatus.access_err:
+                    error = True
                     self.sts_log.log_line("ERROR: " + key + \
-                        ": Not restored (no connection or readonly)")
-
+                        ": Not restored (no connection or readonly).")
                     self.sts_info.set_status("Restore error", 3000, "#F06464")
-        self.sts_log.log_line("Restore done.")
+        
+        if not error:
+            self.sts_log.log_line("Restore successful.")
+            self.sts_info.set_status("Restore done", 3000, "#64C864")
+
+        # Enable button when restore is finished
+        self.restore_button.setEnabled(True)
 
     def load_new_pvs(self):
         self.snapshot.prepare_pvs_to_restore_from_list(self.file_selector.pvs)
@@ -852,7 +880,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         parsing the request file. Attributes except PV name are empty at
         init. Will be updated when monitor happens, snapshot object will
         raise a callback which is then catched in worker and passed with
-        signal. TODO which function handles.
+        signal.
         """
 
         # First remove all existing entries
@@ -873,6 +901,8 @@ class SnapshotCompareWidget(QtGui.QWidget):
         # Sort by name (alphabetical order)
         self.pv_view.sortItems(0, Qt.AscendingOrder)
 
+        self.connect(self, SIGNAL("update_pv_callback"), self.update_pv)
+
     def filter_list(self):
         # Just pass the filter conditions to all items in the list. # Use
         # values directly from GUI elements (filter selectors).
@@ -883,9 +913,13 @@ class SnapshotCompareWidget(QtGui.QWidget):
                                    self.pv_filter_inp.text())
 
     def start_compare(self):
-        self.snapshot.start_continuous_compare(self.update_pv)
+        #print(QtCore.QThread.currentThreadId())
+        self.snapshot.start_continuous_compare(self.update_pv_callback)
 
-    def update_pv(self, **data):
+    def update_pv_callback(self, **data):
+        self.emit(SIGNAL("update_pv_callback"), data)
+
+    def update_pv(self, data):
         # If everything ok, only one line should match
         line_to_update = self.pv_view.findItems(
             data["pv_name"], Qt.MatchCaseSensitive, 0)[0]
@@ -1293,6 +1327,8 @@ def main():
     # different platforms
     app = QtGui.QApplication(sys.argv)
     app.setStyle("cleanlooks")
+    # Set double click interval to avoid multiple action when two clicks are made
+    # to quick, and the button is not disabled yet
 
     # Load an application style
     default_style_path = os.path.dirname(os.path.realpath(__file__))
