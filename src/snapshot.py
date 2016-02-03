@@ -70,7 +70,7 @@ class SnapshotStatus(QtGui.QLabel):
         self.set_status("Idle", 0, "white")
 
 
-class SnapshotGui(QtGui.QWidget):
+class SnapshotGui(QtGui.QMainWindow):
     """
     Main GUI class for Snapshot application. It needs separate working
     thread where core of the application is running
@@ -78,23 +78,22 @@ class SnapshotGui(QtGui.QWidget):
 
     def __init__(self, req_file_name=None, req_file_macros=None,
                  save_dir=None, save_file_dft=None, mode=None, parent=None):
-        QtGui.QWidget.__init__(self, parent)
+        QtGui.QMainWindow.__init__(self, parent)
 
         self.resize(1500, 850)
 
         # common_settings is a dictionary which holds common configuration of
         # the application (such as directory with save files, request file
         # path, etc). It is propagated to other snapshot widgets if needed
-
-        self.configure_dialog = SnapshotConfigureDialog(self)
-        self.configure_dialog.accepted.connect(self.set_request_file)
-        self.configure_dialog.rejected.connect(self.close_gui)
-
         self.common_settings = dict()
         self.common_settings["req_file_name"] = ""
-        self.common_settings["req_file_macros"] = dict()
+        self.common_settings["req_file_macros"] = dict()   
 
         if not req_file_name:
+            self.configure_dialog = SnapshotConfigureDialog(self)
+            self.configure_dialog.accepted.connect(self.set_request_file)
+            self.configure_dialog.rejected.connect(self.close_gui)
+
             self.hide()
             self.configure_dialog.exec_()
 
@@ -108,33 +107,35 @@ class SnapshotGui(QtGui.QWidget):
 
         self.common_settings["save_dir"] = save_dir
         self.common_settings["save_file_dft"] = save_file_dft
-
         self.common_settings["pvs_to_restore"] = list()
 
         # Before creating GUI, snapshot must be initialized.
         self.init_snapshot(self.common_settings["req_file_name"],
                            self.common_settings["req_file_macros"])
 
-        # Create main GUI components
-        main_layout = QtGui.QVBoxLayout(self)
-        main_layout.setMargin(0)
-        self.setLayout(main_layout)
+        # Create main GUI components:
+        #       | save_widget | restore_widget |
+        #       --------------------------------
+        #       |        compare_widget        |
+        #       --------------------------------
+        #       |            sts_log           |
+        #        ______________________________
+        #                   status_bar
+        #
 
+        # Status components are needed by other GUI elements
         sts_log = SnapshotStatusLog(self)
         self.common_settings["sts_log"] = sts_log
-
         status = SnapshotStatus()
         self.common_settings["sts_info"] = status
 
-        # Each tab has it's own widget. Need one for save and one for restore.
+        # Creating main layout
         self.save_widget = SnapshotSaveWidget(self.snapshot,
                                               self.common_settings, self)
         self.connect(self.save_widget, SIGNAL("save_done"),
                      self.save_done)
         self.restore_widget = SnapshotRestoreWidget(self.snapshot,
                                                     self.common_settings, self)
-
-        # Compare widget ("separator" line before)
         self.compare_widget = SnapshotCompareWidget(self.snapshot,
                                                     self.common_settings, self)
 
@@ -153,9 +154,10 @@ class SnapshotGui(QtGui.QWidget):
         status_bar = QtGui.QStatusBar(self)
         status_bar.setSizeGripEnabled(False)
         status_bar.addPermanentWidget(status)
-        # Add to main layout
-        main_layout.addWidget(main_splitter)
-        main_layout.addWidget(status_bar)
+        
+        # Set default widget and add status bar
+        self.setCentralWidget(main_splitter)
+        self.setStatusBar(status_bar)
 
         # Show GUI and manage window properties
         self.show()
