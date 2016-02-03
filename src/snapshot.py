@@ -31,12 +31,21 @@ class PvCompareFilter(Enum):
     show_eq = 2
 
 
-class SnapshotStatusLog(QtGui.QPlainTextEdit):
+class SnapshotStatusLog(QtGui.QWidget):
+    def __init__(self, parent=None):
+        QtGui.QWidget.__init__(self, parent)
+        self.sts_log = QtGui.QPlainTextEdit(self)
+        self.sts_log.setReadOnly(True)
+        layout = QtGui.QVBoxLayout()  # To have margin option
+        layout.setMargin(10)
+        layout.addWidget(self.sts_log)
+        self.setLayout(layout)
+
     def log_line(self, text):
         time_stamp = "[" + datetime.datetime.fromtimestamp(
                 time.time()).strftime('%H:%M:%S.%f') + "] "
-        self.insertPlainText(time_stamp + text + "\n")
-        self.ensureCursorVisible()
+        self.sts_log.insertPlainText(time_stamp + text + "\n")
+        self.sts_log.ensureCursorVisible()
 
 
 class SnapshotStatus(QtGui.QLabel):
@@ -46,11 +55,11 @@ class SnapshotStatus(QtGui.QLabel):
         self.setMaximumWidth(200)
         self.setMaximumHeight(30)
         self.setMargin(5)
-        self.setStyleSheet("background-color : white")
+        self.set_status()
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.clear_status)
 
-    def set_status(self, text="", duration=0, background="white"):
+    def set_status(self, text="Idle", duration=0, background="white"):
         self.setText(text)
         style = "background-color : " + background
         self.setStyleSheet(style)
@@ -58,7 +67,7 @@ class SnapshotStatus(QtGui.QLabel):
             self.timer.start(duration)
 
     def clear_status(self):
-        self.set_status("", 0, "white")
+        self.set_status("Idle", 0, "white")
 
 
 class SnapshotGui(QtGui.QWidget):
@@ -106,19 +115,14 @@ class SnapshotGui(QtGui.QWidget):
         self.init_snapshot(self.common_settings["req_file_name"],
                            self.common_settings["req_file_macros"])
 
-        # Create snapshot GUI:
-        # Snapshot gui consists of two tabs: "Save" and "Restore" default
-        # is selected depending on mode parameter TODO
+        # Create main GUI components
         main_layout = QtGui.QVBoxLayout(self)
+        main_layout.setMargin(0)
         self.setLayout(main_layout)
 
-        # Log widget
-        separator = QtGui.QFrame(self)
-        separator.setFrameShape(QtGui.QFrame.HLine)
         sts_log = SnapshotStatusLog(self)
-        sts_log.setMaximumHeight(100)
-        sts_log.setReadOnly(True)
         self.common_settings["sts_log"] = sts_log
+
         status = SnapshotStatus()
         self.common_settings["sts_info"] = status
 
@@ -135,27 +139,27 @@ class SnapshotGui(QtGui.QWidget):
                                                     self.common_settings, self)
 
         sr_splitter = QtGui.QSplitter(self)
-        sr_splitter.setStyleSheet("color : black")
         sr_splitter.addWidget(self.save_widget)
         sr_splitter.addWidget(self.restore_widget)
 
         main_splitter = QtGui.QSplitter(self)
         main_splitter.addWidget(sr_splitter)
         main_splitter.addWidget(self.compare_widget)
+        main_splitter.addWidget(self.compare_widget)
+        main_splitter.addWidget(sts_log)
         main_splitter.setOrientation(Qt.Vertical)
 
         # Status bar
         status_bar = QtGui.QStatusBar(self)
+        status_bar.setSizeGripEnabled(False)
         status_bar.addPermanentWidget(status)
         # Add to main layout
         main_layout.addWidget(main_splitter)
-        main_layout.addWidget(separator)
-        main_layout.addWidget(sts_log)
         main_layout.addWidget(status_bar)
 
         # Show GUI and manage window properties
         self.show()
-        self.setWindowTitle('Snapshot')
+        self.setWindowTitle(os.path.basename(self.common_settings["req_file_name"]) + ' - Snapshot')
 
     def save_done(self):
         # When save is done, save widget is updated by itself
@@ -351,6 +355,13 @@ class SnapshotSaveWidget(QtGui.QWidget):
                 return False
         return True
 
+    def paintEvent(self, pe):
+        #To have possibility of class in style sheet
+        opt = QtGui.QStyleOption()
+        opt.init(self)
+        p = QtGui.QPainter(self)
+        s = self.style()
+        s.drawPrimitive(QtGui.QStyle.PE_Widget, opt, p, self)
 
 class SnapshotRestoreWidget(QtGui.QWidget):
 
@@ -389,12 +400,8 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.connect(self.file_selector, SIGNAL("new_pvs"),
                      self.load_new_pvs)
 
-        # Button with short status
-        restore_layout = QtGui.QHBoxLayout()
-        restore_layout.setSpacing(10)
         self.restore_button = QtGui.QPushButton("Restore", self)
         self.restore_button.clicked.connect(self.start_restore)
-        restore_layout.addWidget(self.restore_button)
 
         # Status widgets
         self.sts_log = self.common_settings["sts_log"]
@@ -405,7 +412,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
         # Add all widgets to main layout
         layout.addWidget(self.file_selector)
-        layout.addItem(restore_layout)
+        layout.addWidget(self.restore_button)
 
     def start_restore(self):
         # First disable restore button (will be enabled when finished)
@@ -464,16 +471,17 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
 
         # Filter handling
         self.file_filter = dict()
-        self.file_filter["time"] = list()  # star and end date
+        #self.file_filter["time"] = list()  # star and end date
         self.file_filter["keys"] = list()
         self.file_filter["comment"] = ""
 
         self.filter_input = SnapshotFileFilterWidget(self)
         self.connect(self.filter_input, SIGNAL(
-            ""), self.filter_file_list_selector)
+            "file_filter_updated"), self.filter_file_list_selector)
 
         # Create list with: file names, comment, labels
         self.file_selector = QtGui.QTreeWidget(self)
+        self.file_selector.setRootIsDecorated(False)
         self.file_selector.setIndentation(0)
         self.file_selector.setStyleSheet("""
             QTreeWidget::item:pressed,QTreeWidget::item:selected{
@@ -481,8 +489,8 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
             """)
         self.file_selector.setColumnCount(3)
         self.file_selector.setHeaderLabels(["File", "Comment", "Labels"])
-        self.file_selector.header().resizeSection(0, 300)
-        self.file_selector.header().resizeSection(1, 500)
+        self.file_selector.resizeColumnToContents(0)
+        #self.file_selector.header().resizeSection(1, 500)
         self.file_selector.setAlternatingRowColors(True)
         self.file_selector.itemSelectionChanged.connect(self.choose_file)
         self.file_selector.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -492,6 +500,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
 
         # Add to main layout
         layout = QtGui.QVBoxLayout(self)
+        layout.setMargin(0)
         layout.addWidget(self.filter_input)
         layout.addWidget(self.file_selector)
 
@@ -562,28 +571,31 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
             if not file_filter:
                 file_line.setHidden(False)
             else:
-                time_filter = file_filter.get("time")
+                #time_filter = file_filter.get("time")
                 keys_filter = file_filter.get("keys")
                 comment_filter = file_filter.get("comment")
 
-                if time_filter is not None:
-                    # valid names are all between this two dates
-                    # convert file name back to date and check if between
-                    modif_time = file_to_filter["meta_data"]["save_time"]
+                #### DATE FILTER REMOVED ###
+                #if time_filter is not None:
+                #    # valid names are all between this two dates
+                #    # convert file name back to date and check if between
+                #    modif_time = file_to_filter["meta_data"]["save_time"]#
 
-                    if time_filter[0] is not None and time_filter is not None:
-                        time_filter.sort()
+                #    if time_filter[0] is not None and time_filter is not None:
+                #        time_filter.sort()#
 
-                    if time_filter[0] is not None:
-                        time_status = (modif_time >= time_filter[0])
-                    else:
-                        time_status = True
+                #    if time_filter[0] is not None:
+                #        time_status = (modif_time >= time_filter[0])
+                #    else:
+                #        time_status = True
 
-                    if time_filter[1] is not None:
-                        time_status = time_status and (
-                            modif_time <= time_filter[1]+86399)  # End of day
-                else:
-                    time_status = True
+                #    if time_filter[1] is not None:
+                #        time_status = time_status and (
+                #            modif_time <= time_filter[1]+86399)  # End of day
+                #else:
+                #    time_status = True
+                #### DATE FILTER REMOVED ###
+                time_status = True
 
                 if keys_filter:
                     # get file keys as list
@@ -658,7 +670,7 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
 
         # Create main layout
         layout = QtGui.QHBoxLayout(self)
-        layout.setMargin(10)
+        layout.setMargin(0)
         layout.setSpacing(10)
         self.setLayout(layout)
 
@@ -667,32 +679,36 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
         # - check_boxes for labels
         # - text input to filter comment
 
+        #### DATE FILTER REMOVED ###
         # date selector
-        date_layout = QtGui.QHBoxLayout()
-        date_layout.setMargin(0)
-        date_layout.setSpacing(10)
+        #date_layout = QtGui.QHBoxLayout()
+        #date_layout.setMargin(0)
+        #date_layout.setSpacing(10)
 
-        from_label = QtGui.QLabel("From:", self)
-        self.date_from = SnapshotDateSelector(self)
-        to_label = QtGui.QLabel("To:", self)
-        self.date_to = SnapshotDateSelector(self, day_end=True)
+        #from_label = QtGui.QLabel("From:", self)
+        #self.date_from = SnapshotDateSelector(self)
+        #to_label = QtGui.QLabel("To:", self)
+        #self.date_to = SnapshotDateSelector(self, day_end=True)
 
-        date_layout.addWidget(from_label)
-        date_layout.addWidget(self.date_from)
-        date_layout.addWidget(to_label)
-        date_layout.addWidget(self.date_to)
+        #date_layout.addWidget(from_label)
+        #date_layout.addWidget(self.date_from)
+        #date_layout.addWidget(to_label)
+        #date_layout.addWidget(self.date_to)
+        #### DATE FILTER REMOVED ###
 
         # Init filters
         self.file_filter = dict()
-        self.file_filter["time"] = [
-            self.date_from.selected_date, self.date_to.selected_date]
+        #self.file_filter["time"] = [
+        #    self.date_from.selected_date, self.date_to.selected_date]
         self.file_filter["keys"] = list()
         self.file_filter["comment"] = ""
 
+        #### DATE FILTER REMOVED ###
         # Connect after file_filter exist
-        self.connect(
-            self.date_from, SIGNAL("date_updated"), self.update_filter)
-        self.connect(self.date_to, SIGNAL("date_updated"), self.update_filter)
+        #self.connect(
+        #    self.date_from, SIGNAL("date_updated"), self.update_filter)
+        #self.connect(self.date_to, SIGNAL("date_updated"), self.update_filter)
+        #### DATE FILTER REMOVED ###
 
         # Key filter
         key_layout = QtGui.QHBoxLayout()
@@ -713,13 +729,17 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
         comment_layout.addWidget(self.comment_input)
 
         # Add to main layout
-        layout.addItem(date_layout)
+        #### DATE FILTER REMOVED ###
+        #layout.addItem(date_layout)
+        #### DATE FILTER REMOVED ###
         layout.addItem(key_layout)
         layout.addItem(comment_layout)
 
     def update_filter(self):
-        self.file_filter["time"] = [
-            self.date_from.selected_date, self.date_to.selected_date]
+        #### DATE FILTER REMOVED ###
+        #self.file_filter["time"] = [
+        #    self.date_from.selected_date, self.date_to.selected_date]
+        #### DATE FILTER REMOVED ###
         if self.keys_input.text().strip(''):
             self.file_filter["keys"] = self.keys_input.text().strip('').split(',')
         else:
@@ -784,6 +804,8 @@ class SnapshotCompareWidget(QtGui.QWidget):
         # - saved pv value
         # - status string
         self.pv_view = QtGui.QTreeWidget(self)
+        self.pv_view.setRootIsDecorated(False)
+        self.pv_view.setIndentation(0)
         self.pv_view.setColumnCount(4)
         self.pv_view.setHeaderLabels(
             ["PV", "Current value", "Saved value", "Status"])
@@ -1056,7 +1078,7 @@ class SnapshotDateSelectorWindow(QtGui.QWidget):
         layout.addWidget(apply_button)
 
         # Make as a window
-        self.setWindowTitle("date")
+        self.setWindowTitle("Date selector")
         self.setWindowFlags(Qt.Window | Qt.Tool)
         self.setAttribute(Qt.WA_X11NetWmWindowTypeMenu, True)
         self.setEnabled(True)
@@ -1145,8 +1167,8 @@ class SnapshotFileSelector(QtGui.QWidget):
         label = QtGui.QLabel(label_text, self)
         label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
         file_path_button = QtGui.QToolButton(self)
-        icon = QtGui.QIcon.fromTheme("folder")
-        file_path_button.setIcon(icon)
+        file_path_button.setText("...")
+
         file_path_button.clicked.connect(self.req_file_dialog.show)
         file_path_button.setFixedSize(27, 27)
         self.file_path_input = QtGui.QLineEdit(self)
@@ -1241,9 +1263,15 @@ def main():
     # Parse macros string if exists
     macros = parse_macros(args.macros)
 
-    # Create application which consists of two threads. "gui" runs in main
-    # GUI thread. Time consuming functions are executed in worker thread.
+    # Application has "cleanlooks style" to have more consistent look on
+    # different platforms
     app = QtGui.QApplication(sys.argv)
+    app.setStyle("cleanlooks")
+
+    # Load an application style
+    default_style_path = os.path.dirname(os.path.realpath(__file__))
+    default_style_path = os.path.join(default_style_path, "default.qss")
+    app.setStyleSheet("file:///" + default_style_path)
 
     gui = SnapshotGui(args.REQUEST_FILE, macros, args.dir)
 
