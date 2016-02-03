@@ -491,9 +491,6 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
             """)
         self.file_selector.setColumnCount(3)
         self.file_selector.setHeaderLabels(["File", "Comment", "Labels"])
-        self.file_selector.header().setResizeMode(0, QtGui.QHeaderView.Stretch)
-        self.file_selector.header().setResizeMode(1, QtGui.QHeaderView.Stretch)
-        self.file_selector.header().setResizeMode(2, QtGui.QHeaderView.Stretch)
         self.file_selector.setAlternatingRowColors(True)
         self.file_selector.itemSelectionChanged.connect(self.choose_file)
         self.file_selector.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -560,6 +557,10 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                 to_modify = self.file_list[key]["file_selector"]
                 to_modify.setText(1, comment)
                 to_modify.setText(2, labels)
+
+        # Set column sizes
+        self.file_selector.resizeColumnToContents(0)
+        self.file_selector.setColumnWidth(1, 400)
 
         # Sort by file name (alphabetical order)
         self.file_selector.sortItems(0, Qt.AscendingOrder)
@@ -832,24 +833,20 @@ class SnapshotCompareWidget(QtGui.QWidget):
         self.pv_view.setColumnCount(4)
         self.pv_view.setHeaderLabels(
             ["PV", "Current value", "Saved value", "Status"])
-        self.pv_view.header().setResizeMode(0, QtGui.QHeaderView.ResizeToContents)
-        self.pv_view.header().setResizeMode(1, QtGui.QHeaderView.ResizeToContents)
-        self.pv_view.header().setResizeMode(2, QtGui.QHeaderView.ResizeToContents)
-        self.pv_view.header().setResizeMode(3, QtGui.QHeaderView.Stretch)
         self.pv_view.setAlternatingRowColors(True)
         # Add all widgets to main layout
         layout.addItem(filter_layout)
         layout.addWidget(self.pv_view)
 
         # fill the compare view and start comparing
-        self.create_compare_list()
+        self.populate_compare_list()
         self.start_compare()
 
         # Disable possibility to select item in the compare list
         self.pv_view.setSelectionMode(QtGui.QAbstractItemView.NoSelection)
         self.pv_view.setFocusPolicy(Qt.NoFocus)
 
-    def create_compare_list(self):
+    def populate_compare_list(self):
         """
         Create tree item for each PV. List of pv names was returned after
         parsing the request file. Attributes except PV name are empty at
@@ -868,6 +865,11 @@ class SnapshotCompareWidget(QtGui.QWidget):
             curr_val = ""
             pv_line = SnapshotCompareTreeWidgetItem(pv_name, self.pv_view)
             self.pv_view.addTopLevelItem(pv_line)
+
+        # Set column sizes
+        self.pv_view.resizeColumnToContents(0)
+        self.pv_view.setColumnWidth(1, 150)
+        self.pv_view.setColumnWidth(2, 150)
         # Sort by name (alphabetical order)
         self.pv_view.sortItems(0, Qt.AscendingOrder)
 
