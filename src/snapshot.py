@@ -94,6 +94,7 @@ class SnapshotGui(QtGui.QMainWindow):
         self.common_settings = dict()
         self.common_settings["req_file_name"] = ""
         self.common_settings["req_file_macros"] = dict()   
+        self.common_settings["existing_labels"] = list()
 
         if not req_file_name:
             self.configure_dialog = SnapshotConfigureDialog(self)
@@ -268,7 +269,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
         labels_label = QtGui.QLabel("Labels:", self)
         labels_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
         labels_label.setMinimumWidth(min_label_width)
-        self.labels_input = QtGui.QLineEdit(self)
+        self.labels_input = SnapshotKeywordSelectorWidget(self.common_settings, self)
         labels_layout.addWidget(labels_label)
         labels_layout.addWidget(self.labels_input)
 
@@ -306,7 +307,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
 
             # Start saving process and notify when finished
             status, pvs_status = self.snapshot.save_pvs(self.file_path,
-                                                        labels=self.labels_input.text(),
+                                                        labels=self.labels_input.keywords(),
                                                         comment=self.comment_input.text())
             if status == ActionStatus.no_cnct:
                 self.sts_log.log_line("ERROR: Save rejected. One or more PVs not connected.")
@@ -505,7 +506,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         self.file_filter["keys"] = list()
         self.file_filter["comment"] = ""
 
-        self.filter_input = SnapshotFileFilterWidget(self)
+        self.filter_input = SnapshotFileFilterWidget(self.common_settings, self)
         self.connect(self.filter_input, SIGNAL(
             "file_filter_updated"), self.filter_file_list_selector)
 
@@ -513,10 +514,10 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         self.file_selector = QtGui.QTreeWidget(self)
         self.file_selector.setRootIsDecorated(False)
         self.file_selector.setIndentation(0)
-        self.file_selector.setStyleSheet("""
-            QTreeWidget::item:pressed,QTreeWidget::item:selected{
-            background-color:#FF6347;color:#FFFFFF}‌​
-            """)
+        #self.file_selector.setStyleSheet("""
+        #    QTreeWidget::item:pressed,QTreeWidget::item:selected{
+        #    background-color:#FF6347;color:#FFFFFF}‌​
+        #    """)
         self.file_selector.setColumnCount(3)
         self.file_selector.setHeaderLabels(["File", "Comment", "Labels"])
         self.file_selector.setAlternatingRowColors(True)
@@ -576,7 +577,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
             # check if already on list (was just modified) and modify file
             # selector
             if key not in self.file_list:
-                selector_item = QtGui.QTreeWidgetItem([key, comment, labels])
+                selector_item = QtGui.QTreeWidgetItem([key, comment, " ".join(labels)])
                 self.file_selector.addTopLevelItem(selector_item)
                 self.file_list[key] = file_list[key]
                 self.file_list[key]["file_selector"] = selector_item
@@ -585,6 +586,10 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                 to_modify = self.file_list[key]["file_selector"]
                 to_modify.setText(1, comment)
                 to_modify.setText(2, labels)
+            # Append new labels
+            if labels:
+                self.common_settings["existing_labels"] = list(set(labels) - set(self.common_settings["existing_labels"]))
+
 
         # Set column sizes
         self.file_selector.resizeColumnToContents(0)
@@ -630,12 +635,8 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                 #### DATE FILTER REMOVED ###
 
                 if keys_filter:
-                    # get file keys as list
-                    labels = file_to_filter[
-                        "meta_data"]["labels"].split(' ')
                     keys_status = False
-
-                    for key in labels:
+                    for key in file_to_filter["meta_data"]["labels"]:
                         # Breake when first found
                         if key and (key in keys_filter):
                             keys_status = True
@@ -675,7 +676,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         if self.selected_file:
             file_path = os.path.join(self.common_settings["save_dir"],
                                      self.selected_file)
-            
+
             msg = "Do you want to delete file: " + file_path + "?"
             reply = QtGui.QMessageBox.question(self, 'Message', msg,
                                                QtGui.QMessageBox.Yes,
@@ -692,6 +693,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                                               QtGui.QMessageBox.Ok,
                                               QtGui.QMessageBox.NoButton)
 
+
 class SnapshotFileFilterWidget(QtGui.QWidget):
     """
         Is a widget with 3 filter options:
@@ -706,6 +708,7 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
     def __init__(self, common_settings, parent=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
 
+        self.common_settings = common_settings
         # Create main layout
         layout = QtGui.QHBoxLayout(self)
         layout.setMargin(0)
@@ -752,9 +755,10 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
         # Labels filter
         key_layout = QtGui.QHBoxLayout()
         key_label = QtGui.QLabel("Labels:", self)
-        self.keys_input = QtGui.QLineEdit(self)
+        self.keys_input = SnapshotKeywordSelectorWidget(self.common_settings, self)
         self.keys_input.setPlaceholderText("label_1 label_2 ...")
-        self.keys_input.textChanged.connect(self.update_filter)
+        self.connect(self.keys_input, SIGNAL("keywords_changed"),
+                     self.update_filter)
         key_layout.addWidget(key_label)
         key_layout.addWidget(self.keys_input)
 
@@ -784,14 +788,13 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
         layout.addItem(comment_layout)
         layout.addItem(key_layout)
 
-
     def update_filter(self):
         #### DATE FILTER REMOVED ###
         #self.file_filter["time"] = [
         #    self.date_from.selected_date, self.date_to.selected_date]
         #### DATE FILTER REMOVED ###
-        if self.keys_input.text().strip(''):
-            self.file_filter["keys"] = self.keys_input.text().strip('').split(' ')
+        if self.keys_input.keywords():
+            self.file_filter["keys"] = self.keys_input.keywords()
         else:
             self.file_filter["keys"] = list()
         self.file_filter["comment"] = self.comment_input.text().strip('')
@@ -913,7 +916,6 @@ class SnapshotCompareWidget(QtGui.QWidget):
                                    self.pv_filter_inp.text())
 
     def start_compare(self):
-        #print(QtCore.QThread.currentThreadId())
         self.snapshot.start_continuous_compare(self.update_pv_callback)
 
     def update_pv_callback(self, **data):
@@ -1296,6 +1298,90 @@ class SnapshotConfigureDialog(QtGui.QDialog):
             QtGui.QMessageBox.warning(self, "Warning", warn,
                                       QtGui.QMessageBox.Ok,
                                       QtGui.QMessageBox.NoButton)
+
+
+class SnapshotKeywordSelectorWidget(QtGui.QFrame):
+    def __init__(self, common_settings, parent=None):
+        QtGui.QFrame.__init__(self, parent)
+        self.layout = QtGui.QHBoxLayout()
+        self.setLayout(self.layout)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+
+        self.text_inp = QtGui.QLineEdit(self)
+        self.text_inp.textChanged.connect(self.inp_changed)
+        self.text_inp.returnPressed.connect(self.return_pressed)
+
+        self.suggestion_menu = QtGui.QComboBox(self)
+        if common_settings["existing_labels"]:
+            self.suggestion_menu.addItems(common_settings["existing_labels"])
+
+        self.layout.addWidget(self.text_inp)
+        self.layout.addWidget(self.suggestion_menu)
+
+        # data holders
+        self.suggested_keywords = list()
+        self.selected_keywords = list()
+        self.keyword_widgets = dict()
+
+    def inp_changed(self, text):
+        if text.endswith(" "):
+            key_to_add = text.split(" ")[-2]
+            self.add_to_selected(key_to_add)
+
+    def return_pressed(self):
+        self.add_to_selected(self.text_inp.text())
+
+    def add_to_selected(self, keyword):
+        keyword = keyword.strip()
+        if keyword and (keyword not in self.selected_keywords):
+            key_widget = SnapshotKeywordWidget(keyword, self)
+            self.connect(key_widget, SIGNAL(
+            "delete"), self.remove_keyword)
+            self.keyword_widgets[keyword] = key_widget
+            self.selected_keywords.append(keyword)
+            self.layout.insertWidget(len(self.selected_keywords)-1, key_widget)
+            self.emit(SIGNAL("keywords_changed"))
+        self.text_inp.setText("")
+
+    def remove_keyword(self, keyword):
+        keyword = keyword.strip()
+        if keyword in self.selected_keywords:
+            self.selected_keywords.remove(keyword)
+            key_widget = self.keyword_widgets.get(keyword)
+            self.layout.removeWidget(key_widget)
+            key_widget.deleteLater()
+            self.emit(SIGNAL("keywords_changed"))
+
+    def keywords(self):
+        return self.selected_keywords
+
+    def setPlaceholderText(self, text):
+        self.text_inp.setPlaceholderText(text)
+
+
+class SnapshotKeywordWidget(QtGui.QFrame):
+    def __init__(self, text=None, parent=None):
+        QtGui.QFrame.__init__(self, parent)
+        self.layout = QtGui.QHBoxLayout()
+        self.layout.setContentsMargins(3, 0, 0, 0)
+        self.layout.setSpacing(0)
+        self.setLayout(self.layout)
+
+        self.keyword = text
+
+        label = QtGui.QLabel(text, self)
+        delete_button = QtGui.QToolButton(self)
+        delete_button.setIcon(QtGui.QIcon("./remove.png"))
+        delete_button.setStyleSheet("border: 0px; background-color: transparent; margin: 0px")
+        delete_button.clicked.connect(self.delete_pressed)
+
+        self.layout.addWidget(label)
+        self.layout.addWidget(delete_button)
+
+        self.setStyleSheet("background-color:#CCCCCC;color:#000000; border-radius: 4px;")
+
+    def delete_pressed(self):
+        self.emit(SIGNAL("delete"), self.keyword)
 
 
 def parse_macros(macros_str):
