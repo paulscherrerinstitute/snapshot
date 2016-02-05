@@ -1,4 +1,12 @@
-
+QMainWindow{
+    background-color: #F3F3F3
+}
+QHeaderView{
+    background-color: #F3F3F3
+}
+QAbstractButton{
+    background-color: #F3F3F3
+}
 QSplitter::handle:vertical{
     image: url("../images/splitter_v.png");
     height: 9px;
