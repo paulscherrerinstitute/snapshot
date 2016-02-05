@@ -50,8 +50,9 @@ class SnapshotStatusLog(QtGui.QWidget):
 
 
 class SnapshotStatus(QtGui.QStatusBar):
-    def __init__(self, parent=None):
+    def __init__(self, common_settings, parent=None):
         QtGui.QStatusBar.__init__(self, parent)
+        self.common_settings = common_settings
         self.setSizeGripEnabled(False)
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.clear_status)
@@ -65,6 +66,8 @@ class SnapshotStatus(QtGui.QStatusBar):
         self.set_status()
 
     def set_status(self, text="Ready", duration=0, background="#E5E5E5"):
+        if self.common_settings["force"]:
+            text = "[force mode] " + text
         self.status_txt.setText(text)
         style = "background-color : " + background
         self.setStyleSheet(style)
@@ -83,7 +86,7 @@ class SnapshotGui(QtGui.QMainWindow):
     """
 
     def __init__(self, req_file_name=None, req_file_macros=None,
-                 save_dir=None, save_file_dft=None, mode=None, parent=None):
+                 save_dir=None, force=False, parent=None):
         QtGui.QMainWindow.__init__(self, parent)
 
         self.resize(1500, 850)
@@ -95,6 +98,7 @@ class SnapshotGui(QtGui.QMainWindow):
         self.common_settings["req_file_name"] = ""
         self.common_settings["req_file_macros"] = dict()   
         self.common_settings["existing_labels"] = list()
+        self.common_settings["force"] = force
 
         if not req_file_name:
             self.configure_dialog = SnapshotConfigureDialog(self)
@@ -113,7 +117,6 @@ class SnapshotGui(QtGui.QMainWindow):
             save_dir = os.path.dirname(os.path.realpath(__file__))
 
         self.common_settings["save_dir"] = save_dir
-        self.common_settings["save_file_dft"] = save_file_dft
         self.common_settings["pvs_to_restore"] = list()
 
         # Before creating GUI, snapshot must be initialized.
@@ -133,7 +136,7 @@ class SnapshotGui(QtGui.QMainWindow):
         # Status components are needed by other GUI elements
         status_log = SnapshotStatusLog(self)
         self.common_settings["sts_log"] = status_log
-        status_bar = SnapshotStatus()
+        status_bar = SnapshotStatus(self.common_settings, self)
         self.common_settings["sts_info"] = status_bar
 
         # Creating main layout
@@ -307,6 +310,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
 
             # Start saving process and notify when finished
             status, pvs_status = self.snapshot.save_pvs(self.file_path,
+                                                        force=self.common_settings["force"],
                                                         labels=self.labels_input.keywords(),
                                                         comment=self.comment_input.text())
             if status == ActionStatus.no_cnct:
@@ -326,8 +330,8 @@ class SnapshotSaveWidget(QtGui.QWidget):
         for key in status:
             sts = status[key]
             if status[key] == PvStatus.access_err:
-                error = True
-                self.sts_log.log_line("ERROR: " + key + \
+                error = True and not self.common_settings["force"]
+                self.sts_log.log_line("WARNING: " + key + \
                     ": Not saved (no connection or no read access)")
 
                 status_txt = "Save error"
@@ -442,7 +446,8 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         # Force updating the GUI with new status
         QtCore.QCoreApplication.processEvents()
 
-        status = self.snapshot.restore_pvs(callback=self.restore_done_callback)
+        status = self.snapshot.restore_pvs(callback=self.restore_done_callback,
+                                           force=self.common_settings["force"])
         if status == ActionStatus.no_data:
             self.sts_log.log_line("ERROR: No file selected.")
             self.sts_info.set_status("Restore rejected", 3000, "#F06464")
@@ -470,9 +475,9 @@ class SnapshotRestoreWidget(QtGui.QWidget):
             for key in status:
                 pv_status = status[key]
                 if pv_status == PvStatus.access_err:
-                    error = True
-                    self.sts_log.log_line("ERROR: " + key + \
-                        ": Not restored (no connection or readonly).")
+                    error = True and not self.common_settings["force"]
+                    self.sts_log.log_line("WARNING: " + key + \
+                        ": Not restored (no connection or no write access).")
                     self.sts_info.set_status("Restore error", 3000, "#F06464")
         
         if not error:
@@ -1406,6 +1411,8 @@ def main():
                            help="Macros for request file e.g.: \"SYS=TEST,DEV=D1\"")
     args_pars.add_argument('-dir', '-d',
                            help="Directory for saved files")
+    args_pars.add_argument('--force', '-f',
+                           help="Forces save/restore in case of disconnected PVs", action='store_true')
     args = args_pars.parse_args()
 
     # Parse macros string if exists
@@ -1423,7 +1430,7 @@ def main():
     default_style_path = os.path.join(default_style_path, "qss/default.qss")
     app.setStyleSheet("file:///" + default_style_path)
 
-    gui = SnapshotGui(args.REQUEST_FILE, macros, args.dir)
+    gui = SnapshotGui(args.REQUEST_FILE, macros, args.dir, args.force)
 
     sys.exit(app.exec_())
 
