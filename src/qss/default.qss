@@ -1,12 +1,33 @@
-QMainWindow{
+QMainWindow,QScrollBar,QHeaderView,QAbstractButton,QComboBox{
     background-color: #F3F3F3
 }
-QHeaderView{
-    background-color: #F3F3F3
+
+/* Background color of popup-list.*/ 
+QComboBox QListView{
+    background-color: #F3F3F3;
+    border:1px solid gray;
 }
-QAbstractButton{
-    background-color: #F3F3F3
+/* Needed to complete the rule set. */
+QComboBox::item:alternate {
+    background: #F3F3F3;
 }
+/* Color of the selected list item. */
+QComboBox::item:selected {
+    border-width: 1px;
+    border-style: solid;
+    border-color: black;
+    background-color: #FF6347;
+    color: white
+}
+/* Indicator will shine through the label text if you don't make it hidden. */
+QComboBox::indicator{
+    background-color:transparent;
+    selection-background-color:transparent;
+    color:transparent;
+    selection-color:transparent;
+}
+
+
 QSplitter::handle:vertical{
     image: url("../images/splitter_v.png");
     height: 9px;
