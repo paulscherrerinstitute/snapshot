@@ -1,0 +1,18 @@
+
+QSplitter::handle:vertical{
+    image: url("../image/splitter_v.png");
+    height: 9px;
+    background-color: #E5E5E5;
+}
+QSplitter::handle:horizontal{
+    image: url("../images/splitter_h.png");
+    width: 9px;
+    background-color: #E5E5E5;
+}
+QStatusBar{
+    background-color: #E5E5E5;
+}
+QTreeWidget::item:pressed,QTreeWidget::item:selected{
+    background-color:#FF6347;
+    color:#FFFFFF
+}‌​

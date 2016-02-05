@@ -1311,12 +1311,12 @@ class SnapshotKeywordSelectorWidget(QtGui.QFrame):
         self.text_inp.textChanged.connect(self.inp_changed)
         self.text_inp.returnPressed.connect(self.return_pressed)
 
-        self.suggestion_menu = QtGui.QComboBox(self)
-        if common_settings["existing_labels"]:
-            self.suggestion_menu.addItems(common_settings["existing_labels"])
+        #self.suggestion_menu = QtGui.QComboBox(self)
+        #if common_settings["existing_labels"]:
+        #    self.suggestion_menu.addItems(common_settings["existing_labels"])
 
         self.layout.addWidget(self.text_inp)
-        self.layout.addWidget(self.suggestion_menu)
+        #self.layout.addWidget(self.suggestion_menu)
 
         # data holders
         self.suggested_keywords = list()
@@ -1371,7 +1371,9 @@ class SnapshotKeywordWidget(QtGui.QFrame):
 
         label = QtGui.QLabel(text, self)
         delete_button = QtGui.QToolButton(self)
-        delete_button.setIcon(QtGui.QIcon("./remove.png"))
+        icon_path = os.path.dirname(os.path.realpath(__file__))
+        icon_path = os.path.join(icon_path, "images/remove.png")
+        delete_button.setIcon(QtGui.QIcon(icon_path))
         delete_button.setStyleSheet("border: 0px; background-color: transparent; margin: 0px")
         delete_button.clicked.connect(self.delete_pressed)
 
@@ -1418,7 +1420,7 @@ def main():
 
     # Load an application style
     default_style_path = os.path.dirname(os.path.realpath(__file__))
-    default_style_path = os.path.join(default_style_path, "default.qss")
+    default_style_path = os.path.join(default_style_path, "qss/default.qss")
     app.setStyleSheet("file:///" + default_style_path)
 
     gui = SnapshotGui(args.REQUEST_FILE, macros, args.dir)
