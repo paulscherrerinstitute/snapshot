@@ -952,10 +952,10 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
         self.saved_sts = None
         self.value = None
         self.compare = None
-        self.has_error = None
+        self.has_error = True
 
         # Variables to hold current filter. Whenever filter is applied they are
-        # updated. When filter is applied from items own metods (like
+        # updated. When filter is applied from items own methods (like
         # update_state), this stored values are used.
         self.compare_filter = 0
         self.completeness_filter = True
@@ -973,6 +973,7 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
         if not self.connect_sts:
             self.setText(1, "")  # no connection means no value
             self.setText(3, "PV not connected!")
+            self.compare = None
             self.has_error = True
         else:
             if isinstance(self.value, numpy.ndarray):
@@ -1000,6 +1001,7 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
         else:
             self.setText(2, "")
             self.setText(3, "No saved value.")
+            self.compare = None
             self.has_error = True
 
         if self.has_error or (self.compare is None):
@@ -1045,16 +1047,16 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
         else:
             name_match = True
 
-        compare_match = ((PvCompareFilter(compare_filter) == PvCompareFilter.show_eq) and
-                         self.compare) or ((PvCompareFilter(compare_filter) == PvCompareFilter.show_neq) and
-                                             (not self.compare)) or (PvCompareFilter(compare_filter) == PvCompareFilter.show_all)
-
-        # Do show values which has incomplete data?
+                # Do show values which has incomplete data?
         completeness_match = completeness_filter or \
             (not completeness_filter and not self.has_error)
 
+        compare_completnes_match = ((PvCompareFilter(compare_filter) == PvCompareFilter.show_eq) and
+                         (self.compare or completeness_match)) or ((PvCompareFilter(compare_filter) == PvCompareFilter.show_neq) and
+                                             (self.compare is False) or completeness_match) or ((PvCompareFilter(compare_filter) == PvCompareFilter.show_all) and completeness_match)
+
         self.setHidden(
-            not(name_match and compare_match and completeness_match))
+            not(name_match and compare_completnes_match))
 
 
 # Helper widgets
