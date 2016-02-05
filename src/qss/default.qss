@@ -1,6 +1,6 @@
 
 QSplitter::handle:vertical{
-    image: url("../image/splitter_v.png");
+    image: url("../images/splitter_v.png");
     height: 9px;
     background-color: #E5E5E5;
 }
