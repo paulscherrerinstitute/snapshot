@@ -8,5 +8,9 @@ QSplitter::handle:horizontal{
     width: 9px;
     background-color: rgba(0, 0, 0, 30);
 }
+QStatusBar::item{
+    border : None;
+    background-color : transparent;
+}
 
 

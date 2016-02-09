@@ -56,12 +56,8 @@ class SnapshotStatus(QtGui.QStatusBar):
         self.setSizeGripEnabled(False)
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.clear_status)
-
-        self.status_txt = QtGui.QLineEdit()
-        self.status_txt.setStyleSheet("""
-            border : 0px;
-            background-color : transparent;
-            """)
+        self.status_txt = QtGui.QLabel()
+        self.status_txt.setStyleSheet("background-color: transparent")
         self.addWidget(self.status_txt)
         self.set_status()
 
@@ -154,12 +150,11 @@ class SnapshotGui(QtGui.QMainWindow):
 
         self.compare_widget = SnapshotCompareWidget(self.snapshot,
                                                     self.common_settings, self)
-
         sr_splitter = QtGui.QSplitter(self)
         sr_splitter.addWidget(self.save_widget)
         sr_splitter.addWidget(self.restore_widget)
-        sr_splitter.setStretchFactor(0, 2)
-        sr_splitter.setStretchFactor(1, 1)
+        element_size = (self.save_widget.sizeHint().width() + self.restore_widget.sizeHint().width())/2
+        sr_splitter.setSizes([element_size, element_size])
 
         main_splitter = QtGui.QSplitter(self)
         main_splitter.addWidget(sr_splitter)
@@ -629,7 +624,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
 
         # Set column sizes
         self.file_selector.resizeColumnToContents(0)
-        self.file_selector.setColumnWidth(1, 400)
+        self.file_selector.setColumnWidth(1, 350)
 
         # Sort by file name (alphabetical order)
         self.file_selector.sortItems(0, Qt.AscendingOrder)
@@ -1246,7 +1241,7 @@ class SnapshotFileSelector(QtGui.QWidget):
 
     """ Widget to select file with dialog box. """
 
-    def __init__(self, parent=None, label_text="File:", button_text="Browse",
+    def __init__(self, parent=None, label_text="File:", button_text="...", label_width = None,
                  init_path=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
         self.file_path = init_path
@@ -1269,8 +1264,10 @@ class SnapshotFileSelector(QtGui.QWidget):
         #   icon button to open file dialog
         label = QtGui.QLabel(label_text, self)
         label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
+        if label_width is not None:
+            label.setMinimumWidth(label_width)
         file_path_button = QtGui.QToolButton(self)
-        file_path_button.setText("...")
+        file_path_button.setText(button_text)
 
         file_path_button.clicked.connect(self.req_file_dialog.show)
         file_path_button.setFixedSize(27, 27)
@@ -1303,12 +1300,13 @@ class SnapshotConfigureDialog(QtGui.QDialog):
 
         # This Dialog consists of file selector and buttons to apply
         # or cancel the file selection
-        self.file_selector = SnapshotFileSelector(self)
         macros_layout = QtGui.QHBoxLayout()
         macros_label = QtGui.QLabel("Macros:", self)
         macros_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
         self.macros_input = QtGui.QLineEdit(self)
         self.macros_input.setPlaceholderText("MACRO1=M1,MACRO2=M2,...")
+        self.file_selector = SnapshotFileSelector(self, label_width=macros_label.sizeHint().width())
+
         macros_layout.addWidget(macros_label)
         macros_layout.addWidget(self.macros_input)
         macros_layout.setSpacing(10)
@@ -1458,7 +1456,7 @@ class SnapshotKeywordWidget(QtGui.QFrame):
         self.layout = QtGui.QHBoxLayout()
         self.layout.setContentsMargins(3, 0, 0, 0)
         self.layout.setSpacing(0)
-        self.setMaximumHeight(19)
+        self.setMaximumHeight(parent.size().height()-4)
         self.setLayout(self.layout)
 
         self.keyword = text
@@ -1474,7 +1472,7 @@ class SnapshotKeywordWidget(QtGui.QFrame):
         self.layout.addWidget(label)
         self.layout.addWidget(delete_button)
 
-        self.setStyleSheet("background-color:#CCCCCC;color:#000000; border-radius: 4px;")
+        self.setStyleSheet("background-color:#CCCCCC;color:#000000; border-radius: 2px;")
 
     def delete_pressed(self):
         self.emit(SIGNAL("delete"), self.keyword)
