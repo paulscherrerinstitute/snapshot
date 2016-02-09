@@ -1,0 +1,16 @@
+QSplitter::handle:vertical{
+    image: url("../images/splitter_v.png");
+    height: 9px;
+    background-color: rgba(0, 0 , 0, 30);
+}
+QSplitter::handle:horizontal{
+    image: url("../images/splitter_h.png");
+    width: 9px;
+    background-color: rgba(0, 0, 0, 30);
+}
+QStatusBar::item{
+    border : None;
+    background-color : transparent;
+}
+
+
