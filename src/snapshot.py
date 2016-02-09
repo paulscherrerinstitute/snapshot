@@ -618,9 +618,9 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
     def filter_file_list_selector(self):
         file_filter = self.filter_input.file_filter
 
-        for key in self.file_list:
-            file_line = self.file_list[key]["file_selector"]
-            file_to_filter = self.file_list.get(key)
+        for file_name in self.file_list:
+            file_line = self.file_list[file_name]["file_selector"]
+            file_to_filter = self.file_list.get(file_name)
 
             if not file_filter:
                 file_line.setHidden(False)
@@ -646,7 +646,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                     comment_status = True
 
                 if name_filter:
-                    name_status = name_filter in key
+                    name_status = name_filter in file_name
                 else:
                     name_status = True
 
@@ -1013,16 +1013,13 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
         else:
             name_match = True
 
-            # Do show values which has incomplete data?
-        completeness_match = completeness_filter or \
-            (not completeness_filter and not self.has_error)
-
-        compare_completnes_match = ((PvCompareFilter(compare_filter) == PvCompareFilter.show_eq) and
-                                    (self.compare or completeness_match)) or ((PvCompareFilter(compare_filter) == PvCompareFilter.show_neq) and
-                                                                              (self.compare is False) or completeness_match) or ((PvCompareFilter(compare_filter) == PvCompareFilter.show_all) and completeness_match)
-
-        self.setHidden(
-            not(name_match and compare_completnes_match))
+        completeness_match = completeness_filter or not self.has_error
+        compare_filter = PvCompareFilter(compare_filter)
+        compare_match = (((compare_filter == PvCompareFilter.show_eq) and self.compare) or
+                         ((compare_filter == PvCompareFilter.show_neq) and not self.compare) or
+                         (compare_filter == PvCompareFilter.show_all))
+        self.setHidden(not(name_match and ((not self.has_error and compare_match) or (
+            self.has_error and completeness_match))))
 
 
 # Status widgets
@@ -1075,7 +1072,7 @@ class SnapshotStatus(QtGui.QStatusBar):
         self.set_status("Ready", 0, "rgba(0, 0, 0, 30)")
 
 
-#### Helper widgets
+# Helper widgets
 class SnapshotConfigureDialog(QtGui.QDialog):
 
     """ Dialog window to select and apply file. """
@@ -1355,9 +1352,8 @@ class SnapshotKeywordWidget(QtGui.QFrame):
         self.emit(SIGNAL("delete"), self.keyword)
 
 
-#### Global functions
+# Global functions
 def parse_macros(macros_str):
-
     """ Converting comma separated macros string to dictionary. """
 
     macros = dict()
@@ -1370,7 +1366,6 @@ def parse_macros(macros_str):
 
 
 def main():
-
     ''' Main creates Qt application and handles arguments '''
 
     args_pars = argparse.ArgumentParser()
