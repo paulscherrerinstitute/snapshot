@@ -1143,12 +1143,6 @@ class SnapshotFileSelector(QtGui.QWidget):
         layout.setSpacing(10)
         self.setLayout(layout)
 
-        # Create file dialog box. When file is selected set file path to be
-        # shown in input field (can be then edited manually)
-        self.req_file_dialog = QtGui.QFileDialog(self)
-        # self.req_file_dialog.setOptions(QtGui.QFileDialog.DontUseNativeDialog)
-        self.req_file_dialog.fileSelected.connect(self.set_file_input_text)
-
         # This widget has 3 parts:
         #   label
         #   input field (when value of input is changed, it is stored locally)
@@ -1160,7 +1154,7 @@ class SnapshotFileSelector(QtGui.QWidget):
         file_path_button = QtGui.QToolButton(self)
         file_path_button.setText(button_text)
 
-        file_path_button.clicked.connect(self.req_file_dialog.show)
+        file_path_button.clicked.connect(self.open_selector)
         file_path_button.setFixedSize(27, 27)
         self.file_path_input = QtGui.QLineEdit(self)
         self.file_path_input.textChanged.connect(self.change_file_path)
@@ -1169,8 +1163,10 @@ class SnapshotFileSelector(QtGui.QWidget):
         layout.addWidget(self.file_path_input)
         layout.addWidget(file_path_button)
 
-    def set_file_input_text(self):
-        self.file_path_input.setText(self.req_file_dialog.selectedFiles()[0])
+    def open_selector(self):
+        candidate_path = QtGui.QFileDialog(self).getOpenFileName()
+        if candidate_path:
+            self.file_path_input.setText(candidate_path)
 
     def change_file_path(self):
         self.file_path = self.file_path_input.text()
