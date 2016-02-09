@@ -8,7 +8,7 @@ import argparse
 import re
 from enum import Enum
 import os
-from snapshot_ca import PvStatus, ActionStatus, Snapshot
+from .snapshot_ca import PvStatus, ActionStatus, Snapshot
 import json
 import numpy
 import epics
@@ -65,7 +65,7 @@ class SnapshotStatus(QtGui.QStatusBar):
         self.addWidget(self.status_txt)
         self.set_status()
 
-    def set_status(self, text="Ready", duration=0, background="#E5E5E5"):
+    def set_status(self, text="Ready", duration=0, background="rgba(0, 0, 0, 30)"):
         if self.common_settings["force"]:
             text = "[force mode] " + text
         self.status_txt.setText(text)
@@ -76,7 +76,7 @@ class SnapshotStatus(QtGui.QStatusBar):
             self.timer.start(duration)
 
     def clear_status(self):
-        self.set_status("Ready", 0, "#E5E5E5")
+        self.set_status("Ready", 0, "rgba(0, 0, 0, 30)")
 
 
 class SnapshotGui(QtGui.QMainWindow):
@@ -113,8 +113,8 @@ class SnapshotGui(QtGui.QMainWindow):
             self.common_settings["req_file_macros"] = req_file_macros
 
         if not save_dir:
-            # Set current dir as save dir
-            save_dir = os.path.dirname(os.path.realpath(__file__))
+            # Default save dir
+            save_dir = os.path.dirname(self.common_settings["req_file_name"])
 
         self.common_settings["save_dir"] = save_dir
         self.common_settings["pvs_to_restore"] = list()
@@ -1507,12 +1507,8 @@ def main():
     # Parse macros string if exists
     macros = parse_macros(args.macros)
 
-    # Application has "cleanlooks style" to have more consistent look on
-    # different platforms
+
     app = QtGui.QApplication(sys.argv)
-    app.setStyle("cleanlooks")
-    # Set double click interval to avoid multiple action when two clicks are made
-    # to quick, and the button is not disabled yet
 
     # Load an application style
     default_style_path = os.path.dirname(os.path.realpath(__file__))

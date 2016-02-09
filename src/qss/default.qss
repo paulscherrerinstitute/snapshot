@@ -1,59 +1,12 @@
-QMainWindow,QScrollBar,QHeaderView,QAbstractButton,QComboBox{
-    background-color: #F3F3F3
-}
-
-/* Background color of popup-list.*/ 
-QComboBox QListView{
-    background-color: #F3F3F3;
-    border:1px solid gray;
-}
-/* Needed to complete the rule set. */
-QComboBox::item:alternate {
-    background: #F3F3F3;
-}
-/* Color of the selected list item. */
-QComboBox::item:selected {
-    border-width: 1px;
-    border-style: solid;
-    border-color: black;
-    background-color: #FF6347;
-    color: white
-}
-/* Indicator will shine through the label text if you don't make it hidden. */
-QComboBox::indicator{
-    background-color:transparent;
-    selection-background-color:transparent;
-    color:transparent;
-    selection-color:transparent;
-}
-
-
 QSplitter::handle:vertical{
     image: url("../images/splitter_v.png");
     height: 9px;
-    background-color: #E5E5E5;
+    background-color: rgba(0, 0 , 0, 30);
 }
 QSplitter::handle:horizontal{
     image: url("../images/splitter_h.png");
     width: 9px;
-    background-color: #E5E5E5;
-}
-QStatusBar{
-    background-color: #E5E5E5;
-}
-QTreeWidget::item:pressed,QTreeWidget::item:selected{
-    background-color:#FF6347;
-    color:#FFFFFF
-}‌​
-
-QMenu::indicator {
-    width: 15px;
-    height: 13px;
-    background-color: white
-}
-
-QMenu::indicator:unchecked {
-    border: 1px solid black;
+    background-color: rgba(0, 0, 0, 30);
 }
 
 
