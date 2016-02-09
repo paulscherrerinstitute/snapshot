@@ -618,9 +618,9 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
     def filter_file_list_selector(self):
         file_filter = self.filter_input.file_filter
 
-        for key in self.file_list:
-            file_line = self.file_list[key]["file_selector"]
-            file_to_filter = self.file_list.get(key)
+        for file_name in self.file_list:
+            file_line = self.file_list[file_name]["file_selector"]
+            file_to_filter = self.file_list.get(file_name)
 
             if not file_filter:
                 file_line.setHidden(False)
@@ -646,7 +646,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                     comment_status = True
 
                 if name_filter:
-                    name_status = name_filter in key
+                    name_status = name_filter in file_name
                 else:
                     name_status = True
 
