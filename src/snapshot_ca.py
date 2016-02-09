@@ -89,7 +89,7 @@ class SnapshotPv(PV):
                         else:
                             put_value = self.value_to_restore
 
-                        self.put(put_value, wait=False, use_complete=True,
+                        self.put(put_value, wait=False,
                                  callback=self.verify_restore_response,
                                  callback_data={"status": PvStatus.ok,
                                                 "callback": callback})
@@ -224,7 +224,6 @@ class Snapshot:
             self.start_continuous_compare(callback)
 
     def restore_pvs(self, save_file_path=None, force=False, callback=None):
-        time.sleep(2)
         # If file with saved values specified then read file. If no file
         # then just use last stored values
         if self.restore_started:

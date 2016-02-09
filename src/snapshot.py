@@ -41,7 +41,7 @@ class SnapshotStatusLog(QtGui.QWidget):
         layout.setMargin(10)
         layout.addWidget(self.sts_log)
         self.setLayout(layout)
-        
+
     def log_line(self, text):
         time_stamp = "[" + datetime.datetime.fromtimestamp(
                 time.time()).strftime('%H:%M:%S.%f') + "] "
@@ -143,9 +143,15 @@ class SnapshotGui(QtGui.QMainWindow):
         self.save_widget = SnapshotSaveWidget(self.snapshot,
                                               self.common_settings, self)
         self.connect(self.save_widget, SIGNAL("save_done"),
-                     self.save_done)
+                     self.handle_save_done)
         self.restore_widget = SnapshotRestoreWidget(self.snapshot,
                                                     self.common_settings, self)
+        # If new files were added to restore list, all elements with Labels
+        # should update with new existing labels. Force update for first time
+        self.connect(self.restore_widget, SIGNAL("files_updated"),
+                     self.handle_files_updated)
+        self.handle_files_updated()
+
         self.compare_widget = SnapshotCompareWidget(self.snapshot,
                                                     self.common_settings, self)
 
@@ -175,7 +181,7 @@ class SnapshotGui(QtGui.QMainWindow):
         widgets_sizes[main_splitter.indexOf(main_splitter)] = 100
         main_splitter.setSizes(widgets_sizes)
 
-    def save_done(self):
+    def handle_save_done(self):
         # When save is done, save widget is updated by itself
         # Update restore widget (new file in directory)
         self.restore_widget.update_files()
@@ -192,6 +198,11 @@ class SnapshotGui(QtGui.QMainWindow):
         # the signal new_snapshot to update the GUI
         self.snapshot = Snapshot(req_file_path, req_macros)
         self.common_settings["pvs_to_restore"] = self.snapshot.get_pvs_names()
+
+    def handle_files_updated(self):
+        # When new save file is added, or old one has changed, this method
+        # should handle thongs like updating label widgets.
+        self.save_widget.update_labels()
 
 
 class SnapshotSaveWidget(QtGui.QWidget):
@@ -373,13 +384,8 @@ class SnapshotSaveWidget(QtGui.QWidget):
                 return False
         return True
 
-    def paintEvent(self, pe):
-        #To have possibility of class in style sheet
-        opt = QtGui.QStyleOption()
-        opt.init(self)
-        p = QtGui.QPainter(self)
-        s = self.style()
-        s.drawPrimitive(QtGui.QStyle.PE_Widget, opt, p, self)
+    def update_labels(self):
+        self.labels_input.update_sugested_keywords()
 
 
 class SnapshotRestoreWidget(QtGui.QWidget):
@@ -426,8 +432,9 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.sts_log = self.common_settings["sts_log"]
         self.sts_info = self.common_settings["sts_info"]
 
-        # Create file list for first time
-        self.file_selector.start_file_list_update()
+        # Create file list for first time and update the GUI with new data
+        # (label widgets)
+        self.update_files()
 
         # Add all widgets to main layout
         layout.addWidget(self.file_selector)
@@ -457,8 +464,6 @@ class SnapshotRestoreWidget(QtGui.QWidget):
             self.sts_info.set_status("Restore rejected", 3000, "#F06464")
             self.restore_button.setEnabled(True)
         elif status == ActionStatus.busy:
-            pass
-            # Since enabling/disabling buttons this case should not happen.
             self.sts_log.log_line("ERROR: Restore rejected. Previous restore not finished.")
 
     def restore_done_callback(self, status, **kw):
@@ -479,7 +484,6 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                     self.sts_log.log_line("WARNING: " + key + \
                         ": Not restored (no connection or no write access).")
                     self.sts_info.set_status("Restore error", 3000, "#F06464")
-        
         if not error:
             self.sts_log.log_line("Restore successful.")
             self.sts_info.set_status("Restore done", 3000, "#64C864")
@@ -492,6 +496,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
     def update_files(self):
         self.file_selector.start_file_list_update()
+        self.emit(SIGNAL("files_updated"))
 
 
 class SnapshotRestoreFileSelector(QtGui.QWidget):
@@ -512,6 +517,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         self.file_filter["comment"] = ""
 
         self.filter_input = SnapshotFileFilterWidget(self.common_settings, self)
+
         self.connect(self.filter_input, SIGNAL(
             "file_filter_updated"), self.filter_file_list_selector)
 
@@ -519,10 +525,6 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         self.file_selector = QtGui.QTreeWidget(self)
         self.file_selector.setRootIsDecorated(False)
         self.file_selector.setIndentation(0)
-        #self.file_selector.setStyleSheet("""
-        #    QTreeWidget::item:pressed,QTreeWidget::item:selected{
-        #    background-color:#FF6347;color:#FFFFFF}‌​
-        #    """)
         self.file_selector.setColumnCount(3)
         self.file_selector.setHeaderLabels(["File", "Comment", "Labels"])
         self.file_selector.setAlternatingRowColors(True)
@@ -574,27 +576,56 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         return parsed_save_files
 
     def update_file_list_selector(self, file_list):
-        for key in file_list:
-            meta_data = file_list[key]["meta_data"]
-            labels = meta_data.get("labels", "")
+        existing_labels = self.common_settings["existing_labels"]
+
+        for modified_file in file_list:
+            meta_data = file_list[modified_file]["meta_data"]
+            labels = meta_data.get("labels", list())
             comment = meta_data.get("comment", "")
 
             # check if already on list (was just modified) and modify file
             # selector
-            if key not in self.file_list:
-                selector_item = QtGui.QTreeWidgetItem([key, comment, " ".join(labels)])
+            if modified_file not in self.file_list:
+                selector_item = QtGui.QTreeWidgetItem([modified_file, comment, " ".join(labels)])
                 self.file_selector.addTopLevelItem(selector_item)
-                self.file_list[key] = file_list[key]
-                self.file_list[key]["file_selector"] = selector_item
+                self.file_list[modified_file] = file_list[modified_file]
+                self.file_list[modified_file]["file_selector"] = selector_item
+                existing_labels += list(set(labels) - set(existing_labels))
             else:
-                # If everything ok only one file should exist in list
-                to_modify = self.file_list[key]["file_selector"]
-                to_modify.setText(1, comment)
-                to_modify.setText(2, labels)
-            # Append new labels
-            if labels:
-                self.common_settings["existing_labels"] = list(set(labels) - set(self.common_settings["existing_labels"]))
+                # If everything ok only one file should exist in list. Update
+                # its data
+                modified_file_ref = self.file_list[modified_file]
+                old_meta_data = modified_file_ref["meta_data"]
 
+                # First analyze labels in meta data, then override meta_data
+                # with new one
+                old_labels = old_meta_data["labels"]
+                labels_to_add = list(set(labels) - set(old_labels))
+                labels_to_remove = list(set(old_labels) - set(labels))
+
+                existing_labels += labels_to_add
+                self.file_list[modified_file]["meta_data"] = meta_data
+                # Check if can be removed (no other file has the same label)
+                if labels_to_remove:
+                    # Check all loaded files if label is in use
+                    in_use = [False] * len(labels_to_remove)
+                    for laoded_file in self.file_list.keys():
+                        loaded_file_labels = self.file_list[laoded_file]["meta_data"]["labels"]
+                        i = 0
+                        for label in labels_to_remove:
+                            in_use[i] = in_use[i] or label in loaded_file_labels
+                            i += 1
+                    i = 0
+                    for label in labels_to_remove:
+                        if not in_use[i]:
+                            existing_labels.remove(label)
+                        i += 1
+
+                # Modify visual representation
+                item_to_modify = modified_file_ref["file_selector"]
+                item_to_modify.setText(1, comment)
+                item_to_modify.setText(2, " ".join(labels))
+        self.filter_input.update_labels()
 
         # Set column sizes
         self.file_selector.resizeColumnToContents(0)
@@ -642,7 +673,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                 if keys_filter:
                     keys_status = False
                     for key in file_to_filter["meta_data"]["labels"]:
-                        # Breake when first found
+                        # Break when first found
                         if key and (key in keys_filter):
                             keys_status = True
                             break
@@ -807,6 +838,9 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
 
         self.emit(SIGNAL("file_filter_updated"))
 
+    def update_labels(self):
+        self.keys_input.update_sugested_keywords()
+
 
 # PV Compare part
 class SnapshotCompareWidget(QtGui.QWidget):
@@ -887,7 +921,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         Create tree item for each PV. List of pv names was returned after
         parsing the request file. Attributes except PV name are empty at
         init. Will be updated when monitor happens, snapshot object will
-        raise a callback which is then catched in worker and passed with
+        raise a callback which is then caught in worker and passed with
         signal.
         """
 
@@ -1307,48 +1341,94 @@ class SnapshotConfigureDialog(QtGui.QDialog):
                                       QtGui.QMessageBox.NoButton)
 
 
-class SnapshotKeywordSelectorWidget(QtGui.QFrame):
+class SnapshotKeywordSelectorInput(QtGui.QLineEdit):
+    def __init__(self, callback, parent=None):
+        QtGui.QLineEdit.__init__(self, parent)
+        self.callback = callback
+        self.setFrame(False)
+        self.setTextMargins(0, 0, 0, 0)
+
+    def keyPressEvent(self, event):
+        if event.key() in [Qt.Key_Tab, Qt.Key_Enter, Qt.Key_Return, Qt.Key_Space, Qt.Key_Escape]:
+            self.callback(event)
+        if not self.text().strip() and event.key() == Qt.Key_Backspace:
+            self.callback(event)
+        else:
+            QtGui.QLineEdit.keyPressEvent(self, event)
+
+    def focusOutEvent(self, event):
+        self.callback(event)
+        QtGui.QLineEdit.focusOutEvent(self, event)
+
+
+class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
     def __init__(self, common_settings, parent=None):
-        QtGui.QFrame.__init__(self, parent)
+        QtGui.QComboBox.__init__(self, parent)
+        self.setEditable(True)
         self.layout = QtGui.QHBoxLayout()
         self.setLayout(self.layout)
-        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setContentsMargins(5, 0, 35, 0)
+        self.layout.setSpacing(2)
+        self.common_settings = common_settings
 
-        self.text_inp = QtGui.QLineEdit(self)
-        self.text_inp.textChanged.connect(self.inp_changed)
-        self.text_inp.returnPressed.connect(self.return_pressed)
+        self.input = SnapshotKeywordSelectorInput(self.input_events, self)
+        self.layout.addWidget(self.input)
+        self.setCurrentIndex(0)
+        self.connect(self, QtCore.SIGNAL("currentIndexChanged(QString)"),
+                     self.add_to_selected)
 
-        #self.suggestion_menu = QtGui.QComboBox(self)
-        #if common_settings["existing_labels"]:
-        #    self.suggestion_menu.addItems(common_settings["existing_labels"])
-
-        self.layout.addWidget(self.text_inp)
-        #self.layout.addWidget(self.suggestion_menu)
+        self.suggestions = dict()
+        self.existing_suggestions = self.common_settings["existing_labels"]
+        self.update_sugested_keywords()
 
         # data holders
         self.suggested_keywords = list()
         self.selected_keywords = list()
         self.keyword_widgets = dict()
 
-    def inp_changed(self, text):
-        if text.endswith(" "):
-            key_to_add = text.split(" ")[-2]
+        # Extra styling
+        self.lineEdit().setStyleSheet("background-color: white")
+
+    def input_events(self, event):
+        if event.type() == QtCore.QEvent.FocusOut:
+            self.focus_out(event)
+        else:
+            self.key_press_event(event)
+
+    def focus_out(self, event):
+        self.add_to_selected(self.input.text())
+
+    def key_press_event(self, event):
+        if event.key() in [Qt.Key_Tab, Qt.Key_Enter, Qt.Key_Return, Qt.Key_Space]:
+            if self.input.text().endswith(" "):
+                key_to_add = self.input.text().split(" ")[-2]
+            else:
+                key_to_add = self.input.text()
             self.add_to_selected(key_to_add)
 
-    def return_pressed(self):
-        self.add_to_selected(self.text_inp.text())
+        elif event.key() == Qt.Key_Backspace and len(self.selected_keywords):
+            self.remove_keyword(self.selected_keywords[-1])
+
+        elif event.key() == Qt.Key_Escape:
+            self.setCurrentIndex(0)
+
+        else:
+            QtGui.QComboBox.keyPressEvent(self, event)
+
+    def focusInEvent(self, event):
+        self.input.setFocus()
 
     def add_to_selected(self, keyword):
+        self.setCurrentIndex(0)
+        self.input.setText("")
         keyword = keyword.strip()
         if keyword and (keyword not in self.selected_keywords):
             key_widget = SnapshotKeywordWidget(keyword, self)
-            self.connect(key_widget, SIGNAL(
-            "delete"), self.remove_keyword)
+            self.connect(key_widget, SIGNAL("delete"), self.remove_keyword)
             self.keyword_widgets[keyword] = key_widget
             self.selected_keywords.append(keyword)
             self.layout.insertWidget(len(self.selected_keywords)-1, key_widget)
             self.emit(SIGNAL("keywords_changed"))
-        self.text_inp.setText("")
 
     def remove_keyword(self, keyword):
         keyword = keyword.strip()
@@ -1363,7 +1443,13 @@ class SnapshotKeywordSelectorWidget(QtGui.QFrame):
         return self.selected_keywords
 
     def setPlaceholderText(self, text):
-        self.text_inp.setPlaceholderText(text)
+        self.input.setPlaceholderText(text)
+
+    def update_sugested_keywords(self):
+        self.clear()
+        self.common_settings["existing_labels"].sort()
+        self.addItem("")
+        self.addItems(self.common_settings["existing_labels"])
 
 
 class SnapshotKeywordWidget(QtGui.QFrame):
@@ -1372,6 +1458,7 @@ class SnapshotKeywordWidget(QtGui.QFrame):
         self.layout = QtGui.QHBoxLayout()
         self.layout.setContentsMargins(3, 0, 0, 0)
         self.layout.setSpacing(0)
+        self.setMaximumHeight(19)
         self.setLayout(self.layout)
 
         self.keyword = text

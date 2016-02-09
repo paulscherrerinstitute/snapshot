@@ -45,3 +45,15 @@ QTreeWidget::item:pressed,QTreeWidget::item:selected{
     background-color:#FF6347;
     color:#FFFFFF
 }‌​
+
+QMenu::indicator {
+    width: 15px;
+    height: 13px;
+    background-color: white
+}
+
+QMenu::indicator:unchecked {
+    border: 1px solid black;
+}
+
+
