@@ -481,7 +481,6 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
 
         # Filter handling
         self.file_filter = dict()
-        # self.file_filter["time"] = list()  # star and end date
         self.file_filter["keys"] = list()
         self.file_filter["comment"] = ""
 
@@ -581,7 +580,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
 
                 existing_labels += labels_to_add
 
-                # Update the global data meta_data info, before checking if 
+                # Update the global data meta_data info, before checking if
                 # labels_to_remove are used in any of the files.
                 self.file_list[modified_file]["meta_data"] = meta_data
 
@@ -626,31 +625,9 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
             if not file_filter:
                 file_line.setHidden(False)
             else:
-                #time_filter = file_filter.get("time")
                 keys_filter = file_filter.get("keys")
                 comment_filter = file_filter.get("comment")
                 name_filter = file_filter.get("name")
-
-                #### DATE FILTER REMOVED ###
-                # if time_filter is not None:
-                #    # valid names are all between this two dates
-                #    # convert file name back to date and check if between
-                #    modif_time = file_to_filter["meta_data"]["save_time"]#
-
-                #    if time_filter[0] is not None and time_filter is not None:
-                #        time_filter.sort()#
-
-                #    if time_filter[0] is not None:
-                #        time_status = (modif_time >= time_filter[0])
-                #    else:
-                #        time_status = True
-
-                #    if time_filter[1] is not None:
-                #        time_status = time_status and (
-                #            modif_time <= time_filter[1]+86399)  # End of day
-                # else:
-                #    time_status = True
-                #### DATE FILTER REMOVED ###
 
                 if keys_filter:
                     keys_status = False
@@ -740,37 +717,11 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
         # - text input to filter comment
         # - labels selector
 
-        #### DATE FILTER REMOVED ###
-        # date selector
-        #date_layout = QtGui.QHBoxLayout()
-        # date_layout.setMargin(0)
-        # date_layout.setSpacing(10)
-
-        #from_label = QtGui.QLabel("From:", self)
-        #self.date_from = SnapshotDateSelector(self)
-        #to_label = QtGui.QLabel("To:", self)
-        #self.date_to = SnapshotDateSelector(self, day_end=True)
-
-        # date_layout.addWidget(from_label)
-        # date_layout.addWidget(self.date_from)
-        # date_layout.addWidget(to_label)
-        # date_layout.addWidget(self.date_to)
-        #### DATE FILTER REMOVED ###
-
         # Init filters
         self.file_filter = dict()
-        # self.file_filter["time"] = [
-        #    self.date_from.selected_date, self.date_to.selected_date]
         self.file_filter["keys"] = list()
         self.file_filter["comment"] = ""
         self.file_filter["name"] = ""
-
-        #### DATE FILTER REMOVED ###
-        # Connect after file_filter exist
-        # self.connect(
-        #    self.date_from, SIGNAL("date_updated"), self.update_filter)
-        #self.connect(self.date_to, SIGNAL("date_updated"), self.update_filter)
-        #### DATE FILTER REMOVED ###
 
         # Labels filter
         key_layout = QtGui.QHBoxLayout()
@@ -801,19 +752,11 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
         name_layout.addWidget(name_label)
         name_layout.addWidget(self.name_input)
 
-        # Add to main layout
-        #### DATE FILTER REMOVED ###
-        # layout.addItem(date_layout)
-        #### DATE FILTER REMOVED ###
         layout.addItem(name_layout)
         layout.addItem(comment_layout)
         layout.addItem(key_layout)
 
     def update_filter(self):
-        #### DATE FILTER REMOVED ###
-        # self.file_filter["time"] = [
-        #    self.date_from.selected_date, self.date_to.selected_date]
-        #### DATE FILTER REMOVED ###
         if self.keys_input.get_keywords():
             self.file_filter["keys"] = self.keys_input.get_keywords()
         else:
@@ -1411,155 +1354,6 @@ class SnapshotKeywordWidget(QtGui.QFrame):
         # main widget will take care of removing it from the list.
         self.emit(SIGNAL("delete"), self.keyword)
 
-#### Date selector widgets. Were removed from current design
-#class SnapshotDateSelector(QtGui.QWidget):
-#    
-#    """ Main data selector widget"""
-#
-#    def __init__(self, parent=None, dft_date=None, day_end=False, **kw):
-#        QtGui.QWidget.__init__(self, parent, **kw)
-#
-#        layout = QtGui.QHBoxLayout(self)
-#        layout.setMargin(0)
-#        layout.setSpacing(0)
-#        self.date_input = SnapshotDateSelectorInput(self, dft_date, day_end)
-#        clear_button = QtGui.QPushButton("Clear", self)
-#        clear_button.setMaximumWidth(50)
-#        clear_button.clicked.connect(self.clear_date)
-#
-#        self.connect(self.date_input, SIGNAL("date_updated"), self.update_date)
-#
-#        layout.addWidget(self.date_input)
-#        layout.addWidget(clear_button)
-#
-#        self.selected_date = None
-#
-#    def clear_date(self):
-#        self.date_input.clear_date()
-#        self.selected_date = self.date_input.selected_date
-#
-#    def update_date(self):
-#        self.selected_date = self.date_input.selected_date
-#        self.emit(SIGNAL("date_updated"))
-#
-#
-#class SnapshotDateSelectorInput(QtGui.QLineEdit):
-#
-#    def __init__(self, parent=None, dft_date=None, day_end=False, **kw):
-#        QtGui.QLineEdit.__init__(self, parent, **kw)
-#
-#        self.selector = SnapshotDateSelectorWindow(self, dft_date, day_end)
-#        self.connect(self.selector, SIGNAL("date_selected"), self.update_date)
-#
-#        self.selected_date = None
-#
-#    def mousePressEvent(self, event):
-#        self.selector.move(self.mapToGlobal(self.pos()))
-#        self.selector.show()
-#
-#    def update_date(self):
-#        self.selected_date = self.selector.selected_date
-#        self.setText(self.selector.date_line.text())
-#        self.emit(SIGNAL("date_updated"))
-#
-#    def clear_date(self):
-#        self.selector.clear_date()
-#
-#
-#class SnapshotDateSelectorWindow(QtGui.QWidget):
-#
-#    def __init__(self, parent=None, dft_date=None, day_end=False, **kw):
-#
-#        QtGui.QWidget.__init__(self, parent, **kw)
-#        self.dft_date = dft_date
-#        self.day_end = day_end
-#        self.date_valid = False
-#        # Main Layout
-#        layout = QtGui.QVBoxLayout(self)
-#
-#        # readback + today button + clear button
-#        head_layout = QtGui.QHBoxLayout()
-#        self.date_line = QtGui.QLineEdit(self)
-#        self.date_line.setPlaceholderText("dd.mm.yyyy")
-#        self.date_line.editingFinished.connect(self.check_date)
-#        today_button = QtGui.QPushButton("Today", self)
-#        today_button.clicked.connect(self.set_today)
-#        clear_button = QtGui.QPushButton("Clear", self)
-#        clear_button.clicked.connect(self.clear_internal)
-#        head_layout.addWidget(self.date_line)
-#        head_layout.addWidget(today_button)
-#        head_layout.addWidget(clear_button)
-#
-#        # Calendar and apply button
-#        self.cal = QtGui.QCalendarWidget(self)
-#        self.cal.clicked.connect(self.cal_changed)
-#        apply_button = QtGui.QPushButton("Apply", self)
-#        apply_button.clicked.connect(self.apply_date)
-#
-#        layout.addItem(head_layout)
-#        layout.addWidget(self.cal)
-#        layout.addWidget(apply_button)
-#
-#        # Make as a window
-#        self.setWindowTitle("Date selector")
-#        self.setWindowFlags(Qt.Window | Qt.Tool)
-#        self.setAttribute(Qt.WA_X11NetWmWindowTypeMenu, True)
-#        self.setEnabled(True)
-#
-#        self.selected_date = 0
-#        self.set_today()
-#
-#    def cal_changed(self):
-#        self.date_line.setText(self.cal.selectedDate().toString("dd.MM.yyyy"))
-#        self.date_valid = True
-#
-#    def set_today(self):
-#        today = time.time()
-#        y = int(datetime.datetime.fromtimestamp(today).strftime('%Y'))
-#        m = int(datetime.datetime.fromtimestamp(today).strftime('%m'))
-#        d = int(datetime.datetime.fromtimestamp(today).strftime('%d'))
-#        self.cal.setSelectedDate(QtCore.QDate(y, m, d))
-#        self.date_line.setText(
-#            datetime.datetime.fromtimestamp(today).strftime('%d.%m.%Y'))
-#        self.date_valid = True
-#
-#    def clear_internal(self):
-#        # To be used only by this widget
-#        self.date_line.setText("")
-#        self.date_valid = True
-#
-#    def check_date(self):
-#        date_str = self.date_line.text()
-#        condition = re.compile('[0-9]{2}\.[0-9]{2}\.[0-9]{4}')
-#        if condition.match(date_str) is not None:
-#            self.date_valid = True
-#            date_to_set = date_str.split('.')
-#            self.cal.setSelectedDate(
-#                QtCore.QDate(int(date_to_set[2]), int(date_to_set[1]), int(date_to_set[0])))
-#        else:
-#            self.date_valid = False
-#
-#        return self.date_valid
-#
-#    def apply_date(self):
-#        if self.date_valid:
-#            if self.day_end:
-#                time_str_full = self.date_line.text()
-#            else:
-#                time_str_full = self.date_line.text()
-#            if self.date_line.text():
-#                self.selected_date = time.mktime(
-#                    time.strptime(time_str_full, '%d.%m.%Y'))
-#            else:
-#                self.selected_date = self.dft_date
-#
-#            self.emit(SIGNAL("date_selected"))
-#            self.hide()
-#
-#    def clear_date(self):
-#        # To be used from outside
-#        self.clear_internal()
-#        self.apply_date()
 
 #### Global functions
 def parse_macros(macros_str):
