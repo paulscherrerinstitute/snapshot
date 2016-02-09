@@ -1370,7 +1370,7 @@ def main():
 
     args_pars = argparse.ArgumentParser()
     args_pars.add_argument('REQUEST_FILE', nargs='?')
-    args_pars.add_argument('-macros', '-m',
+    args_pars.add_argument('-macro', '-m',
                            help="Macros for request file e.g.: \"SYS=TEST,DEV=D1\"")
     args_pars.add_argument('-dir', '-d',
                            help="Directory for saved files")
@@ -1379,7 +1379,7 @@ def main():
     args = args_pars.parse_args()
 
     # Parse macros string if exists
-    macros = parse_macros(args.macros)
+    macros = parse_macros(args.macro)
 
     app = QtGui.QApplication(sys.argv)
 

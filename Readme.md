@@ -20,14 +20,14 @@ $(SYS):test-3
 After snapshoot is build and deployed as conda package (see section [Instalation](#installation) it can be started with following command:
 
 ```
-snapshot [-h] [-macros MACROS] [-dir DIR] [--force] [REQUEST_FILE]
+snapshot [-h] [-macro MACRO] [-dir DIR] [--force] [REQUEST_FILE]
 
 positional arguments:
   REQUEST_FILE
 
 optional arguments:
   -h, --help            show this help message and exit
-  -macros MACROS, -m MACROS
+  -macro MACRO, -m MACRO
                         Macros for request file e.g.: "SYS=TEST,DEV=D1"
   -dir DIR, -d DIR      Directory for saved files
   --force, -f           Forces save/restore in case of disconnected PVs
