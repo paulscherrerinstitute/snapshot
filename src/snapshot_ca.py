@@ -346,7 +346,7 @@ class Snapshot:
         req_file = open(req_file_path)
         for line in req_file:
             # skip comments and empty lines
-            if not line.startswith('#') and line.strip():
+            if not line.startswith(('#', "data{", "}")) and line.strip():
                 pv_name = line.rstrip().split(',')[0]
                 # Do a macro substitution if macros exist.
                 if macros:
