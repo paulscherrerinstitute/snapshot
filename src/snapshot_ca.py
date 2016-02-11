@@ -396,7 +396,7 @@ class Snapshot:
                 meta_loaded = True
             # skip empty lines and all rest with #
             elif line.strip() and not line.startswith('#'):
-                split_line = line.strip().split(',')
+                split_line = line.strip().split(',', 1)
                 pv_name = split_line[0]
                 if len(split_line) > 1:
                     pv_value_str = split_line[1]
