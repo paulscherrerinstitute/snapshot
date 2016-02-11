@@ -912,7 +912,6 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
         # Have data stored in native types, for easier filtering etc.
         self.connect_sts = None
         self.saved_value = None
-        self.saved_sts = None
         self.value = None
         self.compare = None
         self.has_error = True
@@ -924,16 +923,41 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
         self.completeness_filter = True
         self.name_filter = None
 
-    def update_state(self, pv_value, pv_saved, pv_compare, pv_cnct_sts, saved_sts, **kw):
+    def update_state(self, pv_value, pv_saved, pv_compare, pv_cnct_sts, **kw):
         # Is called whenever pv value, connection status changes or new saved
         # file is selected
         self.connect_sts = pv_cnct_sts
         # indicates if list of saved PVs loaded to snapshot
-        self.saved_sts = saved_sts
         self.saved_value = pv_saved
         self.value = pv_value
         self.compare = pv_compare
         self.has_error = False
+
+        if self.has_error or (self.compare is None):
+            self.set_color(PvViewStatus.err)
+        else:
+            if self.compare:
+                self.setText(3, "Equal")
+                self.set_color(PvViewStatus.eq)
+            else:
+                self.setText(3, "Not equal")
+                self.set_color(PvViewStatus.neq)
+
+        if self.saved_value is not None:
+            if isinstance(self.saved_value, numpy.ndarray):
+                # Handle arrays
+                self.setText(2, json.dumps(self.saved_value.tolist()))
+            elif isinstance(self.saved_value, str):
+                # If string do not dump it will add "" to a string
+                self.setText(2, self.saved_value)
+            else:
+                # dump other values
+                self.setText(2, json.dumps(self.saved_value))
+        else:
+            self.setText(2, "")
+            self.setText(3, "No saved value.")
+            self.compare = None
+            self.has_error = True
 
         if not self.connect_sts:
             self.setText(1, "")  # no connection means no value
@@ -952,32 +976,6 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
                     self.setText(1, json.dumps(self.value))
             else:
                 self.setText(1, "")
-
-        if self.saved_value is not None:
-            if isinstance(self.saved_value, numpy.ndarray):
-                # Handle arrays
-                self.setText(2, json.dumps(self.saved_value.tolist()))
-            elif isinstance(self.saved_value, str):
-                # If string do not dump it will add "" to a string
-                self.setText(2, self.saved_value)
-            else:
-                # dump other values
-                self.setText(2, json.dumps(self.saved_value))
-        else:
-            self.setText(2, "")
-            self.setText(3, "No saved value.")
-            self.compare = None
-            self.has_error = True
-
-        if self.has_error or (self.compare is None):
-            self.set_color(PvViewStatus.err)
-        else:
-            if self.compare:
-                self.setText(3, "Equal")
-                self.set_color(PvViewStatus.eq)
-            else:
-                self.setText(3, "Not equal")
-                self.set_color(PvViewStatus.neq)
 
         # Filter with saved filter data, to check conditions with new values.
         self.apply_filter(self.compare_filter, self.completeness_filter,

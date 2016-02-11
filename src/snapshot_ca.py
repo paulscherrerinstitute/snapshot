@@ -278,6 +278,12 @@ class Snapshot:
             if pv_ref.connected:
                 self.continuous_compare(pvname=pv_ref.pvname,
                                         value=pv_ref.value)
+            elif self.compare_callback and self.restore_values_loaded:
+                self.compare_callback(pv_name=key, pv_value=None,
+                                      pv_saved=pv_ref.value_to_restore,
+                                      pv_compare=None,
+                                      pv_cnct_sts=not pv_ref.cnct_lost,
+                                      saved_sts=self.restore_values_loaded)
         self.compare_state = True
 
     def stop_continuous_compare(self):
