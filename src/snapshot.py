@@ -62,14 +62,14 @@ class SnapshotGui(QtGui.QMainWindow):
             self.configure_dialog.exec_()
 
         else:
-            self.common_settings["req_file_name"] = req_file_name
+            self.common_settings["req_file_name"] = os.path.abspath(req_file_name)
             self.common_settings["req_file_macros"] = req_file_macros
 
         if not save_dir:
             # Default save dir
             save_dir = os.path.dirname(self.common_settings["req_file_name"])
 
-        self.common_settings["save_dir"] = save_dir
+        self.common_settings["save_dir"] = os.path.abspath(save_dir)
         self.common_settings["pvs_to_restore"] = list()
 
         # Before creating GUI, snapshot must be initialized.
