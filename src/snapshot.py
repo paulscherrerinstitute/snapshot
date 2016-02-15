@@ -87,10 +87,17 @@ class SnapshotGui(QtGui.QMainWindow):
         #
 
         # Status components are needed by other GUI elements
-        status_log = SnapshotStatusLog(self)
-        self.common_settings["sts_log"] = status_log
+        self.status_log = SnapshotStatusLog(self)
+        self.common_settings["sts_log"] = self.status_log
         status_bar = SnapshotStatus(self.common_settings, self)
         self.common_settings["sts_info"] = status_bar
+
+        # Create status log show/hide control and add it to status bar
+        self.show_log_control = QtGui.QCheckBox("Show status log")
+        self.show_log_control.setStyleSheet("background-color: transparent")
+        self.show_log_control.stateChanged.connect(self.status_log.setVisible)
+        self.status_log.setVisible(False)
+        status_bar.addPermanentWidget(self.show_log_control)
 
         # Creating main layout
         self.save_widget = SnapshotSaveWidget(self.snapshot,
@@ -118,7 +125,7 @@ class SnapshotGui(QtGui.QMainWindow):
         main_splitter.addWidget(sr_splitter)
         main_splitter.addWidget(self.compare_widget)
         main_splitter.addWidget(self.compare_widget)
-        main_splitter.addWidget(status_log)
+        main_splitter.addWidget(self.status_log)
         main_splitter.setOrientation(Qt.Vertical)
 
         # Set default widget and add status bar
@@ -1030,7 +1037,7 @@ class SnapshotStatusLog(QtGui.QWidget):
         self.sts_log = QtGui.QPlainTextEdit(self)
         self.sts_log.setReadOnly(True)
 
-        layout = QtGui.QVBoxLayout()  # To have margin option
+        layout = QtGui.QVBoxLayout()
         layout.setMargin(10)
         layout.addWidget(self.sts_log)
         self.setLayout(layout)
