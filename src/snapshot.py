@@ -228,28 +228,10 @@ class SnapshotSaveWidget(QtGui.QWidget):
         extension_rb_layout.addWidget(self.file_name_rb)
         extension_rb_layout.addStretch()
 
-        # Make a field to enable user adding a comment
-        comment_layout = QtGui.QHBoxLayout()
-        comment_layout.setSpacing(10)
-        comment_label = QtGui.QLabel("Comment:", self)
-        comment_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
-        comment_label.setMinimumWidth(min_label_width)
-        self.comment_input = QtGui.QLineEdit(self)
-        comment_layout.addWidget(comment_label)
-        comment_layout.addWidget(self.comment_input)
+        # Create collapsible group with advanced options
+        self.advanced = SnapshotAdvancedSaveSettings("Advanced", self.common_settings, self)
 
-        # Make field for labels
-        labels_layout = QtGui.QHBoxLayout()
-        labels_layout.setSpacing(10)
-        labels_label = QtGui.QLabel("Labels:", self)
-        labels_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
-        labels_label.setMinimumWidth(min_label_width)
-        self.labels_input = SnapshotKeywordSelectorWidget(
-            self.common_settings, self)
-        labels_layout.addWidget(labels_label)
-        labels_layout.addWidget(self.labels_input)
-
-        # Make Save button, status indicator and save report
+        # Make Save button
         save_layout = QtGui.QHBoxLayout()
         save_layout.setSpacing(10)
         self.save_button = QtGui.QPushButton("Save", self)
@@ -264,10 +246,9 @@ class SnapshotSaveWidget(QtGui.QWidget):
         # Add to main layout
         layout.addItem(extension_layout)
         layout.addItem(extension_rb_layout)
-        layout.addItem(comment_layout)
-        layout.addItem(labels_layout)
-        layout.addStretch()
+        layout.addWidget(self.advanced)
         layout.addItem(save_layout)
+        layout.addStretch()
 
     def start_save(self):
         # Update file name and chek if exists. Then disable button for the time
@@ -281,12 +262,20 @@ class SnapshotSaveWidget(QtGui.QWidget):
             self.sts_log.log_line("Save started.")
             self.sts_info.set_status("Saving ...", 0, "orange")
 
+            # Use advanced settings only if selected
+            if self.advanced.isChecked():
+                labels = self.advanced.labels_input.get_keywords()
+                comment = self.advanced.comment_input.text()
+            else:
+                labels = list()
+                comment = ""
+
             # Start saving process and notify when finished
             status, pvs_status = self.snapshot.save_pvs(self.file_path,
                                                         force=self.common_settings[
                                                             "force"],
-                                                        labels=self.labels_input.get_keywords(),
-                                                        comment=self.comment_input.text())
+                                                        labels=labels,
+                                                        comment=comment)
             if status == ActionStatus.no_cnct:
                 self.sts_log.log_line(
                     "ERROR: Save rejected. One or more PVs not connected.")
@@ -349,6 +338,59 @@ class SnapshotSaveWidget(QtGui.QWidget):
             if reply == QtGui.QMessageBox.No:
                 return False
         return True
+
+    def update_labels(self):
+        self.advanced.update_labels()
+
+
+class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
+    def __init__(self, text, common_settings, parent=None):
+        QtGui.QGroupBox.__init__(self, text, parent)
+        self.setStyleSheet("background-color: rgba(0, 0, 0, 15)")
+        min_label_width = 120
+        # frame is a container with all widgets, tat should be collapsed
+        self.frame = QtGui.QFrame(self)
+        self.frame.setContentsMargins(0,20,0,0)
+        self.frame.setStyleSheet("background-color: None")
+        self.setCheckable(True)
+        self.toggled.connect(self.frame.setVisible)
+        self.setChecked(False)
+
+        layout = QtGui.QVBoxLayout()
+        layout.setMargin(0)
+        layout.addWidget(self.frame)
+        self.setLayout(layout)
+
+        self.frame_layout = QtGui.QVBoxLayout()
+        self.frame_layout.setMargin(0)
+        self.frame.setLayout(self.frame_layout)
+
+        # Make a field to enable user adding a comment
+        comment_layout = QtGui.QHBoxLayout()
+        comment_layout.setSpacing(10)
+        comment_label = QtGui.QLabel("Comment:", self.frame)
+        comment_label.setStyleSheet("background-color: None")
+        comment_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
+        comment_label.setMinimumWidth(min_label_width)
+        self.comment_input = QtGui.QLineEdit(self.frame)
+        comment_layout.addWidget(comment_label)
+        comment_layout.addWidget(self.comment_input)
+
+        # Make field for labels
+        labels_layout = QtGui.QHBoxLayout()
+        labels_layout.setSpacing(10)
+        labels_label = QtGui.QLabel("Labels:", self.frame)
+        labels_label.setStyleSheet("background-color: None")
+        labels_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
+        labels_label.setMinimumWidth(min_label_width)
+        self.labels_input = SnapshotKeywordSelectorWidget(
+            common_settings, self.frame)
+        labels_layout.addWidget(labels_label)
+        labels_layout.addWidget(self.labels_input)
+
+        #self.frame_layout.addStretch()
+        self.frame_layout.addItem(comment_layout)
+        self.frame_layout.addItem(labels_layout)
 
     def update_labels(self):
         self.labels_input.update_sugested_keywords()
