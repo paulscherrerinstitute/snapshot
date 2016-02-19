@@ -510,7 +510,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                     QtCore.QCoreApplication.processEvents()
 
                     status = self.snapshot.restore_pvs(callback=self.restore_done_callback,
-                                                   force=force)
+                                                       force=force)
                     if status == ActionStatus.no_data:
                         # Because of checking "restore_values_loaded" before
                         # starting a restore, this case should not happen.
@@ -596,7 +596,6 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         self.file_selector.setIndentation(0)
         self.file_selector.setColumnCount(3)
         self.file_selector.setHeaderLabels(["File", "Comment", "Labels"])
-        self.file_selector.setAlternatingRowColors(True)
         self.file_selector.itemSelectionChanged.connect(self.choose_file)
         self.file_selector.setContextMenuPolicy(Qt.CustomContextMenu)
         self.file_selector.customContextMenuRequested.connect(self.open_menu)
@@ -931,7 +930,6 @@ class SnapshotCompareWidget(QtGui.QWidget):
         self.pv_view.setColumnCount(4)
         self.pv_view.setHeaderLabels(
             ["PV", "Current value", "Saved value", "Status"])
-        self.pv_view.setAlternatingRowColors(True)
         # Add all widgets to main layout
         layout.addItem(filter_layout)
         layout.addWidget(self.pv_view)

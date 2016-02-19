@@ -9,8 +9,15 @@ QSplitter::handle:horizontal{
     background-color: rgba(0, 0, 0, 30);
 }
 QStatusBar::item{
-    border : None;
-    background-color : transparent;
+    border: None;
+    background-color: transparent;
 }
-
+QTreeWidget::item{
+    border-bottom: 1px solid #EEEEEE;
+}
+QTreeWidget::item:pressed,QTreeWidget::item:selected{
+    background-color: #FF6347;
+    color: #FFFFFF;
+    border-bottom: 1px solid #FFFFFF;
+}
 
