@@ -165,12 +165,15 @@ class Snapshot:
         # Hold a dictionary for each PV (key=pv_name) with reference to
         # SnapshotPv object.
         self.pvs = dict()
+
+        # Other important states
         self.compare_state = False
         self.restore_values_loaded = False
         self.restore_started = False
         self.all_connected = False
         self.compare_callback = None
         self.restore_callback = None
+        self.current_restore_forced = False
 
         # Uses default parsing method. If other format is needed, subclass
         # and re implement parse_req_file method. It must return list of
@@ -231,6 +234,7 @@ class Snapshot:
             return(ActionStatus.busy)
 
         self.restore_started = True
+        self.current_restore_forced = force
         if save_file_path:
             self.prepare_pvs_to_restore_from_file(save_file_path)
 
@@ -258,7 +262,7 @@ class Snapshot:
         self.restored_pvs_list.append((pv_name, status))
         if len(self.restored_pvs_list) == len(self.pvs) and self.restore_callback:
             self.restore_started = False
-            self.restore_callback(status=dict(self.restored_pvs_list))
+            self.restore_callback(status=dict(self.restored_pvs_list), forced=self.current_restore_forced)
             self.restore_callback = None
 
     def start_continuous_compare(self, callback=None, save_file_path=None):
@@ -340,6 +344,16 @@ class Snapshot:
     def get_pvs_names(self):
         # To access a list of all pvs that are under control of snapshot object
         return list(self.pvs.keys())
+
+    def get_not_connected_pvs_names(self):
+        if self.all_connected:
+            return list()
+        else:
+            not_connected_list = list()
+            for pv_name, pv_ref in self.pvs.items():
+                if not pv_ref.connected:
+                    not_connected_list.append(pv_name)
+            return(not_connected_list)
 
     # Parser functions
 

@@ -8,7 +8,7 @@ import argparse
 import re
 from enum import Enum
 import os
-from .snapshot_ca import PvStatus, ActionStatus, Snapshot
+from snapshot_ca import PvStatus, ActionStatus, Snapshot
 import json
 import numpy
 import epics
@@ -251,13 +251,35 @@ class SnapshotSaveWidget(QtGui.QWidget):
         layout.addStretch()
 
     def start_save(self):
+        # Check if save can be done (all pvs connected or in force mode)
+        force = self.common_settings["force"]
+        not_connected_pvs = self.snapshot.get_not_connected_pvs_names()
+        do_save = True
+        if not force and not_connected_pvs:
+            # If file exists, user must decide whether to overwrite it or not
+            msg = "Some PVs are not connected (see details). Do you want to save anyway?\n"
+
+            msg_window = QtGui.QMessageBox(self)
+            msg_window.setWindowTitle("Warning")
+            msg_window.setText(msg)
+            msg_window.setDetailedText("\n".join(not_connected_pvs))
+            msg_window.setStandardButtons(QtGui.QMessageBox.Yes | QtGui.QMessageBox.No)
+            msg_window.setDefaultButton(QtGui.QMessageBox.Yes)
+            reply = msg_window.exec_()
+
+            if reply == QtGui.QMessageBox.No:
+                force = False
+                do_save = False
+            else:
+                force = True
+
         # Update file name and chek if exists. Then disable button for the time
         # of saving. Will be unlocked when save is finished.
         if not self.extension_input.text():
             #  Update name with latest timestamp
             self.update_name()
 
-        if self.check_file_existance():
+        if do_save and self.check_file_existance():
             self.save_button.setEnabled(False)
             self.sts_log.log_line("Save started.")
             self.sts_info.set_status("Saving ...", 0, "orange")
@@ -272,8 +294,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
 
             # Start saving process and notify when finished
             status, pvs_status = self.snapshot.save_pvs(self.file_path,
-                                                        force=self.common_settings[
-                                                            "force"],
+                                                        force=force,
                                                         labels=labels,
                                                         comment=comment)
             if status == ActionStatus.no_cnct:
@@ -283,18 +304,19 @@ class SnapshotSaveWidget(QtGui.QWidget):
                 self.save_button.setEnabled(True)
             else:
                 # If not no_cnct, then .ok
-                self.save_done(pvs_status)
+                self.save_done(pvs_status, force)
         else:
-            # User rejected saving into same file. No error.
+            # User rejected saving with unconnected PVs or into existing file.
+            # Not an error state.
             self.sts_info.clear_status()
 
-    def save_done(self, status):
+    def save_done(self, status, forced):
         # Enable save button, and update status widgets
         error = False
         for key in status:
             sts = status[key]
             if status[key] == PvStatus.access_err:
-                error = True and not self.common_settings["force"]
+                error = True and not forced
                 self.sts_log.log_line("WARNING: " + key +
                                       ": Not saved (no connection or no read access)")
 
@@ -451,51 +473,80 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.connect(self, SIGNAL("restore_done_callback"), self.restore_done)
 
     def start_restore(self):
-        # First disable restore button (will be enabled when finished)
-        # Then Use one of the preloaded saved files to restore
-        self.restore_button.setEnabled(False)
-        # Force updating the GUI and disabling the button before future actions
-        QtCore.QCoreApplication.processEvents()
-        self.sts_log.log_line("Restore started.")
-        self.sts_info.set_status("Restoring ...", 0, "orange")
-        # Force updating the GUI with new status
-        QtCore.QCoreApplication.processEvents()
+        # Check if restore can be done (values loaded to snapshot).
+        if self.snapshot.restore_values_loaded:
+            # Check if all pvs connected or in force mode)
+            force = self.common_settings["force"]
+            not_connected_pvs = self.snapshot.get_not_connected_pvs_names()
+            do_restore = True
+            if not force and not_connected_pvs:
+                # If file exists, user must decide whether to overwrite it or not
+                msg = "Some PVs are not connected (see details). Do you want to restore anyway?\n"
 
-        status = self.snapshot.restore_pvs(callback=self.restore_done_callback,
-                                           force=self.common_settings["force"])
-        if status == ActionStatus.no_data:
-            self.sts_log.log_line("ERROR: No file selected.")
-            self.sts_info.set_status("Restore rejected", 3000, "#F06464")
-            self.restore_button.setEnabled(True)
-        elif status == ActionStatus.no_cnct:
-            self.sts_log.log_line(
-                "ERROR: Restore rejected. One or more PVs not connected.")
-            self.sts_info.set_status("Restore rejected", 3000, "#F06464")
-            self.restore_button.setEnabled(True)
-        elif status == ActionStatus.busy:
-            self.sts_log.log_line(
-                "ERROR: Restore rejected. Previous restore not finished.")
+                msg_window = QtGui.QMessageBox(self)
+                msg_window.setWindowTitle("Warning")
+                msg_window.setText(msg)
+                msg_window.setDetailedText("\n".join(not_connected_pvs))
+                msg_window.setStandardButtons(QtGui.QMessageBox.Yes | QtGui.QMessageBox.No)
+                msg_window.setDefaultButton(QtGui.QMessageBox.Yes)
+                reply = msg_window.exec_()
 
-    def restore_done_callback(self, status, **kw):
+                if reply == QtGui.QMessageBox.No:
+                    force = False
+                    do_restore = False
+                else:
+                    force = True
+
+            if do_restore:
+                if self.snapshot.restore_values_loaded:
+                    # First disable restore button (will be enabled when finished)
+                    # Then Use one of the preloaded saved files to restore
+                    self.restore_button.setEnabled(False)
+                    # Force updating the GUI and disabling the button before future actions
+                    QtCore.QCoreApplication.processEvents()
+                    self.sts_log.log_line("Restore started.")
+                    self.sts_info.set_status("Restoring ...", 0, "orange")
+                    # Force updating the GUI with new status
+                    QtCore.QCoreApplication.processEvents()
+
+                    status = self.snapshot.restore_pvs(callback=self.restore_done_callback,
+                                                   force=force)
+                    if status == ActionStatus.no_data:
+                        # Because of checking "restore_values_loaded" before
+                        # starting a restore, this case should not happen.
+                        self.sts_log.log_line("ERROR: Nothing to restore.")
+                        self.sts_info.set_status("Restore rejected", 3000, "#F06464")
+                        self.restore_button.setEnabled(True)
+                    elif status == ActionStatus.no_cnct:
+                        self.sts_log.log_line(
+                            "ERROR: Restore rejected. One or more PVs not connected.")
+                        self.sts_info.set_status("Restore rejected", 3000, "#F06464")
+                        self.restore_button.setEnabled(True)
+                    elif status == ActionStatus.busy:
+                        self.sts_log.log_line(
+                            "ERROR: Restore rejected. Previous restore not finished.")
+        else:
+            # Don't start a restore if file not selected
+            warn = "Cannot start a restore. File with saved values is not selected."
+            QtGui.QMessageBox.warning(self, "Warning", warn,
+                                      QtGui.QMessageBox.Ok,
+                                      QtGui.QMessageBox.NoButton)
+
+    def restore_done_callback(self, status, forced, **kw):
         # Raise callback to handle GUI specific in GUI thread
-        self.emit(SIGNAL("restore_done_callback"), status)
+        self.emit(SIGNAL("restore_done_callback"), status, forced)
 
-    def restore_done(self, status):
+    def restore_done(self, status, forced):
         # When snapshot finishes restore, GUI must be updated with
         # status of the restore action.
         error = False
-        if not status:
-            error = True
-            self.sts_log.log_line("ERROR: No file selected.")
-            self.sts_info.set_status("Cannot restore", 3000, "#F06464")
-        else:
-            for key in status:
-                pv_status = status[key]
-                if pv_status == PvStatus.access_err:
-                    error = True and not self.common_settings["force"]
-                    self.sts_log.log_line("WARNING: " + key +
-                                          ": Not restored (no connection or no write access).")
-                    self.sts_info.set_status("Restore error", 3000, "#F06464")
+        for key in status:
+            pv_status = status[key]
+            if pv_status == PvStatus.access_err:
+                error = True and not forced
+                self.sts_log.log_line("WARNING: " + key +
+                                      ": Not restored (no connection or no write access).")
+                self.sts_info.set_status("Restore error", 3000, "#F06464")
         if not error:
             self.sts_log.log_line("Restore successful.")
             self.sts_info.set_status("Restore done", 3000, "#64C864")
