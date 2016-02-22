@@ -121,6 +121,10 @@ class SnapshotPv(PV):
             # values from old configurations
             self.value_to_restore = None
 
+    def clear_restore_parameters(self):
+        """ Sets all restore parameters to None values. """
+        self.value_to_restore = None
+
     def compare(self, value):
         if self.is_array:
             compare = numpy.array_equal(value, self.value_to_restore)
@@ -216,15 +220,32 @@ class Snapshot:
             self.compare_state = True  # keep old info to restart at the end
 
         # Loads pvs that were previously parsed from saved file
-        for key in self.pvs:
-            pv_ref = self.pvs[key]
-            pv_ref.set_restore_parameters(saved_pvs.get(key, None))
+        for pv_name, pv_ref in self.pvs.items():
+            pv_ref.set_restore_parameters(saved_pvs.get(pv_name, None))
 
         self.restore_values_loaded = True
 
         # run compare again and do initial compare
         if self.compare_state:
             self.start_continuous_compare(callback)
+
+    def clear_pvs_to_restore(self):
+        # Disable compare for the time of loading new restore value
+        if self.compare_state:
+            callback = self.compare_callback
+            self.stop_continuous_compare()
+            self.compare_state = True  # keep old info to restart at the end
+
+        # Loads pvs that were previously parsed from saved file
+        for pv_name, pv_ref in self.pvs.items():
+            pv_ref.clear_restore_parameters()
+
+        self.restore_values_loaded = False
+
+        # run compare again and do initial compare
+        if self.compare_state:
+            self.start_continuous_compare(callback)
+
 
     def restore_pvs(self, save_file_path=None, force=False, callback=None):
         # If file with saved values specified then read file. If no file
@@ -273,8 +294,7 @@ class Snapshot:
         if save_file_path:
             self.load_saved_pvs(save_file_path)
 
-        for key in self.pvs:
-            pv_ref = self.pvs[key]
+        for pv_name, pv_ref in self.pvs.items():
             pv_ref.compare_callback_id = pv_ref.add_callback(self.continuous_compare)
             # if pv_ref.connected:
             #     # Send first callbacks for "initial" compare of each PV if
@@ -282,8 +302,8 @@ class Snapshot:
             if pv_ref.connected:
                 self.continuous_compare(pvname=pv_ref.pvname,
                                         value=pv_ref.value)
-            elif self.compare_callback and self.restore_values_loaded:
-                self.compare_callback(pv_name=key, pv_value=None,
+            elif self.compare_callback:
+                self.compare_callback(pv_name=pv_name, pv_value=None,
                                       pv_saved=pv_ref.value_to_restore,
                                       pv_compare=None,
                                       pv_cnct_sts=not pv_ref.cnct_lost,
