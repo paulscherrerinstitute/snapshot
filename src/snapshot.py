@@ -87,12 +87,22 @@ class SnapshotGui(QtGui.QMainWindow):
         #
 
         # Status components are needed by other GUI elements
-        status_log = SnapshotStatusLog(self)
-        self.common_settings["sts_log"] = status_log
+        self.status_log = SnapshotStatusLog(self)
+        self.common_settings["sts_log"] = self.status_log
         status_bar = SnapshotStatus(self.common_settings, self)
         self.common_settings["sts_info"] = status_bar
 
+        # Create status log show/hide control and add it to status bar
+        self.show_log_control = QtGui.QCheckBox("Show status log")
+        self.show_log_control.setStyleSheet("background-color: transparent")
+        self.show_log_control.stateChanged.connect(self.status_log.setVisible)
+        self.status_log.setVisible(False)
+        status_bar.addPermanentWidget(self.show_log_control)
+
         # Creating main layout
+        # Compare widget. Must be updated in case of file selection
+        self.compare_widget = SnapshotCompareWidget(self.snapshot,
+                                                    self.common_settings, self)
         self.save_widget = SnapshotSaveWidget(self.snapshot,
                                               self.common_settings, self)
         self.connect(self.save_widget, SIGNAL("save_done"),
@@ -103,10 +113,11 @@ class SnapshotGui(QtGui.QMainWindow):
         # should update with new existing labels. Force update for first time
         self.connect(self.restore_widget, SIGNAL("files_updated"),
                      self.handle_files_updated)
-        self.handle_files_updated()
+        self.connect(self.restore_widget, SIGNAL("files_selected"),
+                     self.handle_selected_files)
 
-        self.compare_widget = SnapshotCompareWidget(self.snapshot,
-                                                    self.common_settings, self)
+        #self.handle_files_updated()
+
         sr_splitter = QtGui.QSplitter(self)
         sr_splitter.addWidget(self.save_widget)
         sr_splitter.addWidget(self.restore_widget)
@@ -117,8 +128,7 @@ class SnapshotGui(QtGui.QMainWindow):
         main_splitter = QtGui.QSplitter(self)
         main_splitter.addWidget(sr_splitter)
         main_splitter.addWidget(self.compare_widget)
-        main_splitter.addWidget(self.compare_widget)
-        main_splitter.addWidget(status_log)
+        main_splitter.addWidget(self.status_log)
         main_splitter.setOrientation(Qt.Vertical)
 
         # Set default widget and add status bar
@@ -153,10 +163,16 @@ class SnapshotGui(QtGui.QMainWindow):
         self.snapshot = Snapshot(req_file_path, req_macros)
         self.common_settings["pvs_to_restore"] = self.snapshot.get_pvs_names()
 
-    def handle_files_updated(self):
+    def handle_files_updated(self, updated_files):
         # When new save file is added, or old one has changed, this method
-        # should handle thongs like updating label widgets.
+        # should handle things like updating label widgets and compare widget.
         self.save_widget.update_labels()
+        self.compare_widget.update_shown_files(updated_files)
+
+    def handle_selected_files(self, selected_files):
+        # selected_files is a dict() with file names as keywords and
+        # dict() of pv data as value
+        self.compare_widget.new_selected_files(selected_files)
 
 
 class SnapshotSaveWidget(QtGui.QWidget):
@@ -221,28 +237,10 @@ class SnapshotSaveWidget(QtGui.QWidget):
         extension_rb_layout.addWidget(self.file_name_rb)
         extension_rb_layout.addStretch()
 
-        # Make a field to enable user adding a comment
-        comment_layout = QtGui.QHBoxLayout()
-        comment_layout.setSpacing(10)
-        comment_label = QtGui.QLabel("Comment:", self)
-        comment_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
-        comment_label.setMinimumWidth(min_label_width)
-        self.comment_input = QtGui.QLineEdit(self)
-        comment_layout.addWidget(comment_label)
-        comment_layout.addWidget(self.comment_input)
+        # Create collapsible group with advanced options
+        self.advanced = SnapshotAdvancedSaveSettings("Advanced", self.common_settings, self)
 
-        # Make field for labels
-        labels_layout = QtGui.QHBoxLayout()
-        labels_layout.setSpacing(10)
-        labels_label = QtGui.QLabel("Labels:", self)
-        labels_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
-        labels_label.setMinimumWidth(min_label_width)
-        self.labels_input = SnapshotKeywordSelectorWidget(
-            self.common_settings, self)
-        labels_layout.addWidget(labels_label)
-        labels_layout.addWidget(self.labels_input)
-
-        # Make Save button, status indicator and save report
+        # Make Save button
         save_layout = QtGui.QHBoxLayout()
         save_layout.setSpacing(10)
         self.save_button = QtGui.QPushButton("Save", self)
@@ -257,29 +255,57 @@ class SnapshotSaveWidget(QtGui.QWidget):
         # Add to main layout
         layout.addItem(extension_layout)
         layout.addItem(extension_rb_layout)
-        layout.addItem(comment_layout)
-        layout.addItem(labels_layout)
-        layout.addStretch()
+        layout.addWidget(self.advanced)
         layout.addItem(save_layout)
+        layout.addStretch()
 
     def start_save(self):
+        # Check if save can be done (all pvs connected or in force mode)
+        force = self.common_settings["force"]
+        not_connected_pvs = self.snapshot.get_not_connected_pvs_names()
+        do_save = True
+        if not force and not_connected_pvs:
+            # If file exists, user must decide whether to overwrite it or not
+            msg = "Some PVs are not connected (see details). Do you want to save anyway?\n"
+
+            msg_window = QtGui.QMessageBox(self)
+            msg_window.setWindowTitle("Warning")
+            msg_window.setText(msg)
+            msg_window.setDetailedText("\n".join(not_connected_pvs))
+            msg_window.setStandardButtons(QtGui.QMessageBox.Yes | QtGui.QMessageBox.No)
+            msg_window.setDefaultButton(QtGui.QMessageBox.Yes)
+            reply = msg_window.exec_()
+
+            if reply == QtGui.QMessageBox.No:
+                force = False
+                do_save = False
+            else:
+                force = True
+
         # Update file name and chek if exists. Then disable button for the time
         # of saving. Will be unlocked when save is finished.
         if not self.extension_input.text():
             #  Update name with latest timestamp
             self.update_name()
 
-        if self.check_file_existance():
+        if do_save and self.check_file_existance():
             self.save_button.setEnabled(False)
             self.sts_log.log_line("Save started.")
             self.sts_info.set_status("Saving ...", 0, "orange")
 
+            # Use advanced settings only if selected
+            if self.advanced.isChecked():
+                labels = self.advanced.labels_input.get_keywords()
+                comment = self.advanced.comment_input.text()
+            else:
+                labels = list()
+                comment = ""
+
             # Start saving process and notify when finished
             status, pvs_status = self.snapshot.save_pvs(self.file_path,
-                                                        force=self.common_settings[
-                                                            "force"],
-                                                        labels=self.labels_input.get_keywords(),
-                                                        comment=self.comment_input.text())
+                                                        force=force,
+                                                        labels=labels,
+                                                        comment=comment)
             if status == ActionStatus.no_cnct:
                 self.sts_log.log_line(
                     "ERROR: Save rejected. One or more PVs not connected.")
@@ -287,18 +313,19 @@ class SnapshotSaveWidget(QtGui.QWidget):
                 self.save_button.setEnabled(True)
             else:
                 # If not no_cnct, then .ok
-                self.save_done(pvs_status)
+                self.save_done(pvs_status, force)
         else:
-            # User rejected saving into same file. No error.
+            # User rejected saving with unconnected PVs or into existing file.
+            # Not an error state.
             self.sts_info.clear_status()
 
-    def save_done(self, status):
+    def save_done(self, status, forced):
         # Enable save button, and update status widgets
         error = False
         for key in status:
             sts = status[key]
             if status[key] == PvStatus.access_err:
-                error = True and not self.common_settings["force"]
+                error = True and not forced
                 self.sts_log.log_line("WARNING: " + key +
                                       ": Not saved (no connection or no read access)")
 
@@ -344,6 +371,59 @@ class SnapshotSaveWidget(QtGui.QWidget):
         return True
 
     def update_labels(self):
+        self.advanced.update_labels()
+
+
+class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
+    def __init__(self, text, common_settings, parent=None):
+        QtGui.QGroupBox.__init__(self, text, parent)
+        self.setStyleSheet("background-color: rgba(0, 0, 0, 15)")
+        min_label_width = 120
+        # frame is a container with all widgets, tat should be collapsed
+        self.frame = QtGui.QFrame(self)
+        self.frame.setContentsMargins(0,20,0,0)
+        self.frame.setStyleSheet("background-color: None")
+        self.setCheckable(True)
+        self.toggled.connect(self.frame.setVisible)
+        self.setChecked(False)
+
+        layout = QtGui.QVBoxLayout()
+        layout.setMargin(0)
+        layout.addWidget(self.frame)
+        self.setLayout(layout)
+
+        self.frame_layout = QtGui.QVBoxLayout()
+        self.frame_layout.setMargin(0)
+        self.frame.setLayout(self.frame_layout)
+
+        # Make a field to enable user adding a comment
+        comment_layout = QtGui.QHBoxLayout()
+        comment_layout.setSpacing(10)
+        comment_label = QtGui.QLabel("Comment:", self.frame)
+        comment_label.setStyleSheet("background-color: None")
+        comment_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
+        comment_label.setMinimumWidth(min_label_width)
+        self.comment_input = QtGui.QLineEdit(self.frame)
+        comment_layout.addWidget(comment_label)
+        comment_layout.addWidget(self.comment_input)
+
+        # Make field for labels
+        labels_layout = QtGui.QHBoxLayout()
+        labels_layout.setSpacing(10)
+        labels_label = QtGui.QLabel("Labels:", self.frame)
+        labels_label.setStyleSheet("background-color: None")
+        labels_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
+        labels_label.setMinimumWidth(min_label_width)
+        self.labels_input = SnapshotKeywordSelectorWidget(
+            common_settings, self.frame)
+        labels_layout.addWidget(labels_label)
+        labels_layout.addWidget(self.labels_input)
+
+        #self.frame_layout.addStretch()
+        self.frame_layout.addItem(comment_layout)
+        self.frame_layout.addItem(labels_layout)
+
+    def update_labels(self):
         self.labels_input.update_sugested_keywords()
 
 
@@ -356,8 +436,6 @@ class SnapshotRestoreWidget(QtGui.QWidget):
      - file selector (tree of all files)
      - restore button
      - searcher/filter
-
-    It also owns a compare widget.
 
     Data about current app state (such as request file) must be provided as
     part of the structure "common_settings".
@@ -381,8 +459,8 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         # Create list with: file names, comment, labels
         self.file_selector = SnapshotRestoreFileSelector(snapshot,
                                                          common_settings, self)
-        self.connect(self.file_selector, SIGNAL("new_pvs"),
-                     self.load_new_pvs)
+        self.connect(self.file_selector, SIGNAL("files_selected"),
+                     self.handle_selected_files)
 
         self.restore_button = QtGui.QPushButton("Restore", self)
         self.restore_button.clicked.connect(self.start_restore)
@@ -402,51 +480,80 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.connect(self, SIGNAL("restore_done_callback"), self.restore_done)
 
     def start_restore(self):
-        # First disable restore button (will be enabled when finished)
-        # Then Use one of the preloaded saved files to restore
-        self.restore_button.setEnabled(False)
-        # Force updating the GUI and disabling the button before future actions
-        QtCore.QCoreApplication.processEvents()
-        self.sts_log.log_line("Restore started.")
-        self.sts_info.set_status("Restoring ...", 0, "orange")
-        # Force updating the GUI with new status
-        QtCore.QCoreApplication.processEvents()
+        # Check if restore can be done (values loaded to snapshot).
+        if self.snapshot.restore_values_loaded:
+            # Check if all pvs connected or in force mode)
+            force = self.common_settings["force"]
+            not_connected_pvs = self.snapshot.get_not_connected_pvs_names()
+            do_restore = True
+            if not force and not_connected_pvs:
+                # If file exists, user must decide whether to overwrite it or not
+                msg = "Some PVs are not connected (see details). Do you want to restore anyway?\n"
 
-        status = self.snapshot.restore_pvs(callback=self.restore_done_callback,
-                                           force=self.common_settings["force"])
-        if status == ActionStatus.no_data:
-            self.sts_log.log_line("ERROR: No file selected.")
-            self.sts_info.set_status("Restore rejected", 3000, "#F06464")
-            self.restore_button.setEnabled(True)
-        elif status == ActionStatus.no_cnct:
-            self.sts_log.log_line(
-                "ERROR: Restore rejected. One or more PVs not connected.")
-            self.sts_info.set_status("Restore rejected", 3000, "#F06464")
-            self.restore_button.setEnabled(True)
-        elif status == ActionStatus.busy:
-            self.sts_log.log_line(
-                "ERROR: Restore rejected. Previous restore not finished.")
+                msg_window = QtGui.QMessageBox(self)
+                msg_window.setWindowTitle("Warning")
+                msg_window.setText(msg)
+                msg_window.setDetailedText("\n".join(not_connected_pvs))
+                msg_window.setStandardButtons(QtGui.QMessageBox.Yes | QtGui.QMessageBox.No)
+                msg_window.setDefaultButton(QtGui.QMessageBox.Yes)
+                reply = msg_window.exec_()
 
-    def restore_done_callback(self, status, **kw):
+                if reply == QtGui.QMessageBox.No:
+                    force = False
+                    do_restore = False
+                else:
+                    force = True
+
+            if do_restore:
+                if self.snapshot.restore_values_loaded:
+                    # First disable restore button (will be enabled when finished)
+                    # Then Use one of the preloaded saved files to restore
+                    self.restore_button.setEnabled(False)
+                    # Force updating the GUI and disabling the button before future actions
+                    QtCore.QCoreApplication.processEvents()
+                    self.sts_log.log_line("Restore started.")
+                    self.sts_info.set_status("Restoring ...", 0, "orange")
+                    # Force updating the GUI with new status
+                    QtCore.QCoreApplication.processEvents()
+
+                    status = self.snapshot.restore_pvs(callback=self.restore_done_callback,
+                                                       force=force)
+                    if status == ActionStatus.no_data:
+                        # Because of checking "restore_values_loaded" before
+                        # starting a restore, this case should not happen.
+                        self.sts_log.log_line("ERROR: Nothing to restore.")
+                        self.sts_info.set_status("Restore rejected", 3000, "#F06464")
+                        self.restore_button.setEnabled(True)
+                    elif status == ActionStatus.no_cnct:
+                        self.sts_log.log_line(
+                            "ERROR: Restore rejected. One or more PVs not connected.")
+                        self.sts_info.set_status("Restore rejected", 3000, "#F06464")
+                        self.restore_button.setEnabled(True)
+                    elif status == ActionStatus.busy:
+                        self.sts_log.log_line(
+                            "ERROR: Restore rejected. Previous restore not finished.")
+        else:
+            # Don't start a restore if file not selected
+            warn = "Cannot start a restore. File with saved values is not selected."
+            QtGui.QMessageBox.warning(self, "Warning", warn,
+                                      QtGui.QMessageBox.Ok,
+                                      QtGui.QMessageBox.NoButton)
+
+    def restore_done_callback(self, status, forced, **kw):
         # Raise callback to handle GUI specific in GUI thread
-        self.emit(SIGNAL("restore_done_callback"), status)
+        self.emit(SIGNAL("restore_done_callback"), status, forced)
 
-    def restore_done(self, status):
+    def restore_done(self, status, forced):
         # When snapshot finishes restore, GUI must be updated with
         # status of the restore action.
         error = False
-        if not status:
-            error = True
-            self.sts_log.log_line("ERROR: No file selected.")
-            self.sts_info.set_status("Cannot restore", 3000, "#F06464")
-        else:
-            for key in status:
-                pv_status = status[key]
-                if pv_status == PvStatus.access_err:
-                    error = True and not self.common_settings["force"]
-                    self.sts_log.log_line("WARNING: " + key +
-                                          ": Not restored (no connection or no write access).")
-                    self.sts_info.set_status("Restore error", 3000, "#F06464")
+        for key in status:
+            pv_status = status[key]
+            if pv_status == PvStatus.access_err:
+                error = True and not forced
+                self.sts_log.log_line("WARNING: " + key +
+                                      ": Not restored (no connection or no write access).")
+                self.sts_info.set_status("Restore error", 3000, "#F06464")
         if not error:
             self.sts_log.log_line("Restore successful.")
             self.sts_info.set_status("Restore done", 3000, "#64C864")
@@ -454,12 +561,25 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         # Enable button when restore is finished
         self.restore_button.setEnabled(True)
 
-    def load_new_pvs(self):
-        self.snapshot.prepare_pvs_to_restore_from_list(self.file_selector.pvs)
+    def handle_selected_files(self, selected_files):
+        # Prepare for restore if one specific file is selected, or clear
+        # restore data if none specific file is selected.
+        selected_data = dict()
+        for file_name in selected_files:
+            file_data = self.file_selector.file_list.get(file_name, None)
+            if file_data:
+                selected_data[file_name] = file_data["pvs_list"]
+
+        if len(selected_files) == 1 and file_data:
+            pvs = file_data["pvs_list"]
+            self.snapshot.prepare_pvs_to_restore_from_list(pvs)
+        else:
+            self.snapshot.clear_pvs_to_restore()
+
+        self.emit(SIGNAL("files_selected"), selected_data)
 
     def update_files(self):
-        self.file_selector.start_file_list_update()
-        self.emit(SIGNAL("files_updated"))
+        self.emit(SIGNAL("files_updated"), self.file_selector.start_file_list_update())
 
 
 class SnapshotRestoreFileSelector(QtGui.QWidget):
@@ -473,7 +593,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         QtGui.QWidget.__init__(self, parent, **kw)
 
         self.snapshot = snapshot
-        self.selected_file = None
+        self.selected_files = list()
         self.common_settings = common_settings
 
         self.file_list = dict()
@@ -496,10 +616,16 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         self.file_selector.setIndentation(0)
         self.file_selector.setColumnCount(3)
         self.file_selector.setHeaderLabels(["File", "Comment", "Labels"])
-        self.file_selector.setAlternatingRowColors(True)
-        self.file_selector.itemSelectionChanged.connect(self.choose_file)
+        self.file_selector.itemSelectionChanged.connect(self.select_files)
         self.file_selector.setContextMenuPolicy(Qt.CustomContextMenu)
         self.file_selector.customContextMenuRequested.connect(self.open_menu)
+
+        # Applies following behavior for multi select:
+        #   click            selects only current file
+        #   Ctrl + click     adds current file to selected files
+        #   Shift + click    adds all files between last selected and current
+        #                    to selected
+        self.file_selector.setSelectionMode(QtGui.QTreeWidget.ExtendedSelection)
 
         self.filter_file_list_selector()
 
@@ -511,7 +637,10 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
 
         # Context menu
         self.menu = QtGui.QMenu(self)
-        self.menu.addAction("Delete file", self.delete_file)
+        self.menu.addAction("Delete selected files", self.delete_files)
+
+    def new_selection(self, selected):
+        self.emit(SIGNAL("selected"), selected)
 
     def start_file_list_update(self):
         # Rescans directory and adds new/modified files and removes none
@@ -519,10 +648,11 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         file_prefix = os.path.split(
             self.common_settings["req_file_name"])[1].split(".")[0] + "_"
 
-        self.update_file_list_selector(self.get_save_files(self.common_settings["save_dir"],
-                                                           file_prefix,
-                                                           self.file_list))
+        updated_files = self.update_file_list_selector(self.get_save_files(self.common_settings["save_dir"],
+                                                                           file_prefix,
+                                                                           self.file_list))
         self.filter_file_list_selector()
+        return updated_files
 
     def get_save_files(self, save_dir, name_prefix, current_files):
         # Parses all new or modified files. Parsed files are returned as a
@@ -547,12 +677,12 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
 
         return parsed_save_files
 
-    def update_file_list_selector(self, file_list):
+    def update_file_list_selector(self, modif_file_list):
 
         existing_labels = self.common_settings["existing_labels"]
 
-        for modified_file in file_list:
-            meta_data = file_list[modified_file]["meta_data"]
+        for modified_file, modified_data in modif_file_list.items():
+            meta_data = modified_data["meta_data"]
             labels = meta_data.get("labels", list())
             comment = meta_data.get("comment", "")
 
@@ -562,7 +692,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                 selector_item = QtGui.QTreeWidgetItem(
                     [modified_file, comment, " ".join(labels)])
                 self.file_selector.addTopLevelItem(selector_item)
-                self.file_list[modified_file] = file_list[modified_file]
+                self.file_list[modified_file] = modified_data
                 self.file_list[modified_file]["file_selector"] = selector_item
                 existing_labels += list(set(labels) - set(existing_labels))
             else:
@@ -583,6 +713,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                 # Update the global data meta_data info, before checking if
                 # labels_to_remove are used in any of the files.
                 self.file_list[modified_file]["meta_data"] = meta_data
+                self.file_list[modified_file]["pvs_list"] = modified_data["pvs_list"]
 
                 # Check if can be removed (no other file has the same label)
                 if labels_to_remove:
@@ -614,6 +745,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
 
         # Sort by file name (alphabetical order)
         self.file_selector.sortItems(0, Qt.AscendingOrder)
+        return modif_file_list
 
     def filter_file_list_selector(self):
         file_filter = self.filter_input.file_filter
@@ -660,34 +792,37 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         pos += QtCore.QPoint(0, self.menu.sizeHint().height())
         self.menu.move(pos)
 
-    def choose_file(self):
+    def select_files(self):
+        # Pre-process selected items, to a list of files
         if self.file_selector.selectedItems():
-            self.selected_file = self.file_selector.selectedItems()[0].text(0)
-            self.pvs = self.file_list[self.selected_file]["pvs_list"]
+            self.selected_files = list()
+            for item in self.file_selector.selectedItems():
+                self.selected_files.append(item.text(0))
 
-        self.emit(SIGNAL("new_pvs"))
+        self.emit(SIGNAL("files_selected"), self.selected_files)
 
-    def delete_file(self):
-        if self.selected_file:
-            file_path = os.path.join(self.common_settings["save_dir"],
-                                     self.selected_file)
-
-            msg = "Do you want to delete file: " + file_path + "?"
+    def delete_files(self):
+        if self.selected_files:
+            msg = "Do you want to delete selected files?"
             reply = QtGui.QMessageBox.question(self, 'Message', msg,
                                                QtGui.QMessageBox.Yes,
                                                QtGui.QMessageBox.No)
             if reply == QtGui.QMessageBox.Yes:
-                try:
-                    os.remove(file_path)
-                    self.file_list.pop(self.selected_file)
-                    self.pvs = dict()
-                    self.file_selector.takeTopLevelItem(
-                        self.file_selector.indexOfTopLevelItem(self.file_selector.currentItem()))
-                except OSError as e:
-                    warn = "Problem deleting file:\n" + str(e)
-                    QtGui.QMessageBox.warning(self, "Warning", warn,
-                                              QtGui.QMessageBox.Ok,
-                                              QtGui.QMessageBox.NoButton)
+                for selected_file in self.selected_files:
+                    try:
+                        file_path = os.path.join(self.common_settings["save_dir"],
+                                                 selected_file)
+                        os.remove(file_path)
+                        self.file_list.pop(selected_file)
+                        self.pvs = dict()
+                        self.file_selector.takeTopLevelItem(
+                            self.file_selector.indexOfTopLevelItem(self.file_selector.findItems(selected_file, Qt.MatchCaseSensitive, 0)[0]))
+
+                    except OSError as e:
+                        warn = "Problem deleting file:\n" + str(e)
+                        QtGui.QMessageBox.warning(self, "Warning", warn,
+                                                  QtGui.QMessageBox.Ok,
+                                                  QtGui.QMessageBox.NoButton)
 
 
 class SnapshotFileFilterWidget(QtGui.QWidget):
@@ -783,6 +918,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         QtGui.QWidget.__init__(self, parent, **kw)
         self.snapshot = snapshot
         self.common_settings = common_settings
+        self.file_compare_struct = dict()
 
         # Create main layout
         layout = QtGui.QVBoxLayout(self)
@@ -793,6 +929,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         # - text input to filter by name
         # - drop down to filter by compare status
         # - check box to select if showing pvs with incomplete data
+        self.filter_mode = "no-file"
         filter_layout = QtGui.QHBoxLayout()
         pv_filter_layout = QtGui.QHBoxLayout()
         pv_filter_layout.setSpacing(10)
@@ -806,11 +943,11 @@ class SnapshotCompareWidget(QtGui.QWidget):
 
         self.compare_filter_inp = QtGui.QComboBox(self)
         self.compare_filter_inp.addItems(
-            ["Show all", "Not equal only", "Equal only"])
+            ["Show all", "Different only", "Equal only"])
         self.compare_filter_inp.currentIndexChanged.connect(self.filter_list)
         self.compare_filter_inp.setMaximumWidth(200)
         self.completnes_filter_inp = QtGui.QCheckBox(
-            "Show PVs with incomplete data.", self)
+            "Show disconnected PVs.", self)
         self.completnes_filter_inp.setChecked(True)
         self.completnes_filter_inp.stateChanged.connect(self.filter_list)
         self.completnes_filter_inp.setMaximumWidth(500)
@@ -828,17 +965,16 @@ class SnapshotCompareWidget(QtGui.QWidget):
         self.pv_view = QtGui.QTreeWidget(self)
         self.pv_view.setRootIsDecorated(False)
         self.pv_view.setIndentation(0)
-        self.pv_view.setColumnCount(4)
-        self.pv_view.setHeaderLabels(
-            ["PV", "Current value", "Saved value", "Status"])
-        self.pv_view.setAlternatingRowColors(True)
+        self.pv_view.setColumnCount(2)
+        self.column_names = ["PV", "Current value"]
+        self.pv_view.setHeaderLabels(self.column_names)
         # Add all widgets to main layout
         layout.addItem(filter_layout)
         layout.addWidget(self.pv_view)
 
         # fill the compare view and start comparing
         self.populate_compare_list()
-        self.start_compare()
+        self.snapshot.start_continuous_compare(self.update_pv_callback)
 
         # Disable possibility to select item in the compare list
         self.pv_view.setSelectionMode(QtGui.QAbstractItemView.NoSelection)
@@ -848,9 +984,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         """
         Create tree item for each PV. List of pv names was returned after
         parsing the request file. Attributes except PV name are empty at
-        init. Will be updated when monitor happens, snapshot object will
-        raise a callback which is then caught in worker and passed with
-        signal.
+        init. Will be updated when monitor happens.
         """
 
         # First remove all existing entries
@@ -858,16 +992,11 @@ class SnapshotCompareWidget(QtGui.QWidget):
             self.pv_view.takeTopLevelItem(0)
 
         for pv_name in self.common_settings["pvs_to_restore"]:
-            saved_val = ""
-            status = ""
-            curr_val = ""
             pv_line = SnapshotCompareTreeWidgetItem(pv_name, self.pv_view)
             self.pv_view.addTopLevelItem(pv_line)
 
-        # Set column sizes
+        # Names of all PVs should be visible
         self.pv_view.resizeColumnToContents(0)
-        self.pv_view.setColumnWidth(1, 150)
-        self.pv_view.setColumnWidth(2, 150)
         # Sort by name (alphabetical order)
         self.pv_view.sortItems(0, Qt.AscendingOrder)
 
@@ -880,20 +1009,115 @@ class SnapshotCompareWidget(QtGui.QWidget):
             curr_item = self.pv_view.topLevelItem(i)
             curr_item.apply_filter(self.compare_filter_inp.currentIndex(),
                                    self.completnes_filter_inp.isChecked(),
-                                   self.pv_filter_inp.text())
-
-    def start_compare(self):
-        self.snapshot.start_continuous_compare(self.update_pv_callback)
+                                   self.pv_filter_inp.text(), self.compare_filter_inp.currentIndex(), self.filter_mode)
 
     def update_pv_callback(self, **data):
         self.emit(SIGNAL("update_pv_callback"), data)
 
     def update_pv(self, data):
         # If everything ok, only one line should match
-        line_to_update = self.pv_view.findItems(
-            data["pv_name"], Qt.MatchCaseSensitive, 0)[0]
+        matching_lines = self.pv_view.findItems(
+            data["pv_name"], Qt.MatchCaseSensitive, 0)
+        if matching_lines:
+            line_to_update = matching_lines[0]
+            line_to_update.update_state(**data)
 
-        line_to_update.update_state(**data)
+    def new_selected_files(self, selected_files):
+        # Set compare mode
+        if len(selected_files.keys()) == 1:
+            self.filter_mode = "pv-compare"
+        elif len(selected_files.keys()) > 1:
+            self.filter_mode = "file-compare"
+        else:
+            self.filter_mode = "no-file"
+
+        # Create column for each of the selected files.
+        self.pv_view.setColumnCount(3+len(selected_files.keys()))
+        self.pv_view.setColumnWidth(1, 200)  # Width of current value
+        self.pv_view.setColumnWidth(2, 30)
+        self.column_names = ["PV", "Current value"]
+        if len(selected_files.items()) > 0:
+            self.column_names.append("")
+            self.pv_view.setColumnWidth(2, 30)
+        i = 3
+
+        self.file_compare_struct = dict()
+        for file_name, data in selected_files.items():
+            self.pv_view.setColumnWidth(i, 200)
+            for pv_name in self.common_settings["pvs_to_restore"]:
+                pv_data = data.get(pv_name, {"pv_value": None})
+                matching_lines = self.pv_view.findItems(
+                    pv_name, Qt.MatchCaseSensitive, 0)
+                if matching_lines:
+                    line_to_update = matching_lines[0]
+                    pv_value = pv_data.get("pv_value", None)
+                    line_to_update.add_saved_value(i, pv_value)
+
+                    # Pass compare info to the tree widget item, which uses it
+                    # for visibility calculation
+                    line_to_update.files_equal = self.update_compare_struct(pv_name, pv_value)
+            self.column_names.append(file_name)
+
+            i += 1
+        self.pv_view.setHeaderLabels(self.column_names)
+        self.filter_list()
+
+    def update_shown_files(self, updated_files):
+        files_to_update = dict()
+        # Check if one of updated files is currently selected, and update
+        # the values if it is.
+        i = 3
+        for file_name in self.column_names[3:]:
+            was_updated_file = updated_files.get(file_name, None)
+            if was_updated_file:
+                saved_pvs = was_updated_file["pvs_list"]
+                for pv_name in self.common_settings["pvs_to_restore"]:
+                    pv_data = saved_pvs.get(pv_name, {"pv_value": None})
+                    matching_lines = self.pv_view.findItems(
+                        pv_name, Qt.MatchCaseSensitive, 0)
+                    if matching_lines:
+                        pv_value = pv_data.get("pv_value", None)
+                        line_to_update = matching_lines[0]
+                        line_to_update.add_saved_value(i, pv_value)
+                        line_to_update.files_equal = self.update_compare_struct(pv_name, pv_value)
+            i += 1
+        self.filter_list()
+
+    def update_compare_struct(self, pv_name, pv_value):
+        # Compare to previous files (to have a filter selected files)
+        pv_compare_struct = self.file_compare_struct.get(pv_name, None)
+        compare = True
+        if not pv_compare_struct:
+            # create with first file
+            pv_compare_struct = dict()
+            pv_compare_struct["compare_status"] = compare
+            pv_compare_struct["compare_value"] = pv_value
+            # Get data type with first access
+            if pv_value is not None:
+                if isinstance(pv_value, numpy.ndarray):
+                    # Handle arrays
+                    pv_compare_struct["pv_type"] = "array"
+                else:
+                    pv_compare_struct["pv_type"] = "common"
+            else:
+                pv_compare_struct["pv_type"] = "none"
+
+            self.file_compare_struct[pv_name] = pv_compare_struct
+
+        elif pv_compare_struct["compare_status"]:
+            # If all previous equal check new one
+            pv_type = pv_compare_struct["pv_type"]
+            compare_value = pv_compare_struct["compare_value"]
+            if pv_type == "none" and pv_value is not None:
+                # Saved in this file, but not in previous. Different files.
+                compare = False
+            elif pv_type == "array":
+                compare = numpy.array_equal(pv_value, compare_value)
+            else:
+                compare = (pv_value == compare_value)
+            pv_compare_struct["compare_status"] = compare
+
+        return pv_compare_struct["compare_status"]
 
 
 class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
@@ -904,14 +1128,17 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
     """
 
     def __init__(self, pv_name, parent=None):
-        # Item with [pv_name, current_value, saved_value, status]
+        # Item with [pv_name, current_value, saved_values...]
         QtGui.QTreeWidgetItem.__init__(
-            self, parent, [pv_name, "", "", "PV not connected!"])
+            self, parent, [pv_name, "PV disconnected!"])
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        self.warn_icon = QtGui.QIcon(os.path.join(dir_path, "images/warn.png"))
+        self.neq_icon = QtGui.QIcon(os.path.join(dir_path, "images/neq.png"))
+        self.setIcon(1, self.warn_icon)
         self.pv_name = pv_name
 
         # Have data stored in native types, for easier filtering etc.
         self.connect_sts = None
-        self.saved_value = None
         self.value = None
         self.compare = None
         self.has_error = True
@@ -920,51 +1147,32 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
         # updated. When filter is applied from items own methods (like
         # update_state), this stored values are used.
         self.compare_filter = 0
-        self.completeness_filter = True
+        self.connected_filter = True
         self.name_filter = None
+        self.mode = "no-file"
+        self.files_equal = False
 
-    def update_state(self, pv_value, pv_saved, pv_compare, pv_cnct_sts, **kw):
+    def update_state(self, pv_value, pv_compare, pv_cnct_sts, **kw):
         # Is called whenever pv value, connection status changes or new saved
         # file is selected
         self.connect_sts = pv_cnct_sts
-        # indicates if list of saved PVs loaded to snapshot
-        self.saved_value = pv_saved
         self.value = pv_value
         self.compare = pv_compare
-        self.has_error = False
 
-        if self.has_error or (self.compare is None):
-            self.set_color(PvViewStatus.err)
-        else:
+        if self.mode == "pv-compare":
             if self.compare:
-                self.setText(3, "Equal")
-                self.set_color(PvViewStatus.eq)
-            else:
-                self.setText(3, "Not equal")
-                self.set_color(PvViewStatus.neq)
-
-        if self.saved_value is not None:
-            if isinstance(self.saved_value, numpy.ndarray):
-                # Handle arrays
-                self.setText(2, json.dumps(self.saved_value.tolist()))
-            elif isinstance(self.saved_value, str):
-                # If string do not dump it will add "" to a string
-                self.setText(2, self.saved_value)
-            else:
-                # dump other values
-                self.setText(2, json.dumps(self.saved_value))
+                self.handle_status(PvViewStatus.eq)
+            elif self.compare is False:
+                self.handle_status(PvViewStatus.neq)
         else:
-            self.setText(2, "")
-            self.setText(3, "No saved value.")
-            self.compare = None
-            self.has_error = True
+            self.handle_status(None)
 
         if not self.connect_sts:
-            self.setText(1, "")  # no connection means no value
-            self.setText(3, "PV not connected!")
+            self.setText(1, "PV disconnected!")
+            self.setIcon(1, self.warn_icon)
             self.compare = None
-            self.has_error = True
         else:
+            self.setIcon(1, QtGui.QIcon())
             if isinstance(self.value, numpy.ndarray):
                 self.setText(1, json.dumps(self.value.tolist()))
             elif self.value is not None:
@@ -978,32 +1186,44 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
                 self.setText(1, "")
 
         # Filter with saved filter data, to check conditions with new values.
-        self.apply_filter(self.compare_filter, self.completeness_filter,
-                          self.name_filter)
+        self.apply_filter(self.compare_filter, self.connected_filter,
+                          self.name_filter, self.compare_filter, self.mode)
 
-    def set_color(self, status):
+    def add_saved_value(self, index, value):
+        if value is not None:
+            if isinstance(value, numpy.ndarray):
+                # Handle arrays
+                self.setText(index, json.dumps(value.tolist()))
+            elif isinstance(value, str):
+                # If string do not dump it will add "" to a string
+                self.setText(index, value)
+            else:
+                # dump other values
+                self.setText(index, json.dumps(value))
+        else:
+            self.setText(index, "")
+
+    def handle_status(self, status):
         # Set color of QTree item depending on the status
-        brush = QtGui.QBrush()
-
         if status == PvViewStatus.eq:
-            brush.setColor(QtGui.QColor(0, 190, 0))
+            self.setIcon(2, QtGui.QIcon())
         elif status == PvViewStatus.neq:
-            brush.setColor(QtGui.QColor(204, 0, 0))
-
-        # TODO porting to python 2 xrange
-        for i in range(0, self.columnCount()):
-            # ideally would set a background color, but it look like a bug (no
-            # background is applied with method setBackground()
-            self.setForeground(i, brush)
+            self.setIcon(2, self.neq_icon)
+        else:
+            self.setIcon(2, QtGui.QIcon())
 
     def apply_filter(self, compare_filter=PvCompareFilter.show_all,
-                     completeness_filter=True, name_filter=None):
-        """ Controls visibility of item, depending on filter conditions. """
+                     connected_filter=True, name_filter=None,
+                     file_filter=PvCompareFilter.show_neq,
+                     filter_mode="no-file"):
 
+        """ Controls visibility of item, depending on filter conditions. """
         # Save filters to use the when processed by value change
         self.compare_filter = compare_filter
-        self.completeness_filter = completeness_filter
+        self.connected_filter = connected_filter
         self.name_filter = name_filter
+        self.file_filter = file_filter
+        self.mode = filter_mode
 
         # if name filter empty --> no filter applied (show all)
         if name_filter:
@@ -1011,13 +1231,29 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
         else:
             name_match = True
 
-        completeness_match = completeness_filter or not self.has_error
-        compare_filter = PvCompareFilter(compare_filter)
-        compare_match = (((compare_filter == PvCompareFilter.show_eq) and self.compare) or
-                         ((compare_filter == PvCompareFilter.show_neq) and not self.compare) or
-                         (compare_filter == PvCompareFilter.show_all))
-        self.setHidden(not(name_match and ((not self.has_error and compare_match) or (
-            self.has_error and completeness_match))))
+        connected_match = self.connected_filter or self.connect_sts
+
+        if self.mode == "no-file":
+            # Only name and connection
+            self.setHidden(not name_match or not connected_match)
+            self.handle_status(None)
+
+        elif self.mode == "file-compare":
+            compare_file_filter = PvCompareFilter(self.file_filter)
+            file_match = (((compare_file_filter == PvCompareFilter.show_eq) and self.files_equal) or
+                             ((compare_file_filter == PvCompareFilter.show_neq) and self.files_equal is False) or
+                             (compare_file_filter == PvCompareFilter.show_all))
+            self.setHidden(not(name_match and ((self.connect_sts and file_match) or (
+                           not self.connect_sts and connected_match))))
+            self.handle_status(None)
+
+        elif self.mode == "pv-compare":
+            compare_filter = PvCompareFilter(compare_filter)
+            compare_match = (((compare_filter == PvCompareFilter.show_eq) and self.compare) or
+                             ((compare_filter == PvCompareFilter.show_neq) and self.compare is False) or
+                             (compare_filter == PvCompareFilter.show_all))
+            self.setHidden(not(name_match and ((self.connect_sts and compare_match) or (
+                           not self.connect_sts and connected_match))))
 
 
 # Status widgets
@@ -1030,7 +1266,7 @@ class SnapshotStatusLog(QtGui.QWidget):
         self.sts_log = QtGui.QPlainTextEdit(self)
         self.sts_log.setReadOnly(True)
 
-        layout = QtGui.QVBoxLayout()  # To have margin option
+        layout = QtGui.QVBoxLayout()
         layout.setMargin(10)
         layout.addWidget(self.sts_log)
         self.setLayout(layout)
