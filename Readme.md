@@ -1,5 +1,13 @@
-# Snapshot tool
-Snapshot tool is python based tool with graphical user interface which is able to store (and later restore) values of channel access process variables. PVs).
+# Overview
+Snapshot is Python based tool with a graphical user interface which is able to store (and later restore) values of channel access process variables. PVs).
+
+# Installation
+
+Snapshot is available as an Anaconda package on the paulscherrerinstitute Anaconda package channel. It can be easily installed as follows:
+
+```bash
+conda install -c https://conda.anaconda.org/paulscherrerinstitute snapshot
+```
 
 ## Dependencies:
  - python 3 (conda python 3.5 was used for development)
@@ -8,7 +16,7 @@ Snapshot tool is python based tool with graphical user interface which is able t
  - json module
 
 
-## Usage
+# Usage
 To define a set of PVs which should be saved/restored snapshot tool requires a "request" file. Request files are in the following format (note that macro substitution is possible):
 
 ```
@@ -17,9 +25,9 @@ examplePv:test-2
 $(SYS):test-3
 ```
 
-After snapshoot is build and deployed as conda package (see section [Instalation](#installation) it can be started with following command:
+After snapshot is build and deployed as conda package (see section [Instalation](#installation) it can be started with following command:
 
-```
+```bash
 snapshot [-h] [-macro MACRO] [-dir DIR] [--force] [REQUEST_FILE]
 
 positional arguments:
@@ -45,6 +53,3 @@ examplePv:test-2,30
 examplePv:test-3,"string"
 examplePv:test-4,[5.0, 6.0, 7.0, 8.0, 9.0, 0.0, 1.0, 2.0, 3.0, 4.0]
 ```
-
-## Installation
-Snapshot tool can be installed as anaconda package. Conda recipe is provided in folder `conda_recipe`.

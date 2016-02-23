@@ -3,7 +3,7 @@ package:
     version: 1.0.0
 source:
 #    git_tag: 0.9.1
-#    git_url: https://git.psi.ch/cosylab/snapshot_tool.git
+#    git_url: https://github.com/channelaccess/snapshot.git
     path: ..
 
 requirements:
@@ -20,5 +20,5 @@ build:
     - snapshot = snapshot.snapshot:main
 
 about:
-    home: https://github.psi.ch/cosylab/snapshot_tool
+    home: https://github.com/channelaccess/snapshot
     summary: "Tool to save and restore EPICS channels."
