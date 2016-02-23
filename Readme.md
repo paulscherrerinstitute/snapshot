@@ -1,8 +1,8 @@
 # Overview
 Snapshot is Python based tool with a graphical user interface which is able to store (and later restore) values of channel access process variables. PVs).
 
-![Screenshot](snapshot.png)
-![Screenshot 1](snapshot_1.png)
+![Screenshot](snapshot.png) ![Screenshot 1](snapshot_2.png)
+
 
 # Installation
 
