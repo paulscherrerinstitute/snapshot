@@ -1,6 +1,9 @@
 # Overview
 Snapshot is Python based tool with a graphical user interface which is able to store (and later restore) values of channel access process variables. PVs).
 
+![Screenshot](snapshot.png)
+![Screenshot 1](snapshot_1.png)
+
 # Installation
 
 Snapshot is available as an Anaconda package on the paulscherrerinstitute Anaconda package channel. It can be easily installed as follows:
