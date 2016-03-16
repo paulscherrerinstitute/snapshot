@@ -116,8 +116,6 @@ class SnapshotGui(QtGui.QMainWindow):
         self.connect(self.restore_widget, SIGNAL("files_selected"),
                      self.handle_selected_files)
 
-        #self.handle_files_updated()
-
         sr_splitter = QtGui.QSplitter(self)
         sr_splitter.addWidget(self.save_widget)
         sr_splitter.addWidget(self.restore_widget)
@@ -427,6 +425,7 @@ class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
         self.labels_input.update_sugested_keywords()
 
 
+# noinspection PyArgumentList
 class SnapshotRestoreWidget(QtGui.QWidget):
 
     """
@@ -571,8 +570,8 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                 selected_data[file_name] = file_data["pvs_list"]
 
         if len(selected_files) == 1 and file_data:
-            pvs = file_data["pvs_list"]
-            self.snapshot.prepare_pvs_to_restore_from_list(pvs)
+            self.snapshot.prepare_pvs_to_restore_from_list(file_data.get("pvs_list", None),
+                                                           file_data["meta_data"].get("macros", None))
         else:
             self.snapshot.clear_pvs_to_restore()
 
