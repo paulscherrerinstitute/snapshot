@@ -38,7 +38,7 @@ class SnapshotGui(QtGui.QMainWindow):
     thread where core of the application is running
     """
 
-    def __init__(self, req_file_name=None, req_file_macros=None,
+    def __init__(self, req_file_name=None, req_file_macros=dict(),
                  save_dir=None, force=False, parent=None):
         QtGui.QMainWindow.__init__(self, parent)
 
@@ -76,7 +76,10 @@ class SnapshotGui(QtGui.QMainWindow):
         self.init_snapshot(self.common_settings["req_file_name"],
                            self.common_settings["req_file_macros"])
 
+
         # Create main GUI components:
+        #         menu bar
+        #        ______________________________
         #       | save_widget | restore_widget |
         #       --------------------------------
         #       |        compare_widget        |
@@ -85,6 +88,14 @@ class SnapshotGui(QtGui.QMainWindow):
         #        ______________________________
         #                   status_bar
         #
+
+
+        # tool bar
+        menu_bar = QtGui.QMenuBar(self)
+        open_settings_action = QtGui.QAction("Settings",menu_bar)
+        open_settings_action.triggered.connect(self.open_settings)
+        menu_bar.addAction(open_settings_action)
+        self.setMenuBar(menu_bar)
 
         # Status components are needed by other GUI elements
         self.status_log = SnapshotStatusLog(self)
@@ -152,10 +163,7 @@ class SnapshotGui(QtGui.QMainWindow):
         self.common_settings["req_file_name"] = self.configure_dialog.file_path
         self.common_settings["req_file_macros"] = self.configure_dialog.macros
 
-    def close_gui(self):
-        sys.exit()
-
-    def init_snapshot(self, req_file_path, req_macros=None):
+    def init_snapshot(self, req_file_path, req_macros=dict()):
         # creates new instance of snapshot loads the request file and emits
         # the signal new_snapshot to update the GUI
         self.snapshot = Snapshot(req_file_path, req_macros)
@@ -171,6 +179,29 @@ class SnapshotGui(QtGui.QMainWindow):
         # selected_files is a dict() with file names as keywords and
         # dict() of pv data as value
         self.compare_widget.new_selected_files(selected_files)
+
+    def open_settings(self):
+        settings_window = SnapshotSettingsDialog(self.common_settings, self)  # Destroyed when closed
+        self.connect(settings_window, SIGNAL("new_config"), self.handle_new_config)
+        settings_window.resize(800,200)
+        settings_window.show()
+
+    def handle_new_config(self, config):
+        for config_name, config_value in config.items():
+            if config_name == "macros":
+                self.snapshot.change_macros(config_value)
+                self.common_settings["pvs_to_restore"] = self.snapshot.get_pvs_names()
+                self.common_settings["req_file_macros"] = config_value
+                self.compare_widget.populate_compare_list()
+            elif config_name == "force":
+                self.common_settings["force"] = config_value
+                self.common_settings["sts_info"].set_status()
+            elif config_name == "save_dir":
+                self.common_settings["save_dir"] = config_value
+                self.restore_widget.clear_update_files()
+
+    def close_gui(self):
+        sys.exit()
 
 
 class SnapshotSaveWidget(QtGui.QWidget):
@@ -429,7 +460,7 @@ class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
 class SnapshotRestoreWidget(QtGui.QWidget):
 
     """
-    restore widget is a widget that enables user to restore saved state of PVs
+    Restore widget is a widget that enables user to restore saved state of PVs
     listed in request file from one of the saved files.
     Save widget consists of:
      - file selector (tree of all files)
@@ -470,7 +501,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
         # Create file list for first time and update the GUI with new data
         # (label widgets)
-        self.update_files()
+        self.clear_update_files()
 
         # Add all widgets to main layout
         layout.addWidget(self.file_selector)
@@ -579,6 +610,10 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
     def update_files(self):
         self.emit(SIGNAL("files_updated"), self.file_selector.start_file_list_update())
+
+    def clear_update_files(self):
+        self.file_selector.clear_file_selector()
+        self.update_files()
 
 
 class SnapshotRestoreFileSelector(QtGui.QWidget):
@@ -823,6 +858,14 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                                                   QtGui.QMessageBox.Ok,
                                                   QtGui.QMessageBox.NoButton)
 
+    def clear_file_selector(self):
+        for file_name in self.file_list:
+            self.file_selector.takeTopLevelItem(
+            self.file_selector.indexOfTopLevelItem(self.file_selector.findItems(file_name, Qt.MatchCaseSensitive, 0)[0]))
+
+        self.pvs = dict()
+        self.file_list = dict()
+
 
 class SnapshotFileFilterWidget(QtGui.QWidget):
 
@@ -973,7 +1016,6 @@ class SnapshotCompareWidget(QtGui.QWidget):
 
         # fill the compare view and start comparing
         self.populate_compare_list()
-        self.snapshot.start_continuous_compare(self.update_pv_callback)
 
         # Disable possibility to select item in the compare list
         self.pv_view.setSelectionMode(QtGui.QAbstractItemView.NoSelection)
@@ -985,7 +1027,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         parsing the request file. Attributes except PV name are empty at
         init. Will be updated when monitor happens.
         """
-
+        self.snapshot.stop_continuous_compare()
         # First remove all existing entries
         while self.pv_view.topLevelItemCount() > 0:
             self.pv_view.takeTopLevelItem(0)
@@ -1000,6 +1042,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         self.pv_view.sortItems(0, Qt.AscendingOrder)
 
         self.connect(self, SIGNAL("update_pv_callback"), self.update_pv)
+        self.snapshot.start_continuous_compare(self.update_pv_callback)
 
     def filter_list(self):
         # Just pass the filter conditions to all items in the list. # Use
@@ -1361,15 +1404,109 @@ class SnapshotConfigureDialog(QtGui.QDialog):
                                       QtGui.QMessageBox.NoButton)
 
 
+class SnapshotSettingsDialog(QtGui.QWidget):
+    def __init__(self, common_settings, parent=None):
+        self.common_settings = common_settings
+        QtGui.QWidget.__init__(self, parent)
+        group_box = QtGui.QGroupBox("General Snapshot Settings", self)
+        group_box.setFlat(False)
+        layout = QtGui.QVBoxLayout()
+        form_layout = QtGui.QFormLayout()
+        form_layout.setMargin(10)
+        form_layout.setSpacing(10)
+        form_layout.setLabelAlignment(Qt.AlignRight)
+
+        # get current values
+        self.curr_macros = self.common_settings["req_file_macros"]
+        self.curr_save_dir = self.common_settings["save_dir"]
+        self.curr_forced = self.common_settings["force"]
+        # Macros
+        self.macro_input = QtGui.QLineEdit(self)
+        self.macro_input.setText(parse_dict_macros_to_text(self.curr_macros))
+        self.macro_input.textChanged.connect(self.monitor_changes)
+        form_layout.addRow("Macros:", self.macro_input)
+
+        # Snapshot directory
+        self.save_dir_input = SnapshotFileSelector(self, label_text="", show_files=False)
+        self.save_dir_input.setText(self.curr_save_dir)
+        self.connect(self.save_dir_input, SIGNAL("path_changed"), self.monitor_changes)
+        form_layout.addRow("Saved files directory:", self.save_dir_input)
+
+         # Force
+        self.force_input = QtGui.QCheckBox(self)
+        self.force_input.setChecked(self.curr_forced)
+        self.force_input.stateChanged.connect(self.monitor_changes)
+        form_layout.addRow("Force mode:", self.force_input)
+
+        self.button_box = QtGui.QDialogButtonBox(
+            QtGui.QDialogButtonBox.Ok | QtGui.QDialogButtonBox.Apply | QtGui.QDialogButtonBox.Cancel, parent=self)
+
+        self.apply_button = self.button_box.button(QtGui.QDialogButtonBox.Apply)
+        self.ok_button = self.button_box.button(QtGui.QDialogButtonBox.Ok)
+        self.cancel_button = self.button_box.button(QtGui.QDialogButtonBox.Cancel)
+
+        self.ok_button.setDisabled(True)
+        self.apply_button.setDisabled(True)
+
+        self.button_box.clicked.connect(self.handle_click)
+        group_box.setLayout(form_layout)
+        layout.addWidget(group_box)
+        layout.addWidget(self.button_box)
+
+        self.setLayout(layout)
+
+        # Widget as window
+        self.setWindowTitle("Snapshot Settings")
+        self.setWindowFlags(Qt.Window | Qt.Tool)
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setAttribute(Qt.WA_X11NetWmWindowTypeMenu, True)
+        self.setEnabled(True)
+
+    def handle_click(self, button):
+        if button == self.apply_button:
+            self.apply_config()
+        elif button == self.ok_button:
+            self.apply_config()
+            self.close()
+        elif button == self.cancel_button:
+            self.close()
+
+    def monitor_changes(self):
+        parsed_macros = parse_macros(self.macro_input.text())
+
+        if (parsed_macros != self.curr_macros) or (self.save_dir_input.text() != self.curr_save_dir) or (self.force_input.isChecked() != self.curr_forced):
+            self.ok_button.setDisabled(False)
+            self.apply_button.setDisabled(False)
+        else:
+            self.ok_button.setDisabled(True)
+            self.apply_button.setDisabled(True)
+
+    def apply_config(self):
+        # return only changed settings
+        config = dict()
+        parsed_macros = parse_macros(self.macro_input.text())
+
+        if parsed_macros != self.curr_macros:
+            config["macros"] = parse_macros(self.macro_input.text())
+
+        if self.save_dir_input.text() != self.curr_save_dir:
+            config["save_dir"] = self.save_dir_input.text()
+
+        if self.force_input.isChecked() != self.curr_forced:
+            config["force"] = self.force_input.isChecked()
+
+        self.emit(SIGNAL("new_config"), config)
+
+
 class SnapshotFileSelector(QtGui.QWidget):
 
     """ Widget to select file with dialog box. """
 
     def __init__(self, parent=None, label_text="File:", button_text="...", label_width=None,
-                 init_path=None, **kw):
+                 init_path=None, show_files=True, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
         self.file_path = init_path
-
+        self.show_files = show_files
         # Create main layout
         layout = QtGui.QHBoxLayout(self)
         layout.setMargin(0)
@@ -1391,18 +1528,34 @@ class SnapshotFileSelector(QtGui.QWidget):
         file_path_button.setFixedSize(27, 27)
         self.file_path_input = QtGui.QLineEdit(self)
         self.file_path_input.textChanged.connect(self.change_file_path)
-
-        layout.addWidget(label)
+        if label.text():
+            layout.addWidget(label)
         layout.addWidget(self.file_path_input)
         layout.addWidget(file_path_button)
 
     def open_selector(self):
-        candidate_path = QtGui.QFileDialog(self).getOpenFileName()
+        dialog=QtGui.QFileDialog(self)
+        dialog.fileSelected.connect(self.handle_selected)
+        dialog.setDirectory(self.text())
+
+        if not self.show_files:
+            dialog.setFileMode(QtGui.QFileDialog.Directory)
+            dialog.setOption(QtGui.QFileDialog.ShowDirsOnly, True)
+        dialog.exec_()
+
+    def handle_selected(self, candidate_path):
         if candidate_path:
-            self.file_path_input.setText(candidate_path)
+            self.setText(candidate_path)
 
     def change_file_path(self):
         self.file_path = self.file_path_input.text()
+        self.emit(SIGNAL("path_changed"))
+
+    def text(self):
+        return self.file_path_input.text()
+
+    def setText(self, text):
+        self.file_path_input.setText(text)
 
 
 class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
@@ -1592,6 +1745,18 @@ def parse_macros(macros_str):
             split_macro = macro.split('=')
             macros[split_macro[0]] = split_macro[1]
     return(macros)
+
+def parse_dict_macros_to_text(macros):
+    """ Converting dict() separated macros string to comma sepearated. """
+    macros_str = ""
+    for macro, subs in macros.items():
+        macros_str += macro + "=" + subs + ","
+
+    if macros_str:
+        # Clear last comma
+        macros_str = macros_str[0:-1]
+
+    return(macros_str)
 
 
 def main():

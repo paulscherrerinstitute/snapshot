@@ -55,7 +55,33 @@ class SnapshotPv(PV):
     def save_pv(self):
         """
         None blocking save. Takes latest value (monitored). If no connection
+        or access simply skips the saving.
+        """
+        pv_status = PvStatus.ok  # Will be changed if error occurs.
+        if self.connected:
+            # Must be after connection test. If checking access when not
+            # connected pyepics tries to reconnect which takes some time.
+            if self.read_access:
+                self.saved_value = self.get(use_monitor=True)
+                if self.is_array and numpy.size(self.saved_value) == 0:
+                    # Empty array is equal to "None" scalar value
+                    self.saved_value = None
+                if self.value is None:
+                    pv_status = PvStatus.not_saved
+                else:
+                    pv_status = PvStatus.ok
+            else:
+                pv_status = PvStatus.access_err
+        else:
+            self.saved_value = None
+            pv_status = PvStatus.access_err
+        return(pv_status)
 
+    def restore_pv(self, callback=None):
+        """
+        Executes pv.put of value_to_restore. Success of put is returned
+        in callback.
+        """
         if self.connected:
             # Must be after connection test. If checking access when not
             # connected pyepics tries to reconnect which takes some time.
@@ -182,6 +208,35 @@ class Snapshot:
             if not self.pvs.get(pv_ref.pvname):
                 self.pvs[pv_ref.pvname] = pv_ref
 
+    def remove_pvs(self, pv_list):
+        # disconnect pvs to avoid unneeded connections
+        # and remove from list of pvs
+        for pv_name in pv_list:
+            if self.pvs.get(pv_name, None):
+                pv_ref = self.pvs.pop(pv_name)
+                pv_ref.disconnect()
+
+    def change_macros(self, macros=dict(), **kw):
+        if self.macros != macros:
+            self.macros = macros
+            pvs_to_change = dict()
+            pvs_to_remove = list()
+            for pv_name, pv_ref in self.pvs.items():
+                if "$" in pv_ref.pvname_raw:
+                    # store pvs value to restore (and indirectly pv raw name)
+                    pvs_to_change[pv_ref.pvname_raw] = dict()
+                    pvs_to_change[pv_ref.pvname_raw]["pv_value"] = pv_ref.value_to_restore
+                    pvs_to_remove.append(pv_name)
+
+            self.remove_pvs(pvs_to_remove)
+            self.add_pvs(pvs_to_change.keys())
+
+            if self.restore_values_loaded:
+                self.prepare_pvs_to_restore_from_list(pvs_to_change)
+
+            self.update_all_connected_status()
+
+
     def save_pvs(self, save_file_path, force=False, **kw):
         # get value of all PVs and save them to file
         # All other parameters (packed in kw) are appended to file as meta data
@@ -200,18 +255,19 @@ class Snapshot:
         # Can be later used for compare and restore
 
         saved_pvs, meta_data = self.parse_from_save_file(save_file_path)
-        self.prepare_pvs_to_restore_from_list(saved_pvs, meta_data.get('macros', None))
+        self.prepare_pvs_to_restore_from_list(saved_pvs, meta_data.get('macros', dict()))
 
-    def prepare_pvs_to_restore_from_list(self, saved_pvs, custom_macros = None):
+    def prepare_pvs_to_restore_from_list(self, saved_pvs_raw, custom_macros = dict()):
+        saved_pvs = dict()
         if self.macros:
             macros = self.macros
         else:
             macros = custom_macros
 
-        if macros is not None:
+        if macros:
             # Make macro substitution on saved_pvs
-            for pv_name_raw in saved_pvs:
-                saved_pvs[macros_substitution(pv_name_raw, macros)] = saved_pvs.pop(pv_name_raw)
+            for pv_name_raw, pv_data in saved_pvs_raw.items():
+                saved_pvs[macros_substitution(pv_name_raw, macros)] = pv_data
 
         # Disable compare for the time of loading new restore value
         if self.compare_state:
@@ -350,10 +406,20 @@ class Snapshot:
                                       saved_sts=self.restore_values_loaded)
 
     def update_all_connected_status(self, pvname=None, **kw):
-        if self.pvs[pvname].cnct_lost:
-            self.all_connected = False
-        elif not self.all_connected:
-            # One of the PVs was reconnected, check if all are connected now.
+        check_all = False
+        pv_ref = self.pvs.get(pvname, None)
+
+        if pv_ref is not None:
+            if self.pvs[pvname].cnct_lost:
+                self.all_connected = False
+            elif not self.all_connected:
+                # One of the PVs was reconnected, check if all are connected now.
+                check_all = True
+        else:
+            check_all = True
+
+
+        if check_all:
             connections_ok = True
             for key, pv_ref in self.pvs.items():
                 if pv_ref.cnct_lost:
@@ -393,7 +459,7 @@ class Snapshot:
         req_file.close()
         return req_pvs
 
-    def parse_to_save_file(self, save_file_path, macros=None, **kw):
+    def parse_to_save_file(self, save_file_path, macros=dict(), **kw):
         # This function is called at each save of PV values.
         # This is a parser which generates save file from pvs
         # All parameters in **kw are packed as meta data
@@ -401,7 +467,7 @@ class Snapshot:
         save_file = open(save_file_path, 'w')
 
         # Save meta data
-        if macros is not None:
+        if macros:
             kw['macros'] = macros
         save_file.write("#" + json.dumps(kw) + "\n")
 
