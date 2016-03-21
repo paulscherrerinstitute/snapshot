@@ -1,4 +1,13 @@
 #!/usr/bin/env python
+
+# Developed by Rok Vintar (rok.vintar@cosylab.com), Cosylab d.d. for Paul
+# Scherrer Institute (PSI)
+# Copyright (C) 2016
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
 from epics import *
 import os
 import numpy
@@ -268,6 +277,8 @@ class Snapshot:
             # Make macro substitution on saved_pvs
             for pv_name_raw, pv_data in saved_pvs_raw.items():
                 saved_pvs[macros_substitution(pv_name_raw, macros)] = pv_data
+        else:
+            saved_pvs = saved_pvs_raw
 
         # Disable compare for the time of loading new restore value
         if self.compare_state:

@@ -1,4 +1,13 @@
 #!/usr/bin/env python
+
+# Developed by Rok Vintar (rok.vintar@cosylab.com), Cosylab d.d. for Paul
+# Scherrer Institute (PSI)
+# Copyright (C) 2016
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
 import sys
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import pyqtSlot, Qt, SIGNAL
@@ -8,7 +17,7 @@ import argparse
 import re
 from enum import Enum
 import os
-from .snapshot_ca import PvStatus, ActionStatus, Snapshot
+from .snapshot_ca import PvStatus, ActionStatus, Snapshot, macros_substitution
 import json
 import numpy
 import epics
@@ -193,6 +202,7 @@ class SnapshotGui(QtGui.QMainWindow):
                 self.common_settings["pvs_to_restore"] = self.snapshot.get_pvs_names()
                 self.common_settings["req_file_macros"] = config_value
                 self.compare_widget.populate_compare_list()
+                self.restore_widget.handle_selected_files(self.restore_widget.file_selector.selected_files)
             elif config_name == "force":
                 self.common_settings["force"] = config_value
                 self.common_settings["sts_info"].set_status()
@@ -598,7 +608,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         for file_name in selected_files:
             file_data = self.file_selector.file_list.get(file_name, None)
             if file_data:
-                selected_data[file_name] = file_data["pvs_list"]
+                selected_data[file_name] = file_data
 
         if len(selected_files) == 1 and file_data:
             self.snapshot.prepare_pvs_to_restore_from_list(file_data.get("pvs_list", None),
@@ -704,7 +714,8 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
 
                     # save data (no need to open file again later))
                     parsed_save_files[file_name] = dict()
-                    parsed_save_files[file_name]["pvs_list"] = pvs_list
+                    parsed_save_files[file_name]["pvs_lis" \
+                                                 "t"] = pvs_list
                     parsed_save_files[file_name]["meta_data"] = meta_data
                     parsed_save_files[file_name][
                         "modif_time"] = os.path.getmtime(file_path)
@@ -828,8 +839,8 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
 
     def select_files(self):
         # Pre-process selected items, to a list of files
+        self.selected_files = list()
         if self.file_selector.selectedItems():
-            self.selected_files = list()
             for item in self.file_selector.selectedItems():
                 self.selected_files.append(item.text(0))
 
@@ -859,10 +870,8 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                                                   QtGui.QMessageBox.NoButton)
 
     def clear_file_selector(self):
-        for file_name in self.file_list:
-            self.file_selector.takeTopLevelItem(
-            self.file_selector.indexOfTopLevelItem(self.file_selector.findItems(file_name, Qt.MatchCaseSensitive, 0)[0]))
-
+        self.file_selector.clear()  # Clears and "deselects" itmes on file selector
+        self.select_files()  # Process new,empty list of selected files
         self.pvs = dict()
         self.file_list = dict()
 
@@ -1025,7 +1034,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         """
         Create tree item for each PV. List of pv names was returned after
         parsing the request file. Attributes except PV name are empty at
-        init. Will be updated when monitor happens.
+        init. Will be updated when monitor happens or files are selected.
         """
         self.snapshot.stop_continuous_compare()
         # First remove all existing entries
@@ -1084,23 +1093,36 @@ class SnapshotCompareWidget(QtGui.QWidget):
         i = 3
 
         self.file_compare_struct = dict()
-        for file_name, data in selected_files.items():
+        for file_name, file_data in selected_files.items():
             self.pv_view.setColumnWidth(i, 200)
+
+            if self.snapshot.macros:
+                macros = self.snapshot.macros
+            else:
+                macros = file_data["meta_data"].get("macros", dict())
+
+            pvs_list_full_names = dict()  # PVS data mapped to real pvs names (no macros)
+            for pv_name_raw, pv_data in file_data["pvs_list"].items():
+                pvs_list_full_names[macros_substitution(pv_name_raw, macros)] = pv_data # snapshot_ca.py function
+
+            # To get a proper update, need to go through "pvs_to_restore". Otherwise values of PVs listed in request
+            # but not in the saved file are not cleared (value from previous file is seen on the screen)
             for pv_name in self.common_settings["pvs_to_restore"]:
-                pv_data = data.get(pv_name, {"pv_value": None})
-                matching_lines = self.pv_view.findItems(
-                    pv_name, Qt.MatchCaseSensitive, 0)
-                if matching_lines:
-                    line_to_update = matching_lines[0]
-                    pv_value = pv_data.get("pv_value", None)
-                    line_to_update.add_saved_value(i, pv_value)
+                    pv_data = pvs_list_full_names.get(pv_name, {"pv_value": None})
+                    matching_lines = self.pv_view.findItems(
+                        pv_name, Qt.MatchCaseSensitive, 0)
+                    if matching_lines:
+                        line_to_update = matching_lines[0]
+                        pv_value = pv_data.get("pv_value", None)
+                        line_to_update.add_saved_value(i, pv_value)
 
-                    # Pass compare info to the tree widget item, which uses it
-                    # for visibility calculation
-                    line_to_update.files_equal = self.update_compare_struct(pv_name, pv_value)
+                        # Pass compare info to the tree widget item, which uses it
+                        # for visibility calculation
+                        line_to_update.files_equal = self.update_compare_struct(pv_name, pv_value)
+
             self.column_names.append(file_name)
-
             i += 1
+
         self.pv_view.setHeaderLabels(self.column_names)
         self.filter_list()
 
@@ -1482,18 +1504,32 @@ class SnapshotSettingsDialog(QtGui.QWidget):
             self.apply_button.setDisabled(True)
 
     def apply_config(self):
-        # return only changed settings
+        # Return only changed settings
         config = dict()
         parsed_macros = parse_macros(self.macro_input.text())
 
+        if self.save_dir_input.text() != self.curr_save_dir:
+            if os.path.isdir(self.save_dir_input.text()):
+                config["save_dir"] = self.save_dir_input.text()
+                self.curr_save_dir = self.save_dir_input.text()
+            else:
+                # Prompt user that path is not valid
+                warn = "Cannot set saved files directory to: \"" + self.save_dir_input.text() + "\". Check if it is valid path to directory."
+                QtGui.QMessageBox.warning(self, "Warning", warn,
+                                          QtGui.QMessageBox.Ok)
+                self.save_dir_input.setText(self.curr_save_dir)
+
+
         if parsed_macros != self.curr_macros:
             config["macros"] = parse_macros(self.macro_input.text())
+            self.curr_macros = parse_macros(self.macro_input.text())
 
-        if self.save_dir_input.text() != self.curr_save_dir:
-            config["save_dir"] = self.save_dir_input.text()
 
         if self.force_input.isChecked() != self.curr_forced:
             config["force"] = self.force_input.isChecked()
+            self.curr_forced = self.force_input.isChecked()
+
+        self.monitor_changes()  # To update buttons state
 
         self.emit(SIGNAL("new_config"), config)
 
@@ -1743,7 +1779,8 @@ def parse_macros(macros_str):
         macros_list = macros_str.split(',')
         for macro in macros_list:
             split_macro = macro.split('=')
-            macros[split_macro[0]] = split_macro[1]
+            if len(split_macro) == 2:
+                macros[split_macro[0]] = split_macro[1]
     return(macros)
 
 def parse_dict_macros_to_text(macros):
