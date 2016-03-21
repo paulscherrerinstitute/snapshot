@@ -1,4 +1,13 @@
 #!/usr/bin/env python
+
+# Developed by Rok Vintar (rok.vintar@cosylab.com), Cosylab d.d. for Paul
+# Scherrer Institute (PSI)
+# Copyright (C) 2016
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
 from epics import *
 import os
 import numpy
@@ -20,13 +29,27 @@ class ActionStatus(Enum):
     no_cnct = 3
 
 
+def macros_substitution(string, macros):
+    for key in macros:
+        macro = "$(" + key + ")"
+        string = string.replace(macro, macros[key])
+    return string
+
+
 # Subclass PV to be to later add info if needed
 class SnapshotPv(PV):
     """
     Extended PV class with non-blocking methods to save and restore pvs.
     """
 
-    def __init__(self, pvname, connection_callback=None, **kw):
+    def __init__(self, pvname, macros=None, connection_callback=None, **kw):
+        # Store the origin
+        self.pvname_raw = pvname
+        self.macros = macros
+
+        if macros:
+            pvname = macros_substitution(pvname, macros)
+
         PV.__init__(self, pvname,
                     connection_callback=self.internal_cnct_callback,
                     auto_monitor=True, connection_timeout=None, **kw)
@@ -68,7 +91,6 @@ class SnapshotPv(PV):
         Executes pv.put of value_to_restore. Success of put is returned
         in callback.
         """
-
         if self.connected:
             # Must be after connection test. If checking access when not
             # connected pyepics tries to reconnect which takes some time.
@@ -178,19 +200,51 @@ class Snapshot:
         self.compare_callback = None
         self.restore_callback = None
         self.current_restore_forced = False
+        self.macros = macros
 
         # Uses default parsing method. If other format is needed, subclass
         # and re implement parse_req_file method. It must return list of
         # PV names.
-        self.add_pvs(self.parse_req_file(req_file_path, macros))
+        self.add_pvs(self.parse_req_file(req_file_path))
 
-    def add_pvs(self, file_list):
+    def add_pvs(self, pv_list_raw):
         # pyepics will handle PVs to have only one connection per PV.
+        # If pv not yet on list add it
 
-        for pv_name in file_list:
-            if not self.pvs.get(pv_name):
-                self.pvs[pv_name] = SnapshotPv(pv_name,
-                                               connection_callback=self.update_all_connected_status)
+        for pv_name_raw in pv_list_raw:
+            pv_ref = SnapshotPv(pv_name_raw, self.macros,
+                            connection_callback=self.update_all_connected_status)
+            if not self.pvs.get(pv_ref.pvname):
+                self.pvs[pv_ref.pvname] = pv_ref
+
+    def remove_pvs(self, pv_list):
+        # disconnect pvs to avoid unneeded connections
+        # and remove from list of pvs
+        for pv_name in pv_list:
+            if self.pvs.get(pv_name, None):
+                pv_ref = self.pvs.pop(pv_name)
+                pv_ref.disconnect()
+
+    def change_macros(self, macros=dict(), **kw):
+        if self.macros != macros:
+            self.macros = macros
+            pvs_to_change = dict()
+            pvs_to_remove = list()
+            for pv_name, pv_ref in self.pvs.items():
+                if "$" in pv_ref.pvname_raw:
+                    # store pvs value to restore (and indirectly pv raw name)
+                    pvs_to_change[pv_ref.pvname_raw] = dict()
+                    pvs_to_change[pv_ref.pvname_raw]["pv_value"] = pv_ref.value_to_restore
+                    pvs_to_remove.append(pv_name)
+
+            self.remove_pvs(pvs_to_remove)
+            self.add_pvs(pvs_to_change.keys())
+
+            if self.restore_values_loaded:
+                self.prepare_pvs_to_restore_from_list(pvs_to_change)
+
+            self.update_all_connected_status()
+
 
     def save_pvs(self, save_file_path, force=False, **kw):
         # get value of all PVs and save them to file
@@ -202,7 +256,7 @@ class Snapshot:
         kw["save_time"] = time.time()
         for key in self.pvs:
             pvs_status[key] = self.pvs[key].save_pv()
-        self.parse_to_save_file(save_file_path, **kw)
+        self.parse_to_save_file(save_file_path, self.macros, **kw)
         return(ActionStatus.ok, pvs_status)
 
     def prepare_pvs_to_restore_from_file(self, save_file_path):
@@ -210,9 +264,22 @@ class Snapshot:
         # Can be later used for compare and restore
 
         saved_pvs, meta_data = self.parse_from_save_file(save_file_path)
-        self.prepare_pvs_to_restore_from_list(saved_pvs)
+        self.prepare_pvs_to_restore_from_list(saved_pvs, meta_data.get('macros', dict()))
 
-    def prepare_pvs_to_restore_from_list(self, saved_pvs):
+    def prepare_pvs_to_restore_from_list(self, saved_pvs_raw, custom_macros = dict()):
+        saved_pvs = dict()
+        if self.macros:
+            macros = self.macros
+        else:
+            macros = custom_macros
+
+        if macros:
+            # Make macro substitution on saved_pvs
+            for pv_name_raw, pv_data in saved_pvs_raw.items():
+                saved_pvs[macros_substitution(pv_name_raw, macros)] = pv_data
+        else:
+            saved_pvs = saved_pvs_raw
+
         # Disable compare for the time of loading new restore value
         if self.compare_state:
             callback = self.compare_callback
@@ -292,7 +359,7 @@ class Snapshot:
         # If file with saved values specified then read file. If no file
         # then just use last stored values
         if save_file_path:
-            self.load_saved_pvs(save_file_path)
+            self.prepare_pvs_to_restore_from_file(save_file_path)
 
         for pv_name, pv_ref in self.pvs.items():
             pv_ref.compare_callback_id = pv_ref.add_callback(self.continuous_compare)
@@ -350,10 +417,20 @@ class Snapshot:
                                       saved_sts=self.restore_values_loaded)
 
     def update_all_connected_status(self, pvname=None, **kw):
-        if self.pvs[pvname].cnct_lost:
-            self.all_connected = False
-        elif not self.all_connected:
-            # One of the PVs was reconnected, check if all are connected now.
+        check_all = False
+        pv_ref = self.pvs.get(pvname, None)
+
+        if pv_ref is not None:
+            if self.pvs[pvname].cnct_lost:
+                self.all_connected = False
+            elif not self.all_connected:
+                # One of the PVs was reconnected, check if all are connected now.
+                check_all = True
+        else:
+            check_all = True
+
+
+        if check_all:
             connections_ok = True
             for key, pv_ref in self.pvs.items():
                 if pv_ref.cnct_lost:
@@ -377,10 +454,10 @@ class Snapshot:
 
     # Parser functions
 
-    def parse_req_file(self, req_file_path, macros=None):
+    def parse_req_file(self, req_file_path):
         # This function is called at each initialization.
         # This is a parser for a simple request file which supports macro
-        # substitution. Macros are defined as dictionary
+        # substitution. Macros are defined as dictionary.
         # {'SYS': 'MY-SYS'} will change all $(SYS) macros with MY-SYS
         req_pvs = list()
         req_file = open(req_file_path)
@@ -388,16 +465,12 @@ class Snapshot:
             # skip comments and empty lines
             if not line.startswith(('#', "data{", "}")) and line.strip():
                 pv_name = line.rstrip().split(',')[0]
-                # Do a macro substitution if macros exist.
-                if macros:
-                    pv_name = self.macros_substitution(pv_name, macros)
-
                 req_pvs.append(pv_name)
 
         req_file.close()
         return req_pvs
 
-    def parse_to_save_file(self, save_file_path, **kw):
+    def parse_to_save_file(self, save_file_path, macros=dict(), **kw):
         # This function is called at each save of PV values.
         # This is a parser which generates save file from pvs
         # All parameters in **kw are packed as meta data
@@ -405,27 +478,28 @@ class Snapshot:
         save_file = open(save_file_path, 'w')
 
         # Save meta data
+        if macros:
+            kw['macros'] = macros
         save_file.write("#" + json.dumps(kw) + "\n")
 
         # PVs
-        for key in self.pvs:
-            pv_ref = self.pvs[key]
+        for pv_name, pv_ref in self.pvs.items():
             if pv_ref.saved_value is not None:
                 if pv_ref.is_array:
-                    save_file.write(key + "," + json.dumps(pv_ref.saved_value.tolist()) + "\n")
+                    save_file.write(pv_ref.pvname_raw + "," + json.dumps(pv_ref.saved_value.tolist()) + "\n")
                 else:
-                    save_file.write(key + "," + json.dumps(pv_ref.saved_value) + "\n")
+                    save_file.write(pv_ref.pvname_raw + "," + json.dumps(pv_ref.saved_value) + "\n")
             else:
-                save_file.write(key + "\n")
+                save_file.write(pv_ref.pvname_raw + "\n")
         save_file.close
 
     def parse_from_save_file(self, save_file_path):
         # This function is called in compare function.
-        # This is a parser which has a desired value fro each PV.
+        # This is a parser which has a desired value for each PV.
         # To support other format of file, override this method in subclass
 
         saved_pvs = dict()
-        meta_data = dict()
+        meta_data = dict()  # If macros were used they will be saved in meta_data
         saved_file = open(save_file_path)
         meta_loaded = False
         for line in saved_file:
@@ -455,9 +529,3 @@ class Snapshot:
                 saved_pvs[pv_name]['pv_value'] = pv_value
         saved_file.close()
         return(saved_pvs, meta_data)
-
-    def macros_substitution(self, string, macros):
-        for key in macros:
-            macro = "$(" + key + ")"
-            string = string.replace(macro, macros[key])
-        return string
