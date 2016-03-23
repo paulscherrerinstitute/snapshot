@@ -101,6 +101,8 @@ class SnapshotGui(QtGui.QMainWindow):
 
         # tool bar
         menu_bar = QtGui.QMenuBar(self)
+        menu_bar.setNativeMenuBar(False)
+        # menu_bar = self.menuBar()
         open_settings_action = QtGui.QAction("Settings",menu_bar)
         open_settings_action.triggered.connect(self.open_settings)
         menu_bar.addAction(open_settings_action)
@@ -1434,6 +1436,7 @@ class SnapshotSettingsDialog(QtGui.QWidget):
         group_box.setFlat(False)
         layout = QtGui.QVBoxLayout()
         form_layout = QtGui.QFormLayout()
+        form_layout.setFieldGrowthPolicy(QtGui.QFormLayout.AllNonFixedFieldsGrow)
         form_layout.setMargin(10)
         form_layout.setSpacing(10)
         form_layout.setLabelAlignment(Qt.AlignRight)
