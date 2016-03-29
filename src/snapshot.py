@@ -294,10 +294,10 @@ class SnapshotSaveWidget(QtGui.QWidget):
         self.sts_info = self.common_settings["sts_info"]
 
         # Add to main layout
-        layout.addItem(extension_layout)
-        layout.addItem(extension_rb_layout)
+        layout.addLayout(extension_layout)
+        layout.addLayout(extension_rb_layout)
         layout.addWidget(self.advanced)
-        layout.addItem(save_layout)
+        layout.addLayout(save_layout)
         layout.addStretch()
 
     def start_save(self):
@@ -461,8 +461,8 @@ class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
         labels_layout.addWidget(self.labels_input)
 
         #self.frame_layout.addStretch()
-        self.frame_layout.addItem(comment_layout)
-        self.frame_layout.addItem(labels_layout)
+        self.frame_layout.addLayout(comment_layout)
+        self.frame_layout.addLayout(labels_layout)
 
     def update_labels(self):
         self.labels_input.update_sugested_keywords()
@@ -940,9 +940,9 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
         name_layout.addWidget(name_label)
         name_layout.addWidget(self.name_input)
 
-        layout.addItem(name_layout)
-        layout.addItem(comment_layout)
-        layout.addItem(key_layout)
+        layout.addLayout(name_layout)
+        layout.addLayout(comment_layout)
+        layout.addLayout(key_layout)
 
     def update_filter(self):
         if self.keys_input.get_keywords():
@@ -1004,7 +1004,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         self.completnes_filter_inp.setChecked(True)
         self.completnes_filter_inp.stateChanged.connect(self.filter_list)
         self.completnes_filter_inp.setMaximumWidth(500)
-        filter_layout.addItem(pv_filter_layout)
+        filter_layout.addLayout(pv_filter_layout)
         filter_layout.addWidget(self.compare_filter_inp)
         filter_layout.addWidget(self.completnes_filter_inp)
         filter_layout.setAlignment(Qt.AlignLeft)
@@ -1022,7 +1022,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         self.column_names = ["PV", "Current value"]
         self.pv_view.setHeaderLabels(self.column_names)
         # Add all widgets to main layout
-        layout.addItem(filter_layout)
+        layout.addLayout(filter_layout)
         layout.addWidget(self.pv_view)
 
         # fill the compare view and start comparing
@@ -1403,7 +1403,7 @@ class SnapshotConfigureDialog(QtGui.QDialog):
         self.setMinimumSize(600, 50)
 
         layout.addWidget(self.file_selector)
-        layout.addItem(macros_layout)
+        layout.addLayout(macros_layout)
 
         button_box = QtGui.QDialogButtonBox(
             QtGui.QDialogButtonBox.Ok | QtGui.QDialogButtonBox.Cancel)
