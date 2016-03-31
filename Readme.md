@@ -1,5 +1,5 @@
 # Overview
-Snapshot is Python based tool with a graphical user interface which is able to store (and later restore) values of channel access process variables. PVs).
+Snapshot is Python based tool with a graphical user interface which is able to store (and later restore) values of Channel Access process variables (PVs).
 
 ![Screenshot](snapshot.png)
 
@@ -11,15 +11,8 @@ Snapshot is available as an Anaconda package on the paulscherrerinstitute Anacon
 conda install -c https://conda.anaconda.org/paulscherrerinstitute snapshot
 ```
 
-## Dependencies:
- - python 3 (conda python 3.5 was used for development)
- - pyepics module
- - numpy module
- - json module
-
-
 # Usage
-To define a set of PVs which should be saved/restored snapshot tool requires a "request" file. Request files are in the following format (note that macro substitution is possible):
+To define a set of PVs which should be saved/restored the _snapshot_ tool requires a "request" file. Request files are in the following format. Beside accepting explicit channels also the use of macros are possible.
 
 ```
 examplePv:test-1
@@ -55,3 +48,11 @@ examplePv:test-2,30
 examplePv:test-3,"string"
 examplePv:test-4,[5.0, 6.0, 7.0, 8.0, 9.0, 0.0, 1.0, 2.0, 3.0, 4.0]
 ```
+
+# Development
+## Dependencies
+_Snapshot_ has following dependencies: 
+ - python 3 (conda python 3.5 was used for development)
+ - pyepics module
+ - numpy module
+ - json module
