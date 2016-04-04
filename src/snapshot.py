@@ -10,17 +10,15 @@
 
 import sys
 from PyQt4 import QtGui, QtCore
-from PyQt4.QtCore import pyqtSlot, Qt, SIGNAL
+from PyQt4.QtCore import Qt, SIGNAL
 import time
 import datetime
 import argparse
-import re
 from enum import Enum
 import os
 from .snapshot_ca import PvStatus, ActionStatus, Snapshot, macros_substitution
 import json
 import numpy
-import epics
 
 # close with ctrl+C
 import signal
@@ -85,7 +83,6 @@ class SnapshotGui(QtGui.QMainWindow):
         self.init_snapshot(self.common_settings["req_file_name"],
                            self.common_settings["req_file_macros"])
 
-
         # Create main GUI components:
         #         menu bar
         #        ______________________________
@@ -98,15 +95,17 @@ class SnapshotGui(QtGui.QMainWindow):
         #                   status_bar
         #
 
+        # menu bar
+        menu_bar = self.menuBar()
 
-        # tool bar
-        menu_bar = QtGui.QMenuBar(self)
-        menu_bar.setNativeMenuBar(False)
-        # menu_bar = self.menuBar()
-        open_settings_action = QtGui.QAction("Settings",menu_bar)
+        settings_menu = QtGui.QMenu("Snapshot", menu_bar)
+
+        open_settings_action = QtGui.QAction("Settings", settings_menu)
+        open_settings_action.setMenuRole(QtGui.QAction.NoRole)
         open_settings_action.triggered.connect(self.open_settings)
-        menu_bar.addAction(open_settings_action)
-        self.setMenuBar(menu_bar)
+        settings_menu.addAction(open_settings_action)
+        menu_bar.addMenu(settings_menu)
+
 
         # Status components are needed by other GUI elements
         self.status_log = SnapshotStatusLog(self)
