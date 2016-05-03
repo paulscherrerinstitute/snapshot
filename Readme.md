@@ -33,6 +33,7 @@ optional arguments:
   -macro MACRO, -m MACRO
                         Macros for request file e.g.: "SYS=TEST,DEV=D1"
   -dir DIR, -d DIR      Directory for saved files
+  -base BASE, -b BASE   Base directory for opening request files
   --force, -f           Forces save/restore in case of disconnected PVs
 
 ```
