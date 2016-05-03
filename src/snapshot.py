@@ -46,7 +46,7 @@ class SnapshotGui(QtGui.QMainWindow):
     """
 
     def __init__(self, req_file_name=None, req_file_macros=dict(),
-                 save_dir=None, force=False, parent=None):
+                 save_dir=None, force=False, parent=None, init_path=None):
         QtGui.QMainWindow.__init__(self, parent)
 
         self.resize(1500, 850)
@@ -61,7 +61,7 @@ class SnapshotGui(QtGui.QMainWindow):
         self.common_settings["force"] = force
 
         if not req_file_name:
-            self.configure_dialog = SnapshotConfigureDialog(self)
+            self.configure_dialog = SnapshotConfigureDialog(self, init_path=init_path)
             self.configure_dialog.accepted.connect(self.set_request_file)
             self.configure_dialog.rejected.connect(self.close_gui)
 
@@ -1376,7 +1376,7 @@ class SnapshotConfigureDialog(QtGui.QDialog):
 
     """ Dialog window to select and apply file. """
 
-    def __init__(self, parent=None, **kw):
+    def __init__(self, parent=None, init_path=None, **kw):
         QtGui.QDialog.__init__(self, parent, **kw)
         self.file_path = ""
         self.macros = ""
@@ -1393,7 +1393,7 @@ class SnapshotConfigureDialog(QtGui.QDialog):
         self.macros_input = QtGui.QLineEdit(self)
         self.macros_input.setPlaceholderText("MACRO1=M1,MACRO2=M2,...")
         self.file_selector = SnapshotFileSelector(
-            self, label_width=macros_label.sizeHint().width())
+            self, label_width=macros_label.sizeHint().width(), init_path=init_path)
 
         macros_layout.addWidget(macros_label)
         macros_layout.addWidget(self.macros_input)
@@ -1544,6 +1544,7 @@ class SnapshotFileSelector(QtGui.QWidget):
                  init_path=None, show_files=True, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
         self.file_path = init_path
+
         self.show_files = show_files
         # Create main layout
         layout = QtGui.QHBoxLayout(self)
@@ -1571,10 +1572,14 @@ class SnapshotFileSelector(QtGui.QWidget):
         layout.addWidget(self.file_path_input)
         layout.addWidget(file_path_button)
 
+        self.initial_file_path = self.text()
+        if init_path:
+            self.initial_file_path = init_path
+
     def open_selector(self):
         dialog=QtGui.QFileDialog(self)
         dialog.fileSelected.connect(self.handle_selected)
-        dialog.setDirectory(self.text())
+        dialog.setDirectory(self.initial_file_path)
 
         if not self.show_files:
             dialog.setFileMode(QtGui.QFileDialog.Directory)
@@ -1807,6 +1812,8 @@ def main():
                            help="Macros for request file e.g.: \"SYS=TEST,DEV=D1\"")
     args_pars.add_argument('-dir', '-d',
                            help="Directory for saved files")
+    args_pars.add_argument('-base', '-b',
+                           help="Base directory for opening request files")
     args_pars.add_argument('--force', '-f',
                            help="Forces save/restore in case of disconnected PVs", action='store_true')
     args = args_pars.parse_args()
@@ -1821,7 +1828,7 @@ def main():
     default_style_path = os.path.join(default_style_path, "qss/default.qss")
     app.setStyleSheet("file:///" + default_style_path)
 
-    gui = SnapshotGui(args.REQUEST_FILE, macros, args.dir, args.force)
+    gui = SnapshotGui(args.REQUEST_FILE, macros, args.dir, args.force, init_path=args.base)
 
     sys.exit(app.exec_())
 
