@@ -1,8 +1,5 @@
 #!/usr/bin/env python
-
-# Developed by Rok Vintar (rok.vintar@cosylab.com), Cosylab d.d. for Paul
-# Scherrer Institute (PSI)
-# Copyright (C) 2016
+#
 #
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of

@@ -57,3 +57,8 @@ _Snapshot_ has following dependencies:
  - pyepics module
  - numpy module
  - json module
+
+
+# Authors
+
+- Rok Vintar (rok.vintar@cosylab.com)
