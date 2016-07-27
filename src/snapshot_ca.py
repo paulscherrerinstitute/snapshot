@@ -6,16 +6,16 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 from epics import *
-import os
 import numpy
 import json
+import time
 from enum import Enum
 
 
 class PvStatus(Enum):
     access_err = 0
     ok = 1
-    not_saved = 2
+    no_value = 2
     equal = 3
 
 
@@ -24,6 +24,7 @@ class ActionStatus(Enum):
     ok = 1
     no_data = 2
     no_cnct = 3
+    timeout = 4
 
 
 def macros_substitution(string, macros):
@@ -73,7 +74,7 @@ class SnapshotPv(PV):
                     # Empty array is equal to "None" scalar value
                     self.saved_value = None
                 if self.value is None:
-                    pv_status = PvStatus.not_saved
+                    pv_status = PvStatus.no_value
                 else:
                     pv_status = PvStatus.ok
             else:
@@ -93,17 +94,13 @@ class SnapshotPv(PV):
             # connected pyepics tries to reconnect which takes some time.
             if self.write_access:
                 if self.value_to_restore is None:
-                    self.verify_restore_response(PvStatus.not_saved, callback)
+                    self.verify_restore_response(PvStatus.no_value, callback)
                 else:
-                    # compare  different for arrays
-                    compare = self.compare(self.value)
+                    equal = self.compare(self.value)
 
-                    if not compare:
+                    if not equal:
                         if isinstance(self.value_to_restore, str):
-                            # Convert to bytes any string type value.
-                            # Python3 distinguish between bytes and strings but pyepics
-                            # passes string without conversion since it was not needed for
-                            # Python2 where strings are bytes
+                            # pyepics needs value as bytes not as string
                             put_value = str.encode(self.value_to_restore)
                         else:
                             put_value = self.value_to_restore
@@ -193,6 +190,7 @@ class Snapshot:
         self.compare_state = False
         self.restore_values_loaded = False
         self.restore_started = False
+        self.restore_blocking_done = False
         self.all_connected = False
         self.compare_callback = None
         self.restore_callback = None
@@ -222,7 +220,8 @@ class Snapshot:
                 pv_ref = self.pvs.pop(pv_name)
                 pv_ref.disconnect()
 
-    def change_macros(self, macros=dict(), **kw):
+    def change_macros(self, macros=None, **kw):
+        macros = macros or {}
         if self.macros != macros:
             self.macros = macros
             pvs_to_change = dict()
@@ -310,7 +309,6 @@ class Snapshot:
         if self.compare_state:
             self.start_continuous_compare(callback)
 
-
     def restore_pvs(self, save_file_path=None, force=False, callback=None):
         # If file with saved values specified then read file. If no file
         # then just use last stored values
@@ -349,6 +347,25 @@ class Snapshot:
             self.restore_started = False
             self.restore_callback(status=dict(self.restored_pvs_list), forced=self.current_restore_forced)
             self.restore_callback = None
+
+    def restore_pvs_blocking(self, save_file_path=None, force=False, timeout=10):
+        self.restore_blocking_done = False
+        status =  self.restore_pvs(save_file_path, force, self.set_restore_blocking_done)
+        if status == ActionStatus.ok:
+            end_time = time.time() + timeout
+            while not self.restore_blocking_done and time.time() < end_time:
+                time.sleep(0.2)
+
+            if self.restore_blocking_done:
+                return ActionStatus.ok
+            else:
+                return ActionStatus.timeout
+        else:
+            return status
+
+    def set_restore_blocking_done(self, status, forced):
+        # If this was called, then restore is done
+        self.restore_blocking_done = True
 
     def start_continuous_compare(self, callback=None, save_file_path=None):
         self.compare_callback = callback
@@ -426,7 +443,6 @@ class Snapshot:
         else:
             check_all = True
 
-
         if check_all:
             connections_ok = True
             for key, pv_ref in self.pvs.items():
@@ -467,7 +483,7 @@ class Snapshot:
         req_file.close()
         return req_pvs
 
-    def parse_to_save_file(self, save_file_path, macros=dict(), **kw):
+    def parse_to_save_file(self, save_file_path, macros=None, **kw):
         # This function is called at each save of PV values.
         # This is a parser which generates save file from pvs
         # All parameters in **kw are packed as meta data
@@ -526,3 +542,29 @@ class Snapshot:
                 saved_pvs[pv_name]['pv_value'] = pv_value
         saved_file.close()
         return(saved_pvs, meta_data)
+
+
+# Helper functions functions to support macros parsing for users of this lib
+def parse_macros(macros_str):
+    """ Converting comma separated macros string to dictionary. """
+
+    macros = dict()
+    if macros_str:
+        macros_list = macros_str.split(',')
+        for macro in macros_list:
+            split_macro = macro.split('=')
+            if len(split_macro) == 2:
+                macros[split_macro[0]] = split_macro[1]
+    return(macros)
+
+def parse_dict_macros_to_text(macros):
+    """ Converting dict() separated macros string to comma separated. """
+    macros_str = ""
+    for macro, subs in macros.items():
+        macros_str += macro + "=" + subs + ","
+
+    if macros_str:
+        # Clear last comma
+        macros_str = macros_str[0:-1]
+
+    return(macros_str)
