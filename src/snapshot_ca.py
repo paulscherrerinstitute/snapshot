@@ -5,6 +5,7 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+import epics
 from epics import *
 import numpy
 import json
@@ -70,9 +71,14 @@ class SnapshotPv(PV):
             # connected pyepics tries to reconnect which takes some time.
             if self.read_access:
                 self.saved_value = self.get(use_monitor=True)
-                if self.is_array and numpy.size(self.saved_value) == 0:
-                    # Empty array is equal to "None" scalar value
-                    self.saved_value = None
+                if self.is_array:
+                    print(self.count)
+                    if numpy.size(self.saved_value) == 0:
+                        # Empty array is equal to "None" scalar value
+                        self.saved_value = None
+                    elif numpy.size(self.saved_value) == 1:
+                        # make scalars as arrays
+                        self.saved_value = numpy.asarray([self.saved_value])
                 if self.value is None:
                     pv_status = PvStatus.no_value
                 else:
@@ -157,7 +163,7 @@ class SnapshotPv(PV):
         # PV layer of pyepics handles arrays strange. In case of having a
         # waveform with NORD field "1" it will not interpret it as array.
         # Instead of native "pv.count" (NORD) it should use "pv.nelm",
-        # but this also acts wrong. It (simply does if count == 1, then
+        # but this also acts wrong. It simply does: if count == 1, then
         # nelm = 1.) The true NELM info can be found with
         # ca.element_count(self.chid).
         self.is_array = (ca.element_count(self.chid) > 1)
@@ -409,9 +415,15 @@ class Snapshot:
         # In case of empty array pyepics does not return
         # numpy.ndarray but instance of
         # <class 'epics.dbr.c_int_Array_0'>
-        # Check if in this case saved value is None (empty array)
-        if pv_ref.is_array and not isinstance(value, numpy.ndarray):
-            value = None  # return None in callback
+        # In case of array with 1 value, a native type value is returned.
+        
+        if pv_ref.is_array:
+            if numpy.size(value) == 0:
+                value = None
+
+            elif numpy.size(value) == 1:
+                value = numpy.asarray([value])
+
         if pv_ref:
             if not self.restore_values_loaded:
                 # no old data was loaded clear compare
@@ -499,12 +511,13 @@ class Snapshot:
         for pv_name, pv_ref in self.pvs.items():
             if pv_ref.saved_value is not None:
                 if pv_ref.is_array:
+                    print(isinstance(pv_ref.saved_value, numpy.ndarray))
                     save_file.write(pv_ref.pvname_raw + "," + json.dumps(pv_ref.saved_value.tolist()) + "\n")
                 else:
                     save_file.write(pv_ref.pvname_raw + "," + json.dumps(pv_ref.saved_value) + "\n")
             else:
                 save_file.write(pv_ref.pvname_raw + "\n")
-        save_file.close
+        save_file.close()
 
     def parse_from_save_file(self, save_file_path):
         # This function is called in compare function.
