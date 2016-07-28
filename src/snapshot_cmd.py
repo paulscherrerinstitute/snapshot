@@ -1,0 +1,61 @@
+import time
+import datetime
+import logging
+import os
+from .snapshot_ca import PvStatus, ActionStatus, Snapshot, macros_substitution, parse_macros, parse_dict_macros_to_text
+
+
+def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10):
+    if os.path.isdir(save_file_path):
+        save_file_path += '/{}_{}.snap'.format(os.path.splitext(os.path.basename(req_file_path))[0],
+                                              datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M%S'))
+
+    logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
+    logging.info('Start saving the snapshot.')
+    if force:
+        logging.info('Started in force mode. Unavailable PVs will be ignored.')
+    macros = macros or {}
+    snapshot = Snapshot(req_file_path, macros)
+
+    logging.info('Waiting for PVs connections (timeout: {} s) ...'.format(timeout))
+    end_time = time.time() + timeout
+    while not snapshot.all_connected and time.time() < end_time:
+        time.sleep(0.2)
+
+    status, pv_status = snapshot.save_pvs(save_file_path, force)
+
+    if status != ActionStatus.ok:
+        for pv_name in snapshot.get_not_connected_pvs_names():
+            logging.error('\"{}\" cannot be accessed.'.format(pv_name))
+        logging.info('Snapshot file was not saved.')
+    else:
+        for pv_name, status in pv_status.items():
+            if status == PvStatus.access_err:
+                logging.info('\"{}\": Not saved. No connection or no read access.'.format(pv_name))
+        logging.info('Snapshot file was saved.')
+
+
+def restore(saved_file_path, force=False, timeout=10):
+    snapshot = Snapshot(saved_file_path)
+
+    end_time = time.time() + timeout
+    while not snapshot.all_connected and time.time() < end_time:
+        time.sleep(0.2)
+
+    # Timeout should be used for complete command. Pass the remaining of the time.
+    status = snapshot.restore_pvs_blocking(saved_file_path, force, end_time - time.time())
+    if status == ActionStatus.ok:
+        for pv_name in snapshot.get_not_connected_pvs_names():
+            logging.info('\"{}\": Not restored. No connection or no read access.'.format(pv_name))
+        logging.info('Snapshot file was restored.')
+
+    elif status == ActionStatus.timeout:
+        # In case when no response from some PVs after values were pushed.
+        # Currently no mechanism to determine which did not respond
+        logging.error('Not finished in timeout: {} s. Some PVs may not be restored. Try to increase'
+                      ' timeout.'.format(timeout))
+
+    else:
+        for pv_name in snapshot.get_not_connected_pvs_names():
+            logging.error('\"{}\" cannot be accessed.'.format(pv_name))
+        logging.info('Snapshot file was not restored.')

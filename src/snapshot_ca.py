@@ -6,16 +6,17 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 from epics import *
-import os
 import numpy
 import json
+import time
+import os
 from enum import Enum
 
 
 class PvStatus(Enum):
     access_err = 0
     ok = 1
-    not_saved = 2
+    no_value = 2
     equal = 3
 
 
@@ -24,6 +25,7 @@ class ActionStatus(Enum):
     ok = 1
     no_data = 2
     no_cnct = 3
+    timeout = 4
 
 
 def macros_substitution(string, macros):
@@ -47,16 +49,17 @@ class SnapshotPv(PV):
         if macros:
             pvname = macros_substitution(pvname, macros)
 
-        PV.__init__(self, pvname,
-                    connection_callback=self.internal_cnct_callback,
-                    auto_monitor=True, connection_timeout=None, **kw)
-        self.cnct_lost = not self.connected
+        self.cnct_callback = connection_callback
         self.saved_value = None
         self.value_to_restore = None  # This holds value from last loaded save file
         self.compare_callback_id = None
         self.last_compare = None
         self.is_array = False
-        self.cnct_callback = connection_callback
+
+        PV.__init__(self, pvname,
+                    connection_callback=self.internal_cnct_callback,
+                    auto_monitor=True, connection_timeout=None, **kw)
+        self.cnct_lost = not self.connected
 
     def save_pv(self):
         """
@@ -69,11 +72,16 @@ class SnapshotPv(PV):
             # connected pyepics tries to reconnect which takes some time.
             if self.read_access:
                 self.saved_value = self.get(use_monitor=True)
-                if self.is_array and numpy.size(self.saved_value) == 0:
-                    # Empty array is equal to "None" scalar value
-                    self.saved_value = None
+                if self.is_array:
+                    print(self.count)
+                    if numpy.size(self.saved_value) == 0:
+                        # Empty array is equal to "None" scalar value
+                        self.saved_value = None
+                    elif numpy.size(self.saved_value) == 1:
+                        # make scalars as arrays
+                        self.saved_value = numpy.asarray([self.saved_value])
                 if self.value is None:
-                    pv_status = PvStatus.not_saved
+                    pv_status = PvStatus.no_value
                 else:
                     pv_status = PvStatus.ok
             else:
@@ -93,17 +101,13 @@ class SnapshotPv(PV):
             # connected pyepics tries to reconnect which takes some time.
             if self.write_access:
                 if self.value_to_restore is None:
-                    self.verify_restore_response(PvStatus.not_saved, callback)
+                    self.verify_restore_response(PvStatus.no_value, callback)
                 else:
-                    # compare  different for arrays
-                    compare = self.compare(self.value)
+                    equal = self.compare(self.value)
 
-                    if not compare:
+                    if not equal:
                         if isinstance(self.value_to_restore, str):
-                            # Convert to bytes any string type value.
-                            # Python3 distinguish between bytes and strings but pyepics
-                            # passes string without conversion since it was not needed for
-                            # Python2 where strings are bytes
+                            # pyepics needs value as bytes not as string
                             put_value = str.encode(self.value_to_restore)
                         else:
                             put_value = self.value_to_restore
@@ -160,7 +164,7 @@ class SnapshotPv(PV):
         # PV layer of pyepics handles arrays strange. In case of having a
         # waveform with NORD field "1" it will not interpret it as array.
         # Instead of native "pv.count" (NORD) it should use "pv.nelm",
-        # but this also acts wrong. It (simply does if count == 1, then
+        # but this also acts wrong. It simply does: if count == 1, then
         # nelm = 1.) The true NELM info can be found with
         # ca.element_count(self.chid).
         self.is_array = (ca.element_count(self.chid) > 1)
@@ -193,11 +197,15 @@ class Snapshot:
         self.compare_state = False
         self.restore_values_loaded = False
         self.restore_started = False
+        self.restore_blocking_done = False
         self.all_connected = False
         self.compare_callback = None
         self.restore_callback = None
         self.current_restore_forced = False
         self.macros = macros
+
+        # holds path to the req_file_path as this is sort of identifier
+        self.req_file_path = req_file_path
 
         # Uses default parsing method. If other format is needed, subclass
         # and re implement parse_req_file method. It must return list of
@@ -211,6 +219,7 @@ class Snapshot:
         for pv_name_raw in pv_list_raw:
             pv_ref = SnapshotPv(pv_name_raw, self.macros,
                             connection_callback=self.update_all_connected_status)
+
             if not self.pvs.get(pv_ref.pvname):
                 self.pvs[pv_ref.pvname] = pv_ref
 
@@ -222,7 +231,8 @@ class Snapshot:
                 pv_ref = self.pvs.pop(pv_name)
                 pv_ref.disconnect()
 
-    def change_macros(self, macros=dict(), **kw):
+    def change_macros(self, macros=None, **kw):
+        macros = macros or {}
         if self.macros != macros:
             self.macros = macros
             pvs_to_change = dict()
@@ -243,7 +253,7 @@ class Snapshot:
             self.update_all_connected_status()
 
 
-    def save_pvs(self, save_file_path, force=False, **kw):
+    def save_pvs(self, save_file_path, force=False, symlink_path=None, **kw):
         # get value of all PVs and save them to file
         # All other parameters (packed in kw) are appended to file as meta data
         pvs_status = dict()
@@ -253,7 +263,7 @@ class Snapshot:
         kw["save_time"] = time.time()
         for key in self.pvs:
             pvs_status[key] = self.pvs[key].save_pv()
-        self.parse_to_save_file(save_file_path, self.macros, **kw)
+        self.parse_to_save_file(save_file_path, self.macros, symlink_path, **kw)
         return(ActionStatus.ok, pvs_status)
 
     def prepare_pvs_to_restore_from_file(self, save_file_path):
@@ -310,7 +320,6 @@ class Snapshot:
         if self.compare_state:
             self.start_continuous_compare(callback)
 
-
     def restore_pvs(self, save_file_path=None, force=False, callback=None):
         # If file with saved values specified then read file. If no file
         # then just use last stored values
@@ -349,6 +358,25 @@ class Snapshot:
             self.restore_started = False
             self.restore_callback(status=dict(self.restored_pvs_list), forced=self.current_restore_forced)
             self.restore_callback = None
+
+    def restore_pvs_blocking(self, save_file_path=None, force=False, timeout=10):
+        self.restore_blocking_done = False
+        status =  self.restore_pvs(save_file_path, force, self.set_restore_blocking_done)
+        if status == ActionStatus.ok:
+            end_time = time.time() + timeout
+            while not self.restore_blocking_done and time.time() < end_time:
+                time.sleep(0.2)
+
+            if self.restore_blocking_done:
+                return ActionStatus.ok
+            else:
+                return ActionStatus.timeout
+        else:
+            return status
+
+    def set_restore_blocking_done(self, status, forced):
+        # If this was called, then restore is done
+        self.restore_blocking_done = True
 
     def start_continuous_compare(self, callback=None, save_file_path=None):
         self.compare_callback = callback
@@ -392,9 +420,15 @@ class Snapshot:
         # In case of empty array pyepics does not return
         # numpy.ndarray but instance of
         # <class 'epics.dbr.c_int_Array_0'>
-        # Check if in this case saved value is None (empty array)
-        if pv_ref.is_array and not isinstance(value, numpy.ndarray):
-            value = None  # return None in callback
+        # In case of array with 1 value, a native type value is returned.
+        
+        if pv_ref.is_array:
+            if numpy.size(value) == 0:
+                value = None
+
+            elif numpy.size(value) == 1:
+                value = numpy.asarray([value])
+
         if pv_ref:
             if not self.restore_values_loaded:
                 # no old data was loaded clear compare
@@ -425,7 +459,6 @@ class Snapshot:
                 check_all = True
         else:
             check_all = True
-
 
         if check_all:
             connections_ok = True
@@ -467,11 +500,12 @@ class Snapshot:
         req_file.close()
         return req_pvs
 
-    def parse_to_save_file(self, save_file_path, macros=dict(), **kw):
+    def parse_to_save_file(self, save_file_path, macros=None, symlink_path=None,  **kw):
         # This function is called at each save of PV values.
         # This is a parser which generates save file from pvs
         # All parameters in **kw are packed as meta data
         # To support other format of file, override this method in subclass
+        save_file_path = os.path.abspath(save_file_path)
         save_file = open(save_file_path, 'w')
 
         # Save meta data
@@ -483,12 +517,21 @@ class Snapshot:
         for pv_name, pv_ref in self.pvs.items():
             if pv_ref.saved_value is not None:
                 if pv_ref.is_array:
+                    print(isinstance(pv_ref.saved_value, numpy.ndarray))
                     save_file.write(pv_ref.pvname_raw + "," + json.dumps(pv_ref.saved_value.tolist()) + "\n")
                 else:
                     save_file.write(pv_ref.pvname_raw + "," + json.dumps(pv_ref.saved_value) + "\n")
             else:
                 save_file.write(pv_ref.pvname_raw + "\n")
-        save_file.close
+        save_file.close()
+
+        # Create symlink _latest.snap
+        if symlink_path:
+            try:
+                os.remove(symlink_path)
+            except:
+                pass
+            os.symlink(save_file_path, symlink_path)
 
     def parse_from_save_file(self, save_file_path):
         # This function is called in compare function.
@@ -526,3 +569,29 @@ class Snapshot:
                 saved_pvs[pv_name]['pv_value'] = pv_value
         saved_file.close()
         return(saved_pvs, meta_data)
+
+
+# Helper functions functions to support macros parsing for users of this lib
+def parse_macros(macros_str):
+    """ Converting comma separated macros string to dictionary. """
+
+    macros = dict()
+    if macros_str:
+        macros_list = macros_str.split(',')
+        for macro in macros_list:
+            split_macro = macro.split('=')
+            if len(split_macro) == 2:
+                macros[split_macro[0]] = split_macro[1]
+    return(macros)
+
+def parse_dict_macros_to_text(macros):
+    """ Converting dict() separated macros string to comma separated. """
+    macros_str = ""
+    for macro, subs in macros.items():
+        macros_str += macro + "=" + subs + ","
+
+    if macros_str:
+        # Clear last comma
+        macros_str = macros_str[0:-1]
+
+    return(macros_str)
