@@ -5,7 +5,6 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import epics
 from epics import *
 import numpy
 import json
@@ -49,16 +48,17 @@ class SnapshotPv(PV):
         if macros:
             pvname = macros_substitution(pvname, macros)
 
-        PV.__init__(self, pvname,
-                    connection_callback=self.internal_cnct_callback,
-                    auto_monitor=True, connection_timeout=None, **kw)
-        self.cnct_lost = not self.connected
+        self.cnct_callback = connection_callback
         self.saved_value = None
         self.value_to_restore = None  # This holds value from last loaded save file
         self.compare_callback_id = None
         self.last_compare = None
         self.is_array = False
-        self.cnct_callback = connection_callback
+
+        PV.__init__(self, pvname,
+                    connection_callback=self.internal_cnct_callback,
+                    auto_monitor=True, connection_timeout=None, **kw)
+        self.cnct_lost = not self.connected
 
     def save_pv(self):
         """
@@ -203,6 +203,9 @@ class Snapshot:
         self.current_restore_forced = False
         self.macros = macros
 
+        # holds path to the req_file_path as this is sort of identifier
+        self.req_file_path = req_file_path
+
         # Uses default parsing method. If other format is needed, subclass
         # and re implement parse_req_file method. It must return list of
         # PV names.
@@ -215,6 +218,7 @@ class Snapshot:
         for pv_name_raw in pv_list_raw:
             pv_ref = SnapshotPv(pv_name_raw, self.macros,
                             connection_callback=self.update_all_connected_status)
+
             if not self.pvs.get(pv_ref.pvname):
                 self.pvs[pv_ref.pvname] = pv_ref
 

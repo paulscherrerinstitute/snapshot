@@ -14,7 +14,7 @@ import sys
 from .snapshot_ca import PvStatus, ActionStatus, Snapshot, macros_substitution, parse_macros, parse_dict_macros_to_text
 import json
 import numpy
-
+import copy
 
 
 # Define enums
@@ -91,12 +91,18 @@ class SnapshotGui(QtGui.QMainWindow):
         menu_bar = self.menuBar()
 
         settings_menu = QtGui.QMenu("Snapshot", menu_bar)
-
         open_settings_action = QtGui.QAction("Settings", settings_menu)
         open_settings_action.setMenuRole(QtGui.QAction.NoRole)
         open_settings_action.triggered.connect(self.open_settings)
         settings_menu.addAction(open_settings_action)
         menu_bar.addMenu(settings_menu)
+
+        file_menu = QtGui.QMenu("File", menu_bar)
+        open_new_req_file_action = QtGui.QAction("Open", file_menu)
+        open_new_req_file_action.setMenuRole(QtGui.QAction.NoRole)
+        open_new_req_file_action.triggered.connect(self.open_new_req_file)
+        file_menu.addAction(open_new_req_file_action)
+        menu_bar.addMenu(file_menu)
 
 
         # Status components are needed by other GUI elements
@@ -156,6 +162,29 @@ class SnapshotGui(QtGui.QMainWindow):
         widgets_sizes[main_splitter.indexOf(main_splitter)] = 100
         main_splitter.setSizes(widgets_sizes)
 
+    def open_new_req_file(self):
+        # First pause old snapshot
+        self.snapshot.stop_continuous_compare()
+
+        self.configure_dialog = SnapshotConfigureDialog(self, init_path=os.path.dirname(
+            self.common_settings['req_file_name']))
+        self.configure_dialog.accepted.connect(self.change_req_file)
+        self.configure_dialog.exec_()
+
+    def change_req_file(self):
+        self.set_request_file()
+
+        self.init_snapshot(self.common_settings['req_file_name'], self.common_settings['req_file_macros'])
+
+        # handle all gui components
+        self.restore_widget.handle_new_snapshot_instance(self.snapshot)
+        self.save_widget.handle_new_snapshot_instance(self.snapshot)
+        self.compare_widget.handle_new_snapshot_instance(self.snapshot)
+
+        self.setWindowTitle(
+            os.path.basename(self.common_settings["req_file_name"]) + ' - Snapshot')
+
+
     def handle_save_done(self):
         # When save is done, save widget is updated by itself
         # Update restore widget (new file in directory)
@@ -165,9 +194,9 @@ class SnapshotGui(QtGui.QMainWindow):
         self.common_settings["req_file_name"] = self.configure_dialog.file_path
         self.common_settings["req_file_macros"] = self.configure_dialog.macros
 
-    def init_snapshot(self, req_file_path, req_macros=dict()):
-        # creates new instance of snapshot loads the request file and emits
-        # the signal new_snapshot to update the GUI
+    def init_snapshot(self, req_file_path, req_macros = None):
+        req_macros = req_macros or {}
+
         self.snapshot = Snapshot(req_file_path, req_macros)
         self.common_settings["pvs_to_restore"] = self.snapshot.get_pvs_names()
 
@@ -291,6 +320,15 @@ class SnapshotSaveWidget(QtGui.QWidget):
         layout.addLayout(save_layout)
         layout.addStretch()
 
+    def handle_new_snapshot_instance(self, snapshot):
+        self.snapshot = snapshot
+        self.name_base = os.path.basename(self.snapshot.req_file_path).split(".")[0] + "_"
+        self.extension_input.setText('')
+        self.update_name()
+        self.update_labels()
+        self.advanced.labels_input.clear_keywords()
+        self.advanced.comment_input.setText('')
+
     def start_save(self):
         # Check if save can be done (all pvs connected or in force mode)
         force = self.common_settings["force"]
@@ -357,7 +395,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
         for pv_name, sts in status.items():
             if sts == PvStatus.access_err:
                 error = True and not forced
-                self.sts_log.log_line("WARNING: " + key +
+                self.sts_log.log_line("WARNING: " + pv_name +
                                       ": Not saved (no connection or no read access)")
 
                 status_txt = "Save error"
@@ -510,6 +548,11 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         layout.addWidget(self.restore_button)
 
         self.connect(self, SIGNAL("restore_done_callback"), self.restore_done)
+
+    def handle_new_snapshot_instance(self, snapshot):
+        self.file_selector.handle_new_snapshot_instance(snapshot)
+        self.snapshot = snapshot
+        self.clear_update_files()
 
     def start_restore(self):
         # Check if restore can be done (values loaded to snapshot).
@@ -675,8 +718,11 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         self.menu = QtGui.QMenu(self)
         self.menu.addAction("Delete selected files", self.delete_files)
 
-    def new_selection(self, selected):
-        self.emit(SIGNAL("selected"), selected)
+    def handle_new_snapshot_instance(self, snapshot):
+        self.clear_file_selector()
+        self.filter_input.clear()
+        self.snapshot = snapshot
+
 
     def start_file_list_update(self):
         # Rescans directory and adds new/modified files and removes none
@@ -947,6 +993,12 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
     def update_labels(self):
         self.keys_input.update_sugested_keywords()
 
+    def clear(self):
+        self.keys_input.clear_keywords()
+        self.name_input.setText('')
+        self.comment_input.setText('')
+        self.update_filter()
+
 
 # PV Compare part
 class SnapshotCompareWidget(QtGui.QWidget):
@@ -1022,6 +1074,12 @@ class SnapshotCompareWidget(QtGui.QWidget):
         self.pv_view.setSelectionMode(QtGui.QAbstractItemView.NoSelection)
         self.pv_view.setFocusPolicy(Qt.NoFocus)
 
+    def handle_new_snapshot_instance(self, snapshot):
+        #self.new_selected_files(dict()) # act as there is no selected file
+        self.snapshot = snapshot
+        self.populate_compare_list()
+
+
     def populate_compare_list(self):
         """
         Create tree item for each PV. List of pv names was returned after
@@ -1075,16 +1133,13 @@ class SnapshotCompareWidget(QtGui.QWidget):
             self.filter_mode = "no-file"
 
         # Create column for each of the selected files.
-        self.pv_view.setColumnCount(3+len(selected_files.keys()))
+        self.pv_view.setColumnCount(3 + len(selected_files.keys()))
         self.pv_view.setColumnWidth(1, 200)  # Width of current value
         self.pv_view.setColumnWidth(2, 30)
-        self.column_names = ["PV", "Current value"]
-        if len(selected_files.items()) > 0:
-            self.column_names.append("")
-            self.pv_view.setColumnWidth(2, 30)
-        i = 3
+        self.column_names = ["PV", "Current value", ""]
 
         self.file_compare_struct = dict()
+        i = 3
         for file_name, file_data in selected_files.items():
             self.pv_view.setColumnWidth(i, 200)
 
@@ -1698,6 +1753,11 @@ class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
         self.common_settings["existing_labels"].sort()
         self.addItem("")
         self.addItems(self.common_settings["existing_labels"])
+
+    def clear_keywords(self):
+        keywords_to_remove = copy.copy(self.get_keywords())
+        for keyword in keywords_to_remove:
+            self.remove_keyword(keyword)
 
 
 class SnapshotKeywordSelectorInput(QtGui.QLineEdit):
