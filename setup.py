@@ -8,7 +8,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 README = open(os.path.join(here, 'Readme.md')).read()
 
 setup(name='snapshot',
-      version='1.1.3',
+      version='1.2.0',
       description="Tool for saving and restoring snapshots of EPICS channels",
       long_description=README,
       author='Rok Vintar',
