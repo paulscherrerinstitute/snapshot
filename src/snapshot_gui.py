@@ -375,7 +375,10 @@ class SnapshotSaveWidget(QtGui.QWidget):
             status, pvs_status = self.snapshot.save_pvs(self.file_path,
                                                         force=force,
                                                         labels=labels,
-                                                        comment=comment)
+                                                        comment=comment,
+                                                        symlink_path= os.path.join(self.common_settings["save_dir"],
+                                                                                   self.name_base + 'latest' +
+                                                                                   self.save_file_sufix))
             if status == ActionStatus.no_cnct:
                 self.sts_log.log_line(
                     "ERROR: Save rejected. One or more PVs not connected.")

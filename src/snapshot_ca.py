@@ -9,6 +9,7 @@ from epics import *
 import numpy
 import json
 import time
+import os
 from enum import Enum
 
 
@@ -252,7 +253,7 @@ class Snapshot:
             self.update_all_connected_status()
 
 
-    def save_pvs(self, save_file_path, force=False, **kw):
+    def save_pvs(self, save_file_path, force=False, symlink_path=None, **kw):
         # get value of all PVs and save them to file
         # All other parameters (packed in kw) are appended to file as meta data
         pvs_status = dict()
@@ -262,7 +263,7 @@ class Snapshot:
         kw["save_time"] = time.time()
         for key in self.pvs:
             pvs_status[key] = self.pvs[key].save_pv()
-        self.parse_to_save_file(save_file_path, self.macros, **kw)
+        self.parse_to_save_file(save_file_path, self.macros, symlink_path, **kw)
         return(ActionStatus.ok, pvs_status)
 
     def prepare_pvs_to_restore_from_file(self, save_file_path):
@@ -499,11 +500,12 @@ class Snapshot:
         req_file.close()
         return req_pvs
 
-    def parse_to_save_file(self, save_file_path, macros=None, **kw):
+    def parse_to_save_file(self, save_file_path, macros=None, symlink_path=None,  **kw):
         # This function is called at each save of PV values.
         # This is a parser which generates save file from pvs
         # All parameters in **kw are packed as meta data
         # To support other format of file, override this method in subclass
+        save_file_path = os.path.abspath(save_file_path)
         save_file = open(save_file_path, 'w')
 
         # Save meta data
@@ -522,6 +524,14 @@ class Snapshot:
             else:
                 save_file.write(pv_ref.pvname_raw + "\n")
         save_file.close()
+
+        # Create symlink _latest.snap
+        if symlink_path:
+            try:
+                os.remove(symlink_path)
+            except:
+                pass
+            os.symlink(save_file_path, symlink_path)
 
     def parse_from_save_file(self, save_file_path):
         # This function is called in compare function.
