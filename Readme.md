@@ -20,24 +20,56 @@ examplePv:test-2
 $(SYS):test-3
 ```
 
-After snapshot is build and deployed as conda package (see section [Instalation](#installation) it can be started with following command:
+After snapshot is build and deployed as conda package (see section [Instalation](#installation) it can be used in graphical mode or as command line tool.
+
+To use graphical interface snapshot must be started with following command:
 
 ```bash
-snapshot [-h] [-macro MACRO] [-dir DIR] [--force] [REQUEST_FILE]
+snapshot [-h] [-macro MACRO] [-dir DIR] [-base BASE] [--force] [FILE]
+
+Longer version of same command:
+snapshot gui [-h] [-macro MACRO] [-dir DIR] [-base BASE] [--force] [FILE]
 
 positional arguments:
-  REQUEST_FILE
+  FILE                  request file
 
 optional arguments:
   -h, --help            show this help message and exit
   -macro MACRO, -m MACRO
-                        Macros for request file e.g.: "SYS=TEST,DEV=D1"
-  -dir DIR, -d DIR      Directory for saved files
-  -base BASE, -b BASE   Base directory for opening request files
-  --force, -f           Forces save/restore in case of disconnected PVs
-
+                        macros for request file e.g.: "SYS=TEST,DEV=D1"
+  -dir DIR, -d DIR      directory for saved files
+  -base BASE, -b BASE   base directory for opening request files
+  --force, -f           force save/restore in case of disconnected PVs
 ```
 
+To be used as command line tool it must be run either with `snapshot save` or `snapshot restore` depending on action needed.
+
+```bash
+snapshot save [-h] [-macro MACRO] [-out OUT] [--force] [-timeout TIMEOUT] FILE
+
+positional arguments:
+  FILE                  request file
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -macro MACRO, -m MACRO
+                        macros for request file e.g.: "SYS=TEST,DEV=D1"
+  -out OUT, -o OUT      Output path/file.
+  --force, -f           force save in case of disconnected PVs after timeout
+  -timeout TIMEOUT      max time waiting for PVs to be connected
+```
+
+```bash
+snapshot restore [-h] [--force] [-timeout TIMEOUT] FILE
+
+positional arguments:
+  FILE              saved file
+
+optional arguments:
+  -h, --help        show this help message and exit
+  --force, -f       force restore in case of disconnected PVs after timeout
+  -timeout TIMEOUT  max time waiting for PVs to be connected and restored
+```
 
 ## Format of saved files
 When PVs values are saved using a GUI, they are stored in file where first line starts with `#` and is followed by meta data (json formating). This is followed by lines with PV names and saved data (one line per PV). Example:
