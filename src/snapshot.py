@@ -36,8 +36,20 @@ def main():
 
     args_pars = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
     args_pars.set_defaults(macro=None)
-    subparsers = args_pars.add_subparsers(help='modes of work (if not specified \'gui\') will be used)')
+    subparsers = args_pars.add_subparsers(help='modes of work (if not specified \'"gui\" will be used)')
     args_pars.format_usage()
+
+    # Gui
+    gui_pars = subparsers.add_parser('gui', help='open graphical interface (default)')
+    gui_pars.set_defaults(func=gui)
+    gui_pars.add_argument('FILE', nargs='?', help='request file.')
+    gui_pars.add_argument('-macro', '-m', help="macros for request file e.g.: \"SYS=TEST,DEV=D1\"")
+    gui_pars.add_argument('-dir', '-d',
+                           help="directory for saved files")
+    gui_pars.add_argument('-base', '-b',
+                           help="base directory for opening request files")
+    gui_pars.add_argument('--force', '-f',
+                           help="force save/restore in case of disconnected PVs", action='store_true')
 
     # Save
     save_pars = subparsers.add_parser('save', help='save current state of PVs to file, without using GUI')
@@ -59,28 +71,15 @@ def main():
     rest_pars.add_argument('-timeout', default=10, type=int,
                            help='max time waiting for PVs to be connected and restored')
 
-    # Gui
-    gui_pars = subparsers.add_parser('gui', help='open graphical interface (default)')
-    gui_pars.set_defaults(func=gui)
-    gui_pars.add_argument('FILE', nargs='?', help='request file.')
-    gui_pars.add_argument('-macro', '-m', help="macros for request file e.g.: \"SYS=TEST,DEV=D1\"")
-    gui_pars.add_argument('-dir', '-d',
-                           help="directory for saved files")
-    gui_pars.add_argument('-base', '-b',
-                           help="base directory for opening request files")
-    gui_pars.add_argument('--force', '-f',
-                           help="force save/restore in case of disconnected PVs", action='store_true')
-
     _set_default_subparser('gui', ['gui', 'save', 'restore']) # modifies sys.argv
 
 
     # Prepare epilog text for main help
-    main_epilog = '''---- GUI mode ----
-usage:
-       {}       {}
----- Command line save mode ----
+    args_pars.epilog = '''------- GUI mode --------
+usage: {}       {}
+-------- Command line save mode --------
 {}
----- Command line restore mode ----
+-------- Command line restore mode --------
 {}'''.format(
         re.sub('(?:\sgui|usage:\s)', '', gui_pars.format_usage()),
         re.sub('usage:\s', '', gui_pars.format_help()),
@@ -88,7 +87,8 @@ usage:
         rest_pars.format_help()
     )
 
-    args_pars.epilog = main_epilog
+    args_pars.description = '''Tool for saving and restoring snapshots of EPICS process variables (PVs)
+Can be used as graphical interface tool, or a command line tool.'''
 
     args = args_pars.parse_args()
 
