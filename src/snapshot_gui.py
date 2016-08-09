@@ -47,6 +47,7 @@ class SnapshotGui(QtGui.QMainWindow):
         # the application (such as directory with save files, request file
         # path, etc). It is propagated to other snapshot widgets if needed
         self.common_settings = dict()
+        self.common_settings["save_file_prefix"] = ""
         self.common_settings["req_file_name"] = ""
         self.common_settings["req_file_macros"] = dict()
         self.common_settings["existing_labels"] = list()
@@ -104,7 +105,6 @@ class SnapshotGui(QtGui.QMainWindow):
         file_menu.addAction(open_new_req_file_action)
         menu_bar.addMenu(file_menu)
 
-
         # Status components are needed by other GUI elements
         self.status_log = SnapshotStatusLog(self)
         self.common_settings["sts_log"] = self.status_log
@@ -124,8 +124,8 @@ class SnapshotGui(QtGui.QMainWindow):
                                                     self.common_settings, self)
         self.save_widget = SnapshotSaveWidget(self.snapshot,
                                               self.common_settings, self)
-        self.connect(self.save_widget, SIGNAL("save_done"),
-                     self.handle_save_done)
+        self.connect(self.save_widget, SIGNAL("clear_update_files"),
+                     self.handle_clear_update_files)
         self.restore_widget = SnapshotRestoreWidget(self.snapshot,
                                                     self.common_settings, self)
         # If new files were added to restore list, all elements with Labels
@@ -184,11 +184,10 @@ class SnapshotGui(QtGui.QMainWindow):
         self.setWindowTitle(
             os.path.basename(self.common_settings["req_file_name"]) + ' - Snapshot')
 
-
-    def handle_save_done(self):
+    def handle_clear_update_files(self):
         # When save is done, save widget is updated by itself
         # Update restore widget (new file in directory)
-        self.restore_widget.update_files()
+        self.restore_widget.clear_update_files()
 
     def set_request_file(self):
         self.common_settings["req_file_name"] = self.configure_dialog.file_path
@@ -263,8 +262,6 @@ class SnapshotSaveWidget(QtGui.QWidget):
         # file name is: PREFIX_YYMMDD_hhmmss (holds time info)
         # Get the prefix ... use update_name() later
         self.save_file_sufix = ".snap"
-        self.name_base = os.path.split(
-            common_settings["req_file_name"])[1].split(".")[0] + "_"
 
         # Create layout and add GUI elements (input fields, buttons, ...)
         layout = QtGui.QVBoxLayout(self)
@@ -280,7 +277,6 @@ class SnapshotSaveWidget(QtGui.QWidget):
         extension_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
         extension_label.setMinimumWidth(min_label_width)
         self.extension_input = QtGui.QLineEdit(self)
-
         extension_layout.addWidget(extension_label)
         extension_layout.addWidget(self.extension_input)
 
@@ -288,18 +284,21 @@ class SnapshotSaveWidget(QtGui.QWidget):
         extension_rb_layout = QtGui.QHBoxLayout()
         extension_rb_layout.setSpacing(10)
         self.extension_input.textChanged.connect(self.update_name)
+
         file_name_label = QtGui.QLabel("File name: ", self)
         file_name_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
         file_name_label.setMinimumWidth(min_label_width)
         self.file_name_rb = QtGui.QLabel(self)
+
+        # Create collapsible group with advanced options, 
+        # then update output file name and finish adding widgets to layout
+        self.advanced = SnapshotAdvancedSaveSettings("Advanced", self.common_settings, self)
+
         self.update_name()
 
         extension_rb_layout.addWidget(file_name_label)
         extension_rb_layout.addWidget(self.file_name_rb)
         extension_rb_layout.addStretch()
-
-        # Create collapsible group with advanced options
-        self.advanced = SnapshotAdvancedSaveSettings("Advanced", self.common_settings, self)
 
         # Make Save button
         save_layout = QtGui.QHBoxLayout()
@@ -322,7 +321,6 @@ class SnapshotSaveWidget(QtGui.QWidget):
 
     def handle_new_snapshot_instance(self, snapshot):
         self.snapshot = snapshot
-        self.name_base = os.path.basename(self.snapshot.req_file_path).split(".")[0] + "_"
         self.extension_input.setText('')
         self.update_name()
         self.update_labels()
@@ -354,9 +352,10 @@ class SnapshotSaveWidget(QtGui.QWidget):
 
         # Update file name and chek if exists. Then disable button for the time
         # of saving. Will be unlocked when save is finished.
-        if not self.extension_input.text():
-            #  Update name with latest timestamp
-            self.update_name()
+
+        #  Update name with latest timestamp and file prefix.
+        #  The function also handles comments and labels if advanced tab is selected
+        self.update_name()
 
         if do_save and self.check_file_existance():
             self.save_button.setEnabled(False)
@@ -376,9 +375,10 @@ class SnapshotSaveWidget(QtGui.QWidget):
                                                         force=force,
                                                         labels=labels,
                                                         comment=comment,
-                                                        symlink_path= os.path.join(self.common_settings["save_dir"],
-                                                                                   self.name_base + 'latest' +
-                                                                                   self.save_file_sufix))
+                                                        symlink_path= os.path.join(
+                                                                        self.common_settings["save_dir"],
+                                                                        self.common_settings["save_file_prefix"] + 'latest' +
+                                                                        self.save_file_sufix))
             if status == ActionStatus.no_cnct:
                 self.sts_log.log_line(
                     "ERROR: Save rejected. One or more PVs not connected.")
@@ -412,7 +412,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
         self.save_button.setEnabled(True)
         self.sts_info.set_status(status_txt, 3000, status_background)
 
-        self.emit(SIGNAL("save_done"))
+        self.emit(SIGNAL("clear_update_files"))
 
     def update_name(self):
         # When file extension is changed, update all corresponding variables
@@ -424,10 +424,19 @@ class SnapshotSaveWidget(QtGui.QWidget):
         else:
             self.name_extension = name_extension_inp
             name_extension_rb = name_extension_inp + self.save_file_sufix
+
+        # Use manually entered prefix only if advanced opetions are selected
+        if self.advanced.file_prefix_input.text() and self.advanced.isChecked():
+            self.common_settings["save_file_prefix"] = self.advanced.file_prefix_input.text()
+        else:
+            self.common_settings["save_file_prefix"] = os.path.split(self.common_settings
+                ["req_file_name"])[1].split(".")[0] + "_"
+
         self.file_path = os.path.join(self.common_settings["save_dir"],
-                                      self.name_base + self.name_extension +
-                                      self.save_file_sufix)
-        self.file_name_rb.setText(self.name_base + name_extension_rb)
+                                      self.common_settings["save_file_prefix"] + 
+                                      self.name_extension + self.save_file_sufix)
+        self.file_name_rb.setText(self.common_settings["save_file_prefix"] +
+                                    name_extension_rb)
 
     def check_file_existance(self):
         # If file exists, user must decide whether to overwrite it or not
@@ -448,6 +457,8 @@ class SnapshotSaveWidget(QtGui.QWidget):
 
 class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
     def __init__(self, text, common_settings, parent=None):
+        self.parent = parent
+
         QtGui.QGroupBox.__init__(self, text, parent)
         self.setStyleSheet("background-color: rgba(0, 0, 0, 15)")
         min_label_width = 120
@@ -456,8 +467,9 @@ class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
         self.frame.setContentsMargins(0,20,0,0)
         self.frame.setStyleSheet("background-color: None")
         self.setCheckable(True)
-        self.toggled.connect(self.frame.setVisible)
+        self.frame.setVisible(False)
         self.setChecked(False)
+        self.toggled.connect(self.toggle)
 
         layout = QtGui.QVBoxLayout()
         layout.setMargin(0)
@@ -495,8 +507,37 @@ class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
         self.frame_layout.addLayout(comment_layout)
         self.frame_layout.addLayout(labels_layout)
 
+        # Make field for specifying save file prefix
+        file_prefix_layout = QtGui.QHBoxLayout()
+        file_prefix_layout.setSpacing(10)
+        file_prefix_label = QtGui.QLabel("File name prefix:", self.frame)
+        file_prefix_label.setStyleSheet("background-color: None")
+        file_prefix_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
+        file_prefix_label.setMinimumWidth(min_label_width)
+        self.file_prefix_input = QtGui.QLineEdit(self.frame)
+        file_prefix_layout.addWidget(file_prefix_label)
+        file_prefix_layout.addWidget(self.file_prefix_input)
+        self.file_prefix_input.textChanged.connect(
+            self.update_file_prefix_and_list)
+
+        #self.frame_layout.addStretch()
+        self.frame_layout.addLayout(comment_layout)
+        self.frame_layout.addLayout(labels_layout)
+        self.frame_layout.addLayout(file_prefix_layout)
+
+    def toggle(self):
+        self.frame.setVisible(self.isChecked())
+        self.update_file_prefix_and_list()
+
     def update_labels(self):
         self.labels_input.update_sugested_keywords()
+
+    def update_file_prefix_and_list(self):
+        # When file prefix is typed in by the user, a list of available restore
+        # files needs to be updated as well as the internal save file name.
+        self.parent.update_name()
+        self.parent.emit(SIGNAL("clear_update_files"))
+
 
 
 # noinspection PyArgumentList
@@ -730,12 +771,11 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
     def start_file_list_update(self):
         # Rescans directory and adds new/modified files and removes none
         # existing ones from the list.
-        file_prefix = os.path.split(
-            self.common_settings["req_file_name"])[1].split(".")[0] + "_"
-
-        updated_files = self.update_file_list_selector(self.get_save_files(self.common_settings["save_dir"],
-                                                                           file_prefix,
-                                                                           self.file_list))
+        updated_files = self.update_file_list_selector(
+                            self.get_save_files(
+                                self.common_settings["save_dir"],
+                                self.common_settings["save_file_prefix"],
+                                self.file_list))
         self.filter_file_list_selector()
         return updated_files
 
