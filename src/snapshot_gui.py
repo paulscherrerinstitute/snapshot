@@ -503,10 +503,6 @@ class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
         labels_layout.addWidget(labels_label)
         labels_layout.addWidget(self.labels_input)
 
-        #self.frame_layout.addStretch()
-        self.frame_layout.addLayout(comment_layout)
-        self.frame_layout.addLayout(labels_layout)
-
         # Make field for specifying save file prefix
         file_prefix_layout = QtGui.QHBoxLayout()
         file_prefix_layout.setSpacing(10)
@@ -715,6 +711,8 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
     def __init__(self, snapshot, common_settings, parent=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
 
+        self.parent = parent
+        
         self.snapshot = snapshot
         self.selected_files = list()
         self.common_settings = common_settings
@@ -761,6 +759,8 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         # Context menu
         self.menu = QtGui.QMenu(self)
         self.menu.addAction("Delete selected files", self.delete_files)
+        self.menu.addAction("Update file meta-data", self.update_file_metadata)
+        
 
     def handle_new_snapshot_instance(self, snapshot):
         self.clear_file_selector()
@@ -947,6 +947,22 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                     except OSError as e:
                         warn = "Problem deleting file:\n" + str(e)
                         QtGui.QMessageBox.warning(self, "Warning", warn,
+                                                  QtGui.QMessageBox.Ok,
+                                                  QtGui.QMessageBox.NoButton)
+
+    def update_file_metadata(self):
+        if self.selected_files:
+            if len(self.selected_files) == 1:
+                settings_window = SnapshotEditMetadataDialog(
+                    self.file_list.get(self.selected_files[0])["meta_data"],
+                    self.common_settings, self)  # Destroyed when closed
+                settings_window.resize(800,200)
+                # if OK was pressed, update actual file and reflect changes in the list
+                if settings_window.exec_():
+                    self.snapshot.replace_metadata(self.selected_files[0], self.file_list.get(self.selected_files[0])["meta_data"])
+                    self.parent.clear_update_files()
+            else:
+                QtGui.QMessageBox.information(self, "Information", "Please select one file only",
                                                   QtGui.QMessageBox.Ok,
                                                   QtGui.QMessageBox.NoButton)
 
@@ -1882,3 +1898,63 @@ def start_gui(*args, **kwargs):
     gui = SnapshotGui(*args, **kwargs)
 
     sys.exit(app.exec_())
+
+class SnapshotEditMetadataDialog(QtGui.QDialog):
+    def __init__(self, metadata, common_settings, parent=None):
+        self.common_settings = common_settings
+        self.metadata = metadata
+
+        QtGui.QWidget.__init__(self, parent)
+        group_box = QtGui.QGroupBox("Meta-data", self)
+        group_box.setFlat(False)
+        layout = QtGui.QVBoxLayout()
+        form_layout = QtGui.QFormLayout()
+        form_layout.setFieldGrowthPolicy(QtGui.QFormLayout.AllNonFixedFieldsGrow)
+        form_layout.setMargin(10)
+        form_layout.setSpacing(10)
+        form_layout.setLabelAlignment(Qt.AlignRight)
+
+        # Make a field to enable user adding a comment
+        self.comment_input = QtGui.QLineEdit(self)
+        self.comment_input.setText(metadata["comment"])
+        form_layout.addRow("Comment:", self.comment_input)
+
+        # Make field for labels
+        self.labels_input = SnapshotKeywordSelectorWidget(common_settings, self)
+        for label in metadata["labels"]:
+            self.labels_input.add_to_selected(label)
+        form_layout.addRow("Labels:", self.labels_input)
+
+        self.button_box = QtGui.QDialogButtonBox(
+            QtGui.QDialogButtonBox.Ok | 
+            QtGui.QDialogButtonBox.Cancel, parent=self)
+
+        self.ok_button = self.button_box.button(QtGui.QDialogButtonBox.Ok)
+        self.cancel_button = self.button_box.button(QtGui.QDialogButtonBox.Cancel)
+
+        self.button_box.clicked.connect(self.handle_click)
+        group_box.setLayout(form_layout)
+        layout.addWidget(group_box)
+        layout.addWidget(self.button_box)
+
+        self.setLayout(layout)
+
+        # Widget as window
+        self.setWindowTitle("Edit meta-data")
+        self.setWindowFlags(Qt.Window | Qt.Tool)
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setAttribute(Qt.WA_X11NetWmWindowTypeMenu, True)
+        self.setEnabled(True)
+
+    def handle_click(self, button):
+        if button == self.ok_button:
+            self.apply_config()
+            self.close()
+        elif button == self.cancel_button:
+            self.close()
+
+    def apply_config(self):
+        self.metadata["comment"] = self.comment_input.text()
+        self.metadata["labels"].clear()
+        self.metadata["labels"] = self.labels_input.get_keywords()
+        self.accept()

@@ -482,6 +482,19 @@ class Snapshot:
                     not_connected_list.append(pv_name)
             return(not_connected_list)
 
+    def replace_metadata(self, save_file_path, metadata):
+        # Will replace metadata in the save file with the provided one
+        
+        with open(save_file_path, 'r') as file:
+            lines = file.readlines()
+            if lines[0].startswith('#'):
+                lines[0] = "#" + json.dumps(metadata) + "\n"
+            file.close()
+
+        with open(save_file_path, 'w') as file:
+            file.writelines(lines)
+            file.close()
+
     # Parser functions
 
     def parse_req_file(self, req_file_path):
