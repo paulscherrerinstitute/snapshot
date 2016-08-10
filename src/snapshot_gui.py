@@ -711,7 +711,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         QtGui.QWidget.__init__(self, parent, **kw)
 
         self.parent = parent
-        
+
         self.snapshot = snapshot
         self.selected_files = list()
         self.common_settings = common_settings
@@ -1128,9 +1128,27 @@ class SnapshotCompareWidget(QtGui.QWidget):
         # fill the compare view and start comparing
         self.populate_compare_list()
 
-        # Disable possibility to select item in the compare list
-        self.pv_view.setSelectionMode(QtGui.QAbstractItemView.NoSelection)
+        # Select max 1 item from the list. Do not use focus on this widget.
+        self.pv_view.setSelectionMode(QtGui.QAbstractItemView.SingleSelection)
         self.pv_view.setFocusPolicy(Qt.NoFocus)
+
+        # Context menu
+        self.pv_view.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.pv_view.customContextMenuRequested.connect(self.open_menu)
+        self.menu = QtGui.QMenu(self)
+        self.menu.addAction("Copy PV name",self.copy_pv_name)
+
+    def open_menu(self, point):
+        if len(self.pv_view.selectedItems()) > 0:
+            self.menu.show()
+            pos = self.pv_view.mapToGlobal(point)
+            pos += QtCore.QPoint(0, self.menu.sizeHint().height())
+            self.menu.move(pos)
+
+    def copy_pv_name(self):
+        cb = QtGui.QApplication.clipboard()
+        cb.clear(mode=cb.Clipboard )
+        cb.setText(self.pv_view.selectedItems()[0].text(0), mode=cb.Clipboard)
 
     def handle_new_snapshot_instance(self, snapshot):
         #self.new_selected_files(dict()) # act as there is no selected file
