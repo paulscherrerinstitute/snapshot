@@ -491,9 +491,9 @@ class Snapshot:
                 lines[0] = "#" + json.dumps(metadata) + "\n"
             file.close()
 
-        with open(save_file_path, 'w') as file:
-            file.writelines(lines)
-            file.close()
+            with open(save_file_path, 'w') as file:
+                file.writelines(lines)
+                file.close()
 
     # Parser functions
 

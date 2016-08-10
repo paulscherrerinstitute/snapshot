@@ -354,7 +354,6 @@ class SnapshotSaveWidget(QtGui.QWidget):
         # of saving. Will be unlocked when save is finished.
 
         #  Update name with latest timestamp and file prefix.
-        #  The function also handles comments and labels if advanced tab is selected
         self.update_name()
 
         if do_save and self.check_file_existance():
@@ -1943,7 +1942,7 @@ class SnapshotEditMetadataDialog(QtGui.QDialog):
         self.setWindowTitle("Edit meta-data")
         self.setWindowFlags(Qt.Window | Qt.Tool)
         self.setAttribute(Qt.WA_DeleteOnClose, True)
-        self.setAttribute(Qt.WA_X11NetWmWindowTypeMenu, True)
+        self.setAttribute(Qt.WA_X11NetWmWindowTypeDialog, True)
         self.setEnabled(True)
 
     def handle_click(self, button):
