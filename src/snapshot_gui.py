@@ -47,6 +47,7 @@ class SnapshotGui(QtGui.QMainWindow):
         # the application (such as directory with save files, request file
         # path, etc). It is propagated to other snapshot widgets if needed
         self.common_settings = dict()
+        self.common_settings["save_file_prefix"] = ""
         self.common_settings["req_file_name"] = ""
         self.common_settings["req_file_macros"] = dict()
         self.common_settings["existing_labels"] = list()
@@ -103,7 +104,6 @@ class SnapshotGui(QtGui.QMainWindow):
         open_new_req_file_action.triggered.connect(self.open_new_req_file)
         file_menu.addAction(open_new_req_file_action)
         menu_bar.addMenu(file_menu)
-
 
         # Status components are needed by other GUI elements
         self.status_log = SnapshotStatusLog(self)
@@ -184,7 +184,6 @@ class SnapshotGui(QtGui.QMainWindow):
         self.setWindowTitle(
             os.path.basename(self.common_settings["req_file_name"]) + ' - Snapshot')
 
-
     def handle_save_done(self):
         # When save is done, save widget is updated by itself
         # Update restore widget (new file in directory)
@@ -263,8 +262,6 @@ class SnapshotSaveWidget(QtGui.QWidget):
         # file name is: PREFIX_YYMMDD_hhmmss (holds time info)
         # Get the prefix ... use update_name() later
         self.save_file_sufix = ".snap"
-        self.name_base = os.path.split(
-            common_settings["req_file_name"])[1].split(".")[0] + "_"
 
         # Create layout and add GUI elements (input fields, buttons, ...)
         layout = QtGui.QVBoxLayout(self)
@@ -280,7 +277,6 @@ class SnapshotSaveWidget(QtGui.QWidget):
         extension_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
         extension_label.setMinimumWidth(min_label_width)
         self.extension_input = QtGui.QLineEdit(self)
-
         extension_layout.addWidget(extension_label)
         extension_layout.addWidget(self.extension_input)
 
@@ -288,18 +284,21 @@ class SnapshotSaveWidget(QtGui.QWidget):
         extension_rb_layout = QtGui.QHBoxLayout()
         extension_rb_layout.setSpacing(10)
         self.extension_input.textChanged.connect(self.update_name)
+
         file_name_label = QtGui.QLabel("File name: ", self)
         file_name_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
         file_name_label.setMinimumWidth(min_label_width)
         self.file_name_rb = QtGui.QLabel(self)
+
+        # Create collapsible group with advanced options, 
+        # then update output file name and finish adding widgets to layout
+        self.advanced = SnapshotAdvancedSaveSettings("Advanced", self.common_settings, self)
+
         self.update_name()
 
         extension_rb_layout.addWidget(file_name_label)
         extension_rb_layout.addWidget(self.file_name_rb)
         extension_rb_layout.addStretch()
-
-        # Create collapsible group with advanced options
-        self.advanced = SnapshotAdvancedSaveSettings("Advanced", self.common_settings, self)
 
         # Make Save button
         save_layout = QtGui.QHBoxLayout()
@@ -322,7 +321,6 @@ class SnapshotSaveWidget(QtGui.QWidget):
 
     def handle_new_snapshot_instance(self, snapshot):
         self.snapshot = snapshot
-        self.name_base = os.path.basename(self.snapshot.req_file_path).split(".")[0] + "_"
         self.extension_input.setText('')
         self.update_name()
         self.update_labels()
@@ -354,9 +352,9 @@ class SnapshotSaveWidget(QtGui.QWidget):
 
         # Update file name and chek if exists. Then disable button for the time
         # of saving. Will be unlocked when save is finished.
-        if not self.extension_input.text():
-            #  Update name with latest timestamp
-            self.update_name()
+
+        #  Update name with latest timestamp and file prefix.
+        self.update_name()
 
         if do_save and self.check_file_existance():
             self.save_button.setEnabled(False)
@@ -372,13 +370,16 @@ class SnapshotSaveWidget(QtGui.QWidget):
                 comment = ""
 
             # Start saving process and notify when finished
-            status, pvs_status = self.snapshot.save_pvs(self.file_path,
+            req_file_basename = os.path.basename(self.common_settings["req_file_name"])
+            status, pvs_status = self.snapshot.save_pvs(req_file_basename,
+                                                        self.file_path,
                                                         force=force,
                                                         labels=labels,
                                                         comment=comment,
-                                                        symlink_path= os.path.join(self.common_settings["save_dir"],
-                                                                                   self.name_base + 'latest' +
-                                                                                   self.save_file_sufix))
+                                                        symlink_path= os.path.join(
+                                                                        self.common_settings["save_dir"],
+                                                                        self.common_settings["save_file_prefix"] + 'latest' +
+                                                                        self.save_file_sufix))
             if status == ActionStatus.no_cnct:
                 self.sts_log.log_line(
                     "ERROR: Save rejected. One or more PVs not connected.")
@@ -424,10 +425,19 @@ class SnapshotSaveWidget(QtGui.QWidget):
         else:
             self.name_extension = name_extension_inp
             name_extension_rb = name_extension_inp + self.save_file_sufix
+
+        # Use manually entered prefix only if advanced options are selected
+        if self.advanced.file_prefix_input.text() and self.advanced.isChecked():
+            self.common_settings["save_file_prefix"] = self.advanced.file_prefix_input.text()
+        else:
+            self.common_settings["save_file_prefix"] = os.path.split(self.common_settings
+                ["req_file_name"])[1].split(".")[0] + "_"
+
         self.file_path = os.path.join(self.common_settings["save_dir"],
-                                      self.name_base + self.name_extension +
-                                      self.save_file_sufix)
-        self.file_name_rb.setText(self.name_base + name_extension_rb)
+                                      self.common_settings["save_file_prefix"] + 
+                                      self.name_extension + self.save_file_sufix)
+        self.file_name_rb.setText(self.common_settings["save_file_prefix"] +
+                                    name_extension_rb)
 
     def check_file_existance(self):
         # If file exists, user must decide whether to overwrite it or not
@@ -448,6 +458,8 @@ class SnapshotSaveWidget(QtGui.QWidget):
 
 class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
     def __init__(self, text, common_settings, parent=None):
+        self.parent = parent
+
         QtGui.QGroupBox.__init__(self, text, parent)
         self.setStyleSheet("background-color: rgba(0, 0, 0, 15)")
         min_label_width = 120
@@ -456,8 +468,9 @@ class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
         self.frame.setContentsMargins(0,20,0,0)
         self.frame.setStyleSheet("background-color: None")
         self.setCheckable(True)
-        self.toggled.connect(self.frame.setVisible)
+        self.frame.setVisible(False)
         self.setChecked(False)
+        self.toggled.connect(self.toggle)
 
         layout = QtGui.QVBoxLayout()
         layout.setMargin(0)
@@ -491,12 +504,30 @@ class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
         labels_layout.addWidget(labels_label)
         labels_layout.addWidget(self.labels_input)
 
+        # Make field for specifying save file prefix
+        file_prefix_layout = QtGui.QHBoxLayout()
+        file_prefix_layout.setSpacing(10)
+        file_prefix_label = QtGui.QLabel("File name prefix:", self.frame)
+        file_prefix_label.setStyleSheet("background-color: None")
+        file_prefix_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
+        file_prefix_label.setMinimumWidth(min_label_width)
+        self.file_prefix_input = QtGui.QLineEdit(self.frame)
+        file_prefix_layout.addWidget(file_prefix_label)
+        file_prefix_layout.addWidget(self.file_prefix_input)
+        self.file_prefix_input.textChanged.connect(
+            self.parent.update_name)
+
         #self.frame_layout.addStretch()
         self.frame_layout.addLayout(comment_layout)
         self.frame_layout.addLayout(labels_layout)
+        self.frame_layout.addLayout(file_prefix_layout)
 
     def update_labels(self):
         self.labels_input.update_sugested_keywords()
+
+    def toggle(self):
+        self.frame.setVisible(self.isChecked())
+        self.parent.update_name()
 
 
 # noinspection PyArgumentList
@@ -671,12 +702,15 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
     files.
     """
 
-    def __init__(self, snapshot, common_settings, parent=None, **kw):
+    def __init__(self, snapshot, common_settings, parent=None, save_file_sufix=".snap", **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
+
+        self.parent = parent
 
         self.snapshot = snapshot
         self.selected_files = list()
         self.common_settings = common_settings
+        self.save_file_sufix = save_file_sufix
 
         self.file_list = dict()
         self.pvs = dict()
@@ -720,6 +754,8 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         # Context menu
         self.menu = QtGui.QMenu(self)
         self.menu.addAction("Delete selected files", self.delete_files)
+        self.menu.addAction("Update file meta-data", self.update_file_metadata)
+        
 
     def handle_new_snapshot_instance(self, snapshot):
         self.clear_file_selector()
@@ -730,12 +766,11 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
     def start_file_list_update(self):
         # Rescans directory and adds new/modified files and removes none
         # existing ones from the list.
-        file_prefix = os.path.split(
-            self.common_settings["req_file_name"])[1].split(".")[0] + "_"
-
-        updated_files = self.update_file_list_selector(self.get_save_files(self.common_settings["save_dir"],
-                                                                           file_prefix,
-                                                                           self.file_list))
+        updated_files = self.update_file_list_selector(
+                            self.get_save_files(
+                                self.common_settings["save_dir"],
+                                self.common_settings["save_file_prefix"],
+                                self.file_list))
         self.filter_file_list_selector()
         return updated_files
 
@@ -746,20 +781,35 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         # Check if any file added or modified (time of modification)
         for file_name in os.listdir(save_dir):
             file_path = os.path.join(save_dir, file_name)
-            if os.path.isfile(file_path) and file_name.startswith(name_prefix):
+            if os.path.isfile(file_path) and file_name.endswith(self.save_file_sufix):
                 if (file_name not in current_files) or \
                    (current_files[file_name]["modif_time"] != os.path.getmtime(file_path)):
 
                     pvs_list, meta_data = self.snapshot.parse_from_save_file(
                         file_path)
 
-                    # save data (no need to open file again later))
-                    parsed_save_files[file_name] = dict()
-                    parsed_save_files[file_name]["pvs_lis" \
-                                                 "t"] = pvs_list
-                    parsed_save_files[file_name]["meta_data"] = meta_data
-                    parsed_save_files[file_name][
-                        "modif_time"] = os.path.getmtime(file_path)
+                    # check if we have req_file metadata. This is used to determine which
+                    # request file the save file belongs to.
+                    # If there is no metadata (or no req_file specified in the metadata) 
+                    # we search using a prefix of the request file. 
+                    # The latter is less robust, but is backwards compatible.
+                    if ("req_file_name" in meta_data and \
+                            meta_data["req_file_name"] == self.common_settings["req_file_name"]) \
+                            or file_name.startswith(name_prefix):
+
+                        # we really hould have basic meta data
+                        # (or filters and some other stuff will silently fail)
+                        if "comment" not in meta_data:
+                            meta_data["comment"] = ""
+                        if "labels" not in meta_data:
+                            meta_data["labels"] = []
+
+                        # save data (no need to open file again later))
+                        parsed_save_files[file_name] = dict()
+                        parsed_save_files[file_name]["pvs_list"] = pvs_list
+                        parsed_save_files[file_name]["meta_data"] = meta_data
+                        parsed_save_files[file_name][
+                            "modif_time"] = os.path.getmtime(file_path)
 
         return parsed_save_files
 
@@ -907,6 +957,22 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                     except OSError as e:
                         warn = "Problem deleting file:\n" + str(e)
                         QtGui.QMessageBox.warning(self, "Warning", warn,
+                                                  QtGui.QMessageBox.Ok,
+                                                  QtGui.QMessageBox.NoButton)
+
+    def update_file_metadata(self):
+        if self.selected_files:
+            if len(self.selected_files) == 1:
+                settings_window = SnapshotEditMetadataDialog(
+                    self.file_list.get(self.selected_files[0])["meta_data"],
+                                        self.common_settings, self)
+                settings_window.resize(800,200)
+                # if OK was pressed, update actual file and reflect changes in the list
+                if settings_window.exec_():
+                    self.snapshot.replace_metadata(self.selected_files[0], self.file_list.get(self.selected_files[0])["meta_data"])
+                    self.parent.clear_update_files()
+            else:
+                QtGui.QMessageBox.information(self, "Information", "Please select one file only",
                                                   QtGui.QMessageBox.Ok,
                                                   QtGui.QMessageBox.NoButton)
 
@@ -1073,9 +1139,27 @@ class SnapshotCompareWidget(QtGui.QWidget):
         # fill the compare view and start comparing
         self.populate_compare_list()
 
-        # Disable possibility to select item in the compare list
-        self.pv_view.setSelectionMode(QtGui.QAbstractItemView.NoSelection)
+        # Select max 1 item from the list. Do not use focus on this widget.
+        self.pv_view.setSelectionMode(QtGui.QAbstractItemView.SingleSelection)
         self.pv_view.setFocusPolicy(Qt.NoFocus)
+
+        # Context menu
+        self.pv_view.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.pv_view.customContextMenuRequested.connect(self.open_menu)
+        self.menu = QtGui.QMenu(self)
+        self.menu.addAction("Copy PV name",self.copy_pv_name)
+
+    def open_menu(self, point):
+        if len(self.pv_view.selectedItems()) > 0:
+            self.menu.show()
+            pos = self.pv_view.mapToGlobal(point)
+            pos += QtCore.QPoint(0, self.menu.sizeHint().height())
+            self.menu.move(pos)
+
+    def copy_pv_name(self):
+        cb = QtGui.QApplication.clipboard()
+        cb.clear(mode=cb.Clipboard )
+        cb.setText(self.pv_view.selectedItems()[0].text(0), mode=cb.Clipboard)
 
     def handle_new_snapshot_instance(self, snapshot):
         #self.new_selected_files(dict()) # act as there is no selected file
@@ -1829,6 +1913,66 @@ class SnapshotKeywordWidget(QtGui.QFrame):
         # Emit delete signal with information about removed keyword.
         # main widget will take care of removing it from the list.
         self.emit(SIGNAL("delete"), self.keyword)
+
+
+class SnapshotEditMetadataDialog(QtGui.QDialog):
+    def __init__(self, metadata, common_settings, parent=None):
+        self.common_settings = common_settings
+        self.metadata = metadata
+
+        QtGui.QDialog.__init__(self, parent)
+        group_box = QtGui.QGroupBox("Meta-data", self)
+        group_box.setFlat(False)
+        layout = QtGui.QVBoxLayout()
+        form_layout = QtGui.QFormLayout()
+        form_layout.setFieldGrowthPolicy(QtGui.QFormLayout.AllNonFixedFieldsGrow)
+        form_layout.setMargin(10)
+        form_layout.setSpacing(10)
+        form_layout.setLabelAlignment(Qt.AlignRight)
+
+        # Make a field to enable user adding a comment
+        self.comment_input = QtGui.QLineEdit(self)
+        self.comment_input.setText(metadata["comment"])
+        form_layout.addRow("Comment:", self.comment_input)
+
+        # Make field for labels
+        self.labels_input = SnapshotKeywordSelectorWidget(common_settings, self)
+        for label in metadata["labels"]:
+            self.labels_input.add_to_selected(label)
+        form_layout.addRow("Labels:", self.labels_input)
+
+        self.button_box = QtGui.QDialogButtonBox(
+            QtGui.QDialogButtonBox.Ok | 
+            QtGui.QDialogButtonBox.Cancel, parent=self)
+
+        self.ok_button = self.button_box.button(QtGui.QDialogButtonBox.Ok)
+        self.cancel_button = self.button_box.button(QtGui.QDialogButtonBox.Cancel)
+
+        self.button_box.clicked.connect(self.handle_click)
+        group_box.setLayout(form_layout)
+        layout.addWidget(group_box)
+        layout.addWidget(self.button_box)
+
+        self.setLayout(layout)
+
+        # Widget as window
+        self.setWindowTitle("Edit meta-data")
+        self.setWindowFlags(Qt.Window | Qt.Tool)
+        self.setEnabled(True)
+
+    def handle_click(self, button):
+        if button == self.ok_button:
+            self.apply_config()
+            self.close()
+        elif button == self.cancel_button:
+            self.close()
+
+    def apply_config(self):
+        self.metadata["comment"] = self.comment_input.text()
+        self.metadata["labels"].clear()
+        self.metadata["labels"] = self.labels_input.get_keywords()
+        self.accept()
+
 
 # This function should be called from outside, to start the gui
 def start_gui(*args, **kwargs):

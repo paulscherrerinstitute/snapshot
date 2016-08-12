@@ -253,14 +253,18 @@ class Snapshot:
             self.update_all_connected_status()
 
 
-    def save_pvs(self, save_file_path, force=False, symlink_path=None, **kw):
+    def save_pvs(self, req_file_name, save_file_path, force=False, symlink_path=None, **kw):
         # get value of all PVs and save them to file
         # All other parameters (packed in kw) are appended to file as meta data
         pvs_status = dict()
         if not force and not self.all_connected:
             return(ActionStatus.no_cnct, pvs_status)
 
+        # Update metadata
         kw["save_time"] = time.time()
+        if req_file_name:
+            kw["req_file_name"] = req_file_name
+
         for key in self.pvs:
             pvs_status[key] = self.pvs[key].save_pv()
         self.parse_to_save_file(save_file_path, self.macros, symlink_path, **kw)
@@ -482,6 +486,19 @@ class Snapshot:
                     not_connected_list.append(pv_name)
             return(not_connected_list)
 
+    def replace_metadata(self, save_file_path, metadata):
+        # Will replace metadata in the save file with the provided one
+        
+        with open(save_file_path, 'r') as save_file:
+            lines = save_file.readlines()
+            if lines[0].startswith('#'):
+                lines[0] = "#" + json.dumps(metadata) + "\n"
+            else:
+                lines.insert(0, "#" + json.dumps(metadata) + "\n")
+
+            with open(save_file_path, 'w') as save_file_write:
+                save_file_write.writelines(lines)
+
     # Parser functions
 
     def parse_req_file(self, req_file_path):
@@ -537,36 +554,46 @@ class Snapshot:
         # This function is called in compare function.
         # This is a parser which has a desired value for each PV.
         # To support other format of file, override this method in subclass
+        # Note: This function does not detect if we have a valid save file,
+        # or just something that was successfuly parsed
 
         saved_pvs = dict()
         meta_data = dict()  # If macros were used they will be saved in meta_data
         saved_file = open(save_file_path)
         meta_loaded = False
-        for line in saved_file:
-            # first line with # is metadata (as json dump of dict)
-            if line.startswith('#') and not meta_loaded:
-                line = line[1:]
-                meta_data = json.loads(line)
-                meta_loaded = True
-            # skip empty lines and all rest with #
-            elif line.strip() and not line.startswith('#'):
-                split_line = line.strip().split(',', 1)
-                pv_name = split_line[0]
-                if len(split_line) > 1:
-                    pv_value_str = split_line[1]
-                    # In case of array it will return a list, otherwise value
-                    # of proper type
-                    pv_value = json.loads(pv_value_str)
 
-                    if isinstance(pv_value, list):
-                        # arrays as numpy array, because pyepics returns
-                        # as numpy array
-                        pv_value = numpy.asarray(pv_value)
-                else:
-                    pv_value = None
+        try:
+            for line in saved_file:
+                # first line with # is metadata (as json dump of dict)
+                if line.startswith('#') and not meta_loaded:
+                    line = line[1:]
+                    meta_data = json.loads(line)
+                    meta_loaded = True
+                # skip empty lines and all rest with #
+                elif line.strip() and not line.startswith('#'):
+                    split_line = line.strip().split(',', 1)
+                    pv_name = split_line[0]
+                    if len(split_line) > 1:
+                        pv_value_str = split_line[1]
+                        # In case of array it will return a list, otherwise value
+                        # of proper type
+                        pv_value = json.loads(pv_value_str)
 
-                saved_pvs[pv_name] = dict()
-                saved_pvs[pv_name]['pv_value'] = pv_value
+                        if isinstance(pv_value, list):
+                            # arrays as numpy array, because pyepics returns
+                            # as numpy array
+                            pv_value = numpy.asarray(pv_value)
+                    else:
+                        pv_value = None
+
+                    saved_pvs[pv_name] = dict()
+                    saved_pvs[pv_name]['pv_value'] = pv_value
+        except:
+            # there was an error reading a file. Just pass by what was read.
+            # Note that if only the metadata can't be parsed, the rest
+            # of the file is not read.
+            pass
+
         saved_file.close()
         return(saved_pvs, meta_data)
 
