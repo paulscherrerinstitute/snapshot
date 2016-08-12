@@ -6,8 +6,10 @@ from .snapshot_ca import PvStatus, ActionStatus, Snapshot, macros_substitution, 
 
 
 def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10):
+    req_file_name = os.path.basename(req_file_path)
+
     if os.path.isdir(save_file_path):
-        save_file_path += '/{}_{}.snap'.format(os.path.splitext(os.path.basename(req_file_path))[0],
+        save_file_path += '/{}_{}.snap'.format(os.path.splitext(req_file_name)[0],
                                               datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M%S'))
 
     logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
@@ -22,7 +24,7 @@ def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10
     while not snapshot.all_connected and time.time() < end_time:
         time.sleep(0.2)
 
-    status, pv_status = snapshot.save_pvs(save_file_path, force)
+    status, pv_status = snapshot.save_pvs(req_file_name, save_file_path, force)
 
     if status != ActionStatus.ok:
         for pv_name in snapshot.get_not_connected_pvs_names():
