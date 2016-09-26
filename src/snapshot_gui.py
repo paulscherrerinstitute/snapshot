@@ -48,7 +48,7 @@ class SnapshotGui(QtGui.QMainWindow):
         # path, etc). It is propagated to other snapshot widgets if needed
         self.common_settings = dict()
         self.common_settings["save_file_prefix"] = ""
-        self.common_settings["req_file_name"] = ""
+        self.common_settings["req_file_path"] = ""
         self.common_settings["req_file_macros"] = dict()
         self.common_settings["existing_labels"] = list()
         self.common_settings["force"] = force
@@ -62,18 +62,18 @@ class SnapshotGui(QtGui.QMainWindow):
             self.configure_dialog.exec_()
 
         else:
-            self.common_settings["req_file_name"] = os.path.abspath(req_file_name)
+            self.common_settings["req_file_path"] = os.path.abspath(req_file_name)
             self.common_settings["req_file_macros"] = req_file_macros
 
         if not save_dir:
             # Default save dir
-            save_dir = os.path.dirname(self.common_settings["req_file_name"])
+            save_dir = os.path.dirname(self.common_settings["req_file_path"])
 
         self.common_settings["save_dir"] = os.path.abspath(save_dir)
         self.common_settings["pvs_to_restore"] = list()
 
         # Before creating GUI, snapshot must be initialized.
-        self.init_snapshot(self.common_settings["req_file_name"],
+        self.init_snapshot(self.common_settings["req_file_path"],
                            self.common_settings["req_file_macros"])
 
         # Create main GUI components:
@@ -155,7 +155,7 @@ class SnapshotGui(QtGui.QMainWindow):
         # Show GUI and manage window properties
         self.show()
         self.setWindowTitle(
-            os.path.basename(self.common_settings["req_file_name"]) + ' - Snapshot')
+            os.path.basename(self.common_settings["req_file_path"]) + ' - Snapshot')
 
         # Status log default height should be 100px Set with splitter methods
         widgets_sizes = main_splitter.sizes()
@@ -167,14 +167,14 @@ class SnapshotGui(QtGui.QMainWindow):
         self.snapshot.stop_continuous_compare()
 
         self.configure_dialog = SnapshotConfigureDialog(self, init_path=os.path.dirname(
-            self.common_settings['req_file_name']))
+            self.common_settings['req_file_path']))
         self.configure_dialog.accepted.connect(self.change_req_file)
         self.configure_dialog.exec_()
 
     def change_req_file(self):
         self.set_request_file()
 
-        self.init_snapshot(self.common_settings['req_file_name'], self.common_settings['req_file_macros'])
+        self.init_snapshot(self.common_settings['req_file_path'], self.common_settings['req_file_macros'])
 
         # handle all gui components
         self.restore_widget.handle_new_snapshot_instance(self.snapshot)
@@ -182,7 +182,7 @@ class SnapshotGui(QtGui.QMainWindow):
         self.compare_widget.handle_new_snapshot_instance(self.snapshot)
 
         self.setWindowTitle(
-            os.path.basename(self.common_settings["req_file_name"]) + ' - Snapshot')
+            os.path.basename(self.common_settings["req_file_path"]) + ' - Snapshot')
 
     def handle_save_done(self):
         # When save is done, save widget is updated by itself
@@ -190,7 +190,7 @@ class SnapshotGui(QtGui.QMainWindow):
         self.restore_widget.update_files()
 
     def set_request_file(self):
-        self.common_settings["req_file_name"] = self.configure_dialog.file_path
+        self.common_settings["req_file_path"] = self.configure_dialog.file_path
         self.common_settings["req_file_macros"] = self.configure_dialog.macros
 
     def init_snapshot(self, req_file_path, req_macros = None):
@@ -370,16 +370,15 @@ class SnapshotSaveWidget(QtGui.QWidget):
                 comment = ""
 
             # Start saving process and notify when finished
-            req_file_basename = os.path.basename(self.common_settings["req_file_name"])
-            status, pvs_status = self.snapshot.save_pvs(req_file_basename,
+            status, pvs_status = self.snapshot.save_pvs(os.path.basename(self.common_settings["req_file_path"]),
                                                         self.file_path,
                                                         force=force,
                                                         labels=labels,
                                                         comment=comment,
                                                         symlink_path= os.path.join(
                                                                         self.common_settings["save_dir"],
-                                                                        self.common_settings["save_file_prefix"] + 'latest' +
-                                                                        self.save_file_sufix))
+                                                                        self.common_settings["save_file_prefix"] +
+                                                                        'latest' + self.save_file_sufix))
             if status == ActionStatus.no_cnct:
                 self.sts_log.log_line(
                     "ERROR: Save rejected. One or more PVs not connected.")
@@ -431,7 +430,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
             self.common_settings["save_file_prefix"] = self.advanced.file_prefix_input.text()
         else:
             self.common_settings["save_file_prefix"] = os.path.split(self.common_settings
-                ["req_file_name"])[1].split(".")[0] + "_"
+                ["req_file_path"])[1].split(".")[0] + "_"
 
         self.file_path = os.path.join(self.common_settings["save_dir"],
                                       self.common_settings["save_file_prefix"] + 
@@ -769,15 +768,15 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         updated_files = self.update_file_list_selector(
                             self.get_save_files(
                                 self.common_settings["save_dir"],
-                                self.common_settings["save_file_prefix"],
                                 self.file_list))
         self.filter_file_list_selector()
         return updated_files
 
-    def get_save_files(self, save_dir, name_prefix, current_files):
+    def get_save_files(self, save_dir, current_files):
         # Parses all new or modified files. Parsed files are returned as a
         # dictionary.
         parsed_save_files = dict()
+        req_file_name = os.path.basename(self.common_settings["req_file_path"])
         # Check if any file added or modified (time of modification)
         for file_name in os.listdir(save_dir):
             file_path = os.path.join(save_dir, file_name)
@@ -794,10 +793,9 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                     # we search using a prefix of the request file. 
                     # The latter is less robust, but is backwards compatible.
                     if ("req_file_name" in meta_data and \
-                            meta_data["req_file_name"] == self.common_settings["req_file_name"]) \
-                            or file_name.startswith(name_prefix):
-
-                        # we really hould have basic meta data
+                            meta_data["req_file_name"] == req_file_name) \
+                            or file_name.startswith(req_file_name.split(".")[0] + "_"):
+                        # we really should have basic meta data
                         # (or filters and some other stuff will silently fail)
                         if "comment" not in meta_data:
                             meta_data["comment"] = ""
@@ -1631,7 +1629,8 @@ class SnapshotSettingsDialog(QtGui.QWidget):
     def monitor_changes(self):
         parsed_macros = parse_macros(self.macro_input.text())
 
-        if (parsed_macros != self.curr_macros) or (self.save_dir_input.text() != self.curr_save_dir) or (self.force_input.isChecked() != self.curr_forced):
+        if (parsed_macros != self.curr_macros) or (self.save_dir_input.text() != self.curr_save_dir) or\
+                (self.force_input.isChecked() != self.curr_forced):
             self.ok_button.setDisabled(False)
             self.apply_button.setDisabled(False)
         else:
@@ -1649,7 +1648,8 @@ class SnapshotSettingsDialog(QtGui.QWidget):
                 self.curr_save_dir = self.save_dir_input.text()
             else:
                 # Prompt user that path is not valid
-                warn = "Cannot set saved files directory to: \"" + self.save_dir_input.text() + "\". Check if it is valid path to directory."
+                warn = "Cannot set saved files directory to: \"" + self.save_dir_input.text() +\
+                       "\". Check if it is valid path to directory."
                 QtGui.QMessageBox.warning(self, "Warning", warn,
                                           QtGui.QMessageBox.Ok)
                 self.save_dir_input.setText(self.curr_save_dir)
