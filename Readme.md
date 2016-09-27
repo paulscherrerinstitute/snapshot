@@ -25,50 +25,49 @@ After snapshot is build and deployed as conda package (see section [Instalation]
 To use graphical interface snapshot must be started with following command:
 
 ```bash
-snapshot [-h] [-macro MACRO] [-dir DIR] [-base BASE] [--force] [FILE]
+snapshot.py [-h] [-m MACRO] [-d DIR] [-b BASE] [-f] [FILE]
 
 Longer version of same command:
-snapshot gui [-h] [-macro MACRO] [-dir DIR] [-base BASE] [--force] [FILE]
+snapshot.py gui [-h] [-m MACRO] [-d DIR] [-b BASE] [-f] [FILE]
 
 positional arguments:
-  FILE                  request file
+  FILE                  request file.
 
-optional arguments:
   -h, --help            show this help message and exit
-  -macro MACRO, -m MACRO
+  -m MACRO, --macro MACRO
                         macros for request file e.g.: "SYS=TEST,DEV=D1"
-  -dir DIR, -d DIR      directory for saved files
-  -base BASE, -b BASE   base directory for opening request files
-  --force, -f           force save/restore in case of disconnected PVs
+  -d DIR, --dir DIR     directory for saved snapshot files
+  -b BASE, --base BASE  base directory for request files
+  -f, --force           force save/restore in case of disconnected PVs
 ```
 
 To be used as command line tool it must be run either with `snapshot save` or `snapshot restore` depending on action needed.
 
 ```bash
-snapshot save [-h] [-macro MACRO] [-out OUT] [--force] [-timeout TIMEOUT] FILE
+snapshot.py save [-h] [-m MACRO] [-o OUT] [-f] [--timeout TIMEOUT] FILE
 
 positional arguments:
   FILE                  request file
 
 optional arguments:
   -h, --help            show this help message and exit
-  -macro MACRO, -m MACRO
+  -m MACRO, --macro MACRO
                         macros for request file e.g.: "SYS=TEST,DEV=D1"
-  -out OUT, -o OUT      Output path/file.
-  --force, -f           force save in case of disconnected PVs after timeout
-  -timeout TIMEOUT      max time waiting for PVs to be connected
+  -o OUT, --out OUT     Output path/file.
+  -f, --force           force save in case of disconnected PVs after timeout
+  --timeout TIMEOUT     max time waiting for PVs to be connected
 ```
 
 ```bash
-snapshot restore [-h] [--force] [-timeout TIMEOUT] FILE
+snapshot.py restore [-h] [-f] [--timeout TIMEOUT] FILE
 
 positional arguments:
-  FILE              saved file
+  FILE               saved snapshot file
 
 optional arguments:
-  -h, --help        show this help message and exit
-  --force, -f       force restore in case of disconnected PVs after timeout
-  -timeout TIMEOUT  max time waiting for PVs to be connected and restored
+  -h, --help         show this help message and exit
+  -f, --force        force restore in case of disconnected PVs after timeout
+  --timeout TIMEOUT  max time waiting for PVs to be connected and restored
 ```
 
 ## Format of saved files

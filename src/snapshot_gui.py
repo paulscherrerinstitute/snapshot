@@ -37,9 +37,11 @@ class SnapshotGui(QtGui.QMainWindow):
     thread where core of the application is running
     """
 
-    def __init__(self, req_file_name=None, req_file_macros=dict(),
+    def __init__(self, req_file_name=None, req_file_macros=None,
                  save_dir=None, force=False, parent=None, init_path=None):
         QtGui.QMainWindow.__init__(self, parent)
+        if req_file_macros is None:
+            req_file_name = dict()
 
         self.resize(1500, 850)
 
@@ -55,6 +57,7 @@ class SnapshotGui(QtGui.QMainWindow):
 
         if not req_file_name:
             self.configure_dialog = SnapshotConfigureDialog(self, init_path=init_path)
+            self.configure_dialog.macros_input.setText(parse_dict_macros_to_text(req_file_macros))
             self.configure_dialog.accepted.connect(self.set_request_file)
             self.configure_dialog.rejected.connect(self.close_gui)
 
@@ -1557,6 +1560,9 @@ class SnapshotConfigureDialog(QtGui.QDialog):
                                       QtGui.QMessageBox.Ok,
                                       QtGui.QMessageBox.NoButton)
 
+    def focusInEvent(self, event):
+        self.file_selector.setFocus()
+
 
 class SnapshotSettingsDialog(QtGui.QWidget):
     def __init__(self, common_settings, parent=None):
@@ -1732,6 +1738,9 @@ class SnapshotFileSelector(QtGui.QWidget):
 
     def setText(self, text):
         self.file_path_input.setText(text)
+
+    def focusInEvent(self, event):
+        self.file_path_input.setFocus()
 
 
 class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
