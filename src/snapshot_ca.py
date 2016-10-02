@@ -274,7 +274,7 @@ class Snapshot:
         # Parsers the file and loads value to corresponding objects
         # Can be later used for compare and restore
 
-        saved_pvs, meta_data = self.parse_from_save_file(save_file_path)
+        saved_pvs, meta_data, err = self.parse_from_save_file(save_file_path)
         self.prepare_pvs_to_restore_from_list(saved_pvs, meta_data.get('macros', dict()))
 
     def prepare_pvs_to_restore_from_list(self, saved_pvs_raw, custom_macros = dict()):
@@ -559,43 +559,49 @@ class Snapshot:
 
         saved_pvs = dict()
         meta_data = dict()  # If macros were used they will be saved in meta_data
+        err = list()
         saved_file = open(save_file_path)
         meta_loaded = False
 
-        try:
-            for line in saved_file:
-                # first line with # is metadata (as json dump of dict)
-                if line.startswith('#') and not meta_loaded:
-                    line = line[1:]
+        for line in saved_file:
+            # first line with # is metadata (as json dump of dict)
+            if line.startswith('#') and not meta_loaded:
+                line = line[1:]
+                try:
                     meta_data = json.loads(line)
-                    meta_loaded = True
-                # skip empty lines and all rest with #
-                elif line.strip() and not line.startswith('#'):
-                    split_line = line.strip().split(',', 1)
-                    pv_name = split_line[0]
-                    if len(split_line) > 1:
-                        pv_value_str = split_line[1]
-                        # In case of array it will return a list, otherwise value
-                        # of proper type
+                except json.decoder.JSONDecodeError:
+                    # Problem reading metadata
+                    err.append('Meta data could not be decoded. Must be in JSON format.')
+                meta_loaded = True
+            # skip empty lines and all rest with #
+            elif line.strip() and not line.startswith('#'):
+                split_line = line.strip().split(',', 1)
+                pv_name = split_line[0]
+                if len(split_line) > 1:
+                    pv_value_str = split_line[1]
+                    # In case of array it will return a list, otherwise value
+                    # of proper type
+                    try:
                         pv_value = json.loads(pv_value_str)
-
-                        if isinstance(pv_value, list):
-                            # arrays as numpy array, because pyepics returns
-                            # as numpy array
-                            pv_value = numpy.asarray(pv_value)
-                    else:
+                    except json.decoder.JSONDecodeError:
                         pv_value = None
+                        err.append('Value of \'{}\' cannot be decoded. Will be ignored.'.format(pv_name))
 
-                    saved_pvs[pv_name] = dict()
-                    saved_pvs[pv_name]['pv_value'] = pv_value
-        except:
-            # there was an error reading a file. Just pass by what was read.
-            # Note that if only the metadata can't be parsed, the rest
-            # of the file is not read.
-            pass
+                    if isinstance(pv_value, list):
+                        # arrays as numpy array, because pyepics returns
+                        # as numpy array
+                        pv_value = numpy.asarray(pv_value)
+                else:
+                    pv_value = None
+
+                saved_pvs[pv_name] = dict()
+                saved_pvs[pv_name]['pv_value'] = pv_value
+
+        if not meta_loaded:
+            err.insert(0, 'No meta data in the file.')
 
         saved_file.close()
-        return(saved_pvs, meta_data)
+        return(saved_pvs, meta_data, err)
 
 
 # Helper functions functions to support macros parsing for users of this lib

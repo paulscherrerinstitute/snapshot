@@ -768,17 +768,41 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
     def start_file_list_update(self):
         # Rescans directory and adds new/modified files and removes none
         # existing ones from the list.
-        updated_files = self.update_file_list_selector(
-                            self.get_save_files(
-                                self.common_settings["save_dir"],
-                                self.file_list))
+        save_files, err_to_report = self.get_save_files(self.common_settings["save_dir"], self.file_list)
+
+        updated_files = self.update_file_list_selector(save_files)
+
         self.filter_file_list_selector()
+        # Report any errors with snapshot files to the user
+        err_details = ""
+        if err_to_report:
+            for item in err_to_report:
+                if item[1]: # list of errors
+
+                    err_details += '- - - ' + item[0] + \
+                                   ' - - -\n * ' # file name
+                    err_details += '\n * '.join(item[1])
+                    err_details += '\n\n'
+
+            err_details = err_details[:-2]  # Remove last two new lines
+
+        if err_details:
+            msg = str(len(err_to_report)) + " of the snapshot saved files (.snap) were loaded with errors " \
+                                            "(see details)."
+            msg_window = QtGui.QMessageBox(self)
+            msg_window.setWindowTitle("Warning")
+            msg_window.setText(msg)
+            msg_window.setDetailedText(err_details)
+            msg_window.setStandardButtons(QtGui.QMessageBox.Ok)
+            reply = msg_window.exec_()
+
         return updated_files
 
     def get_save_files(self, save_dir, current_files):
         # Parses all new or modified files. Parsed files are returned as a
         # dictionary.
         parsed_save_files = dict()
+        err_to_report = list()
         req_file_name = os.path.basename(self.common_settings["req_file_path"])
         # Check if any file added or modified (time of modification)
         for file_name in os.listdir(save_dir):
@@ -787,7 +811,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                 if (file_name not in current_files) or \
                    (current_files[file_name]["modif_time"] != os.path.getmtime(file_path)):
 
-                    pvs_list, meta_data = self.snapshot.parse_from_save_file(
+                    pvs_list, meta_data, err = self.snapshot.parse_from_save_file(
                         file_path)
 
                     # check if we have req_file metadata. This is used to determine which
@@ -812,7 +836,10 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                         parsed_save_files[file_name][
                             "modif_time"] = os.path.getmtime(file_path)
 
-        return parsed_save_files
+                        if err:  # report errors only for matching saved files
+                            err_to_report.append((file_name, err))
+
+        return(parsed_save_files, err_to_report)
 
     def update_file_list_selector(self, modif_file_list):
 

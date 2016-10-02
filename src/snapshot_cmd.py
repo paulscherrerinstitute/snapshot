@@ -38,7 +38,13 @@ def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10
 
 
 def restore(saved_file_path, force=False, timeout=10):
-    snapshot = Snapshot(saved_file_path)
+    snapshot = Snapshot(saved_file_path) # Use saved file as request file here
+
+    # Prparse file to check for any problems in the snapshot file.
+    saved_pvs, meta_data, err = snapshot.parse_from_save_file(saved_file_path)
+
+    if err:
+        logging.warning('While loading file following problems were detected:\n * ' + '\n * '.join(err))
 
     end_time = time.time() + timeout
     while not snapshot.all_connected and time.time() < end_time:
