@@ -235,6 +235,7 @@ class SnapshotGui(QtGui.QMainWindow):
                 self.restore_widget.clear_update_files()
 
     def close_gui(self):
+        stop_snapshot_app() # shutdown CA
         sys.exit()
 
 

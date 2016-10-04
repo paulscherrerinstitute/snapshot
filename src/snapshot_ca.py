@@ -73,7 +73,6 @@ class SnapshotPv(PV):
             if self.read_access:
                 self.saved_value = self.get(use_monitor=True)
                 if self.is_array:
-                    print(self.count)
                     if numpy.size(self.saved_value) == 0:
                         # Empty array is equal to "None" scalar value
                         self.saved_value = None
@@ -534,7 +533,6 @@ class Snapshot:
         for pv_name, pv_ref in self.pvs.items():
             if pv_ref.saved_value is not None:
                 if pv_ref.is_array:
-                    print(isinstance(pv_ref.saved_value, numpy.ndarray))
                     save_file.write(pv_ref.pvname_raw + "," + json.dumps(pv_ref.saved_value.tolist()) + "\n")
                 else:
                     save_file.write(pv_ref.pvname_raw + "," + json.dumps(pv_ref.saved_value) + "\n")
@@ -603,6 +601,10 @@ class Snapshot:
         saved_file.close()
         return(saved_pvs, meta_data, err)
 
+def stop_snapshot_app():
+    """ Shut down channel access. """
+    # Should be called when closing the application
+    ca.finalize_libca()
 
 # Helper functions functions to support macros parsing for users of this lib
 def parse_macros(macros_str):
