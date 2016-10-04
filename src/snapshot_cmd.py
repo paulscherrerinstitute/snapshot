@@ -2,9 +2,7 @@ import time
 import datetime
 import logging
 import os
-from .snapshot_ca import PvStatus, ActionStatus, Snapshot, macros_substitution, parse_macros, parse_dict_macros_to_text, stop_snapshot_app
-import epics
-
+from .snapshot_ca import PvStatus, ActionStatus, Snapshot, macros_substitution, parse_macros, parse_dict_macros_to_text
 
 def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10):
     req_file_name = os.path.basename(req_file_path)
@@ -36,8 +34,6 @@ def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10
             if status == PvStatus.access_err:
                 logging.info('\"{}\": Not saved. No connection or no read access.'.format(pv_name))
         logging.info('Snapshot file was saved.')
-
-    stop_snapshot_app() # shutdown CA
 
 
 def restore(saved_file_path, force=False, timeout=10):
@@ -71,4 +67,3 @@ def restore(saved_file_path, force=False, timeout=10):
             logging.error('\"{}\" cannot be accessed.'.format(pv_name))
         logging.info('Snapshot file was not restored.')
 
-    stop_snapshot_app() # shutdown CA

@@ -6,6 +6,10 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 from epics import *
+ca.AUTO_CLEANUP = True  # For pyepics versions older than 3.2.4, this was set to True only for
+                      # python 2 but not for python 3, which resulted in errors when closing
+                      # the application. If true, ca.finalize_libca() is called when app is
+                      # closed
 import numpy
 import json
 import time
@@ -600,11 +604,6 @@ class Snapshot:
 
         saved_file.close()
         return(saved_pvs, meta_data, err)
-
-def stop_snapshot_app():
-    """ Shut down channel access. """
-    # Should be called when closing the application
-    ca.finalize_libca()
 
 # Helper functions functions to support macros parsing for users of this lib
 def parse_macros(macros_str):
