@@ -38,7 +38,7 @@ class SnapshotGui(QtGui.QMainWindow):
     """
 
     def __init__(self, req_file_name=None, req_file_macros=None,
-                 save_dir=None, force=False, parent=None, init_path=None):
+                 save_dir=None, force=False, default_labels=None, init_path=None, parent=None):
         QtGui.QMainWindow.__init__(self, parent)
         if req_file_macros is None:
             req_file_name = dict()
@@ -52,7 +52,15 @@ class SnapshotGui(QtGui.QMainWindow):
         self.common_settings["save_file_prefix"] = ""
         self.common_settings["req_file_path"] = ""
         self.common_settings["req_file_macros"] = dict()
-        self.common_settings["existing_labels"] = list()
+        self.common_settings["existing_labels"] = list() # labels that are already in snap files
+
+        if isinstance(default_labels, str):
+            self.common_settings["default_labels"] = default_labels.split(',')
+        elif isinstance(default_labels, str):
+            self.common_settings["default_labels"] = default_labels
+        else:
+            self.common_settings["default_labels"] = list() # default labels from argument
+
         self.common_settings["force"] = force
 
         if not req_file_name:
@@ -501,8 +509,10 @@ class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
         labels_label.setStyleSheet("background-color: None")
         labels_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
         labels_label.setMinimumWidth(min_label_width)
-        self.labels_input = SnapshotKeywordSelectorWidget(
-            common_settings, self.frame)
+        # If default labels are defined, then force default labels
+        self.labels_input = SnapshotKeywordSelectorWidget(common_settings,
+                                                          defaults_only=len(common_settings['default_labels'])>0,
+                                                          parent=self)
         labels_layout.addWidget(labels_label)
         labels_layout.addWidget(self.labels_input)
 
@@ -525,7 +535,7 @@ class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
         self.frame_layout.addLayout(file_prefix_layout)
 
     def update_labels(self):
-        self.labels_input.update_sugested_keywords()
+        self.labels_input.update_suggested_keywords()
 
     def toggle(self):
         self.frame.setVisible(self.isChecked())
@@ -1047,8 +1057,7 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
         # Labels filter
         key_layout = QtGui.QHBoxLayout()
         key_label = QtGui.QLabel("Labels:", self)
-        self.keys_input = SnapshotKeywordSelectorWidget(
-            self.common_settings, self)
+        self.keys_input = SnapshotKeywordSelectorWidget(self.common_settings, parent=self)  # No need to force defaults
         self.keys_input.setPlaceholderText("label_1 label_2 ...")
         self.connect(self.keys_input, SIGNAL("keywords_changed"),
                      self.update_filter)
@@ -1088,7 +1097,7 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
         self.emit(SIGNAL("file_filter_updated"))
 
     def update_labels(self):
-        self.keys_input.update_sugested_keywords()
+        self.keys_input.update_suggested_keywords()
 
     def clear(self):
         self.keys_input.clear_keywords()
@@ -1778,10 +1787,15 @@ class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
     drop down menu. Keywords that are selected are returned as list.
     """
 
-    def __init__(self, common_settings, parent=None):
+    def __init__(self, common_settings, defaults_only=False, parent=None):
         QtGui.QComboBox.__init__(self, parent)
-        self.setEditable(True)
+
+        self.defaults_only = defaults_only
         self.common_settings = common_settings
+
+        # data holders
+        self.selectedKeywords = list()
+        self.keywordWidgets = dict()
 
         # Main layout
         # [selected widgets][input][drop down arrow (part of QComboBox)]
@@ -1790,24 +1804,26 @@ class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
         self.layout.setContentsMargins(5, 0, 35, 0)
         self.layout.setSpacing(2)
 
-        self.input = SnapshotKeywordSelectorInput(self.input_handler, self)
-        self.layout.addWidget(self.input)
+        if not defaults_only:
+            self.setEditable(True)
+            # Extra styling
+            self.lineEdit().setStyleSheet("background-color: white")
+
+            self.input = SnapshotKeywordSelectorInput(self.input_handler, self)
+            self.layout.addWidget(self.input)
+        else:
+            self.layout.addStretch()
+
         self.setCurrentIndex(0)
         self.connect(self, QtCore.SIGNAL("currentIndexChanged(QString)"),
                      self.add_to_selected)
 
-        self.update_sugested_keywords()
+        self.update_suggested_keywords()
 
-        # data holders
-        self.selected_keywords = list()
-        self.keyword_widgets = dict()
-
-        # Extra styling
-        self.lineEdit().setStyleSheet("background-color: white")
 
     def get_keywords(self):
         # Return list of currently selected keywords
-        return self.selected_keywords
+        return self.selectedKeywords
 
     def input_handler(self, event):
         # Is called in self.input widget, every time when important events
@@ -1834,48 +1850,66 @@ class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
                 key_to_add = self.input.text()
             self.add_to_selected(key_to_add)
 
-        elif event.key() == Qt.Key_Backspace and len(self.selected_keywords):
-            self.remove_keyword(self.selected_keywords[-1])
+        elif event.key() == Qt.Key_Backspace and len(self.selectedKeywords):
+            self.remove_keyword(self.selectedKeywords[-1])
 
     def focusInEvent(self, event):
         # Focus should always be on the self.input
-        self.input.setFocus()
+        if not self.defaults_only:
+            self.input.setFocus()
 
     def add_to_selected(self, keyword):
         # When called, keyword is added to list of selected keywords and
         # new graphical representation is added left to the input field
         self.setCurrentIndex(0)
-        self.input.setText("")
+        if not self.defaults_only:
+            self.input.setText("")
+
+        default_labels = self.common_settings["default_labels"]
         keyword = keyword.strip()
-        if keyword and (keyword not in self.selected_keywords):
+
+        # Skip if already selected on if not in defaults if defaults are forced
+        if keyword and (keyword not in self.selectedKeywords) and (not self.defaults_only or self.defaults_only
+                                                                    and keyword in default_labels):
             key_widget = SnapshotKeywordWidget(keyword, self)
             self.connect(key_widget, SIGNAL("delete"), self.remove_keyword)
-            self.keyword_widgets[keyword] = key_widget
-            self.selected_keywords.append(keyword)
-            self.layout.insertWidget(len(self.selected_keywords)-1, key_widget)
+            self.keywordWidgets[keyword] = key_widget
+            self.selectedKeywords.append(keyword)
+            self.layout.insertWidget(len(self.selectedKeywords)-1, key_widget)
             self.emit(SIGNAL("keywords_changed"))
+            self.setItemText(0, "")
 
     def remove_keyword(self, keyword):
         # Remove keyword from list of selected and delete graphical element
         keyword = keyword.strip()
-        if keyword in self.selected_keywords:
-            self.selected_keywords.remove(keyword)
-            key_widget = self.keyword_widgets.get(keyword)
+        if keyword in self.selectedKeywords:
+            self.selectedKeywords.remove(keyword)
+            key_widget = self.keywordWidgets.get(keyword)
             self.layout.removeWidget(key_widget)
             key_widget.deleteLater()
             self.emit(SIGNAL("keywords_changed"))
+            if not self.selectedKeywords:
+                self.setItemText(0, "Select labels ...")
 
     def setPlaceholderText(self, text):
-        # Placeholder text is always in the input field
-        self.input.setPlaceholderText(text)
+        # Placeholder tefirst_itemxt is always in the input field
+        if not self.defaults_only:
+            self.input.setPlaceholderText(text)
 
-    def update_sugested_keywords(self):
+    def update_suggested_keywords(self):
         # Method to be called when global list of existing labels (keywords)
         # is changed and widget must be updated.
         self.clear()
-        self.common_settings["existing_labels"].sort()
-        self.addItem("")
-        self.addItems(self.common_settings["existing_labels"])
+        labels = self.common_settings["default_labels"]
+        if not self.defaults_only:
+            labels += self.common_settings["existing_labels"]
+            self.addItem("")
+        else:
+            self.addItem("Select labels ...")
+
+
+        labels.sort()
+        self.addItems(labels)
 
     def clear_keywords(self):
         keywords_to_remove = copy.copy(self.get_keywords())
@@ -1972,7 +2006,10 @@ class SnapshotEditMetadataDialog(QtGui.QDialog):
         form_layout.addRow("Comment:", self.comment_input)
 
         # Make field for labels
-        self.labels_input = SnapshotKeywordSelectorWidget(common_settings, self)
+        # If default labels are defined, then force default labels
+        self.labels_input = SnapshotKeywordSelectorWidget(common_settings,
+                                                          defaults_only=len(self.common_settings['default_labels'])>0,
+                                                          parent=self)
         for label in metadata["labels"]:
             self.labels_input.add_to_selected(label)
         form_layout.addRow("Labels:", self.labels_input)
