@@ -1858,7 +1858,7 @@ class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
         if not self.defaults_only:
             self.input.setFocus()
 
-    def add_to_selected(self, keyword):
+    def add_to_selected(self, keyword, force=False):
         # When called, keyword is added to list of selected keywords and
         # new graphical representation is added left to the input field
         self.setCurrentIndex(0)
@@ -1868,8 +1868,8 @@ class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
         default_labels = self.common_settings["default_labels"]
         keyword = keyword.strip()
 
-        # Skip if already selected on if not in defaults if defaults are forced
-        if keyword and (keyword not in self.selectedKeywords) and (not self.defaults_only or self.defaults_only
+        # Skip if already selected or not in predefined labels if defaults_only (force=True overrides defaults_only)
+        if keyword and (keyword not in self.selectedKeywords) and (not self.defaults_only or force or self.defaults_only
                                                                     and keyword in default_labels):
             key_widget = SnapshotKeywordWidget(keyword, self)
             self.connect(key_widget, SIGNAL("delete"), self.remove_keyword)
@@ -1900,7 +1900,7 @@ class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
         # Method to be called when global list of existing labels (keywords)
         # is changed and widget must be updated.
         self.clear()
-        labels = self.common_settings["default_labels"]
+        labels = list() + self.common_settings["default_labels"]
         if not self.defaults_only:
             labels += self.common_settings["existing_labels"]
             self.addItem("")
@@ -2011,7 +2011,7 @@ class SnapshotEditMetadataDialog(QtGui.QDialog):
                                                           defaults_only=len(self.common_settings['default_labels'])>0,
                                                           parent=self)
         for label in metadata["labels"]:
-            self.labels_input.add_to_selected(label)
+            self.labels_input.add_to_selected(label, force=True)
         form_layout.addRow("Labels:", self.labels_input)
 
         self.button_box = QtGui.QDialogButtonBox(
