@@ -133,21 +133,20 @@ class SnapshotGui(QtGui.QMainWindow):
         # Compare widget. Must be updated in case of file selection
         self.compare_widget = SnapshotCompareWidget(self.snapshot,
                                                     self.common_settings, self)
-        self.connect(self.compare_widget, SIGNAL("pvs_filtered"),
-                     self.handle_pvs_filtered)
+
+        self.compare_widget.pvs_filtered.connect(self.handle_pvs_filtered)
 
         self.save_widget = SnapshotSaveWidget(self.snapshot,
                                               self.common_settings, self)
-        self.connect(self.save_widget, SIGNAL("save_done"),
-                     self.handle_save_done)
+        self.save_widget.saved.connect(self.handle_saved)
+
         self.restore_widget = SnapshotRestoreWidget(self.snapshot,
                                                     self.common_settings, self)
         # If new files were added to restore list, all elements with Labels
         # should update with new existing labels. Force update for first time
-        self.connect(self.restore_widget, SIGNAL("files_updated"),
-                     self.handle_files_updated)
-        self.connect(self.restore_widget, SIGNAL("files_selected"),
-                     self.handle_selected_files)
+        self.restore_widget.files_updated.connect(self.handle_files_updated)
+
+        self.restore_widget.files_selected.connect(self.handle_selected_files)
 
         sr_splitter = QtGui.QSplitter(self)
         sr_splitter.addWidget(self.save_widget)
@@ -198,7 +197,7 @@ class SnapshotGui(QtGui.QMainWindow):
         self.setWindowTitle(
             os.path.basename(self.common_settings["req_file_path"]) + ' - Snapshot')
 
-    def handle_save_done(self):
+    def handle_saved(self):
         # When save is done, save widget is updated by itself
         # Update restore widget (new file in directory)
         self.restore_widget.update_files()
@@ -226,7 +225,7 @@ class SnapshotGui(QtGui.QMainWindow):
 
     def open_settings(self):
         settings_window = SnapshotSettingsDialog(self.common_settings, self)  # Destroyed when closed
-        self.connect(settings_window, SIGNAL("new_config"), self.handle_new_config)
+        settings_window.new_config.connect(self.handle_new_config)
         settings_window.resize(800,200)
         settings_window.show()
 
@@ -271,6 +270,8 @@ class SnapshotSaveWidget(QtGui.QWidget):
     Data about current app state (such as request file) must be provided as
     part of the structure "common_settings".
     """
+
+    saved = QtCore.pyqtSignal()
 
     def __init__(self, snapshot, common_settings, parent=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
@@ -432,7 +433,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
         self.save_button.setEnabled(True)
         self.sts_info.set_status(status_txt, 3000, status_background)
 
-        self.emit(SIGNAL("save_done"))
+        self.saved.emit()
 
     def update_name(self):
         # When file extension is changed, update all corresponding variables
@@ -565,6 +566,9 @@ class SnapshotRestoreWidget(QtGui.QWidget):
     Data about current app state (such as request file) must be provided as
     part of the structure "common_settings".
     """
+    files_selected = QtCore.pyqtSignal(dict)
+    files_updated = QtCore.pyqtSignal(dict)
+    restored_callback = QtCore.pyqtSignal(dict, bool)
 
     def __init__(self, snapshot, common_settings, parent=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
@@ -585,8 +589,8 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         # Create list with: file names, comment, labels
         self.file_selector = SnapshotRestoreFileSelector(snapshot,
                                                          common_settings, self)
-        self.connect(self.file_selector, SIGNAL("files_selected"),
-                     self.handle_selected_files)
+
+        self.file_selector.files_selected.connect(self.handle_selected_files)
 
         self.restore_button = QtGui.QPushButton("Restore Filtered", self)
         self.restore_button.clicked.connect(self.start_restore_filtered)
@@ -615,7 +619,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         layout.addWidget(self.file_selector)
         layout.addLayout(btn_layout)
 
-        self.connect(self, SIGNAL("restore_done_callback"), self.restore_done)
+        self.restored_callback.connect(self.restore_done)
 
     def handle_new_snapshot_instance(self, snapshot):
         self.file_selector.handle_new_snapshot_instance(snapshot)
@@ -700,7 +704,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
     def restore_done_callback(self, status, forced, **kw):
         # Raise callback to handle GUI specific in GUI thread
-        self.emit(SIGNAL("restore_done_callback"), status, forced)
+        self.restored_callback.emit(status, forced)
 
     def restore_done(self, status, forced):
         # When snapshot finishes restore, GUI must be updated with
@@ -730,7 +734,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                 selected_data[file_name] = file_data
 
         # First update other GUI components (compare widget) and then pass pvs to compare to the snapshot core
-        self.emit(SIGNAL("files_selected"), selected_data)
+        self.files_selected.emit(selected_data)
 
         if len(selected_files) == 1 and file_data:
             self.snapshot.prepare_pvs_to_restore_from_list(file_data.get("pvs_list", None),
@@ -739,7 +743,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
             self.snapshot.clear_pvs_to_restore()
 
     def update_files(self):
-        self.emit(SIGNAL("files_updated"), self.file_selector.start_file_list_update())
+        self.files_updated.emit(self.file_selector.start_file_list_update())
 
     def clear_update_files(self):
         self.file_selector.clear_file_selector()
@@ -752,6 +756,8 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
     Widget for visual representation (and selection) of existing saved_value
     files.
     """
+
+    files_selected = QtCore.pyqtSignal(list)
 
     def __init__(self, snapshot, common_settings, parent=None, save_file_sufix=".snap", **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
@@ -774,8 +780,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         self.filter_input = SnapshotFileFilterWidget(
             self.common_settings, self)
 
-        self.connect(self.filter_input, SIGNAL(
-            "file_filter_updated"), self.filter_file_list_selector)
+        self.filter_input.file_filter_updated.connect(self.filter_file_list_selector)
 
         # Create list with: file names, comment, labels
         self.file_selector = QtGui.QTreeWidget(self)
@@ -1012,7 +1017,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
             for item in self.file_selector.selectedItems():
                 self.selected_files.append(item.text(0))
 
-        self.emit(SIGNAL("files_selected"), self.selected_files)
+        self.files_selected.emit(self.selected_files)
 
     def delete_files(self):
         if self.selected_files:
@@ -1071,6 +1076,7 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
 
         Emits signal: filter_changed when any of the filter changed.
     """
+    file_filter_updated = QtCore.pyqtSignal()
 
     def __init__(self, common_settings, parent=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
@@ -1098,8 +1104,7 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
         key_label = QtGui.QLabel("Labels:", self)
         self.keys_input = SnapshotKeywordSelectorWidget(self.common_settings, parent=self)  # No need to force defaults
         self.keys_input.setPlaceholderText("label_1 label_2 ...")
-        self.connect(self.keys_input, SIGNAL("keywords_changed"),
-                     self.update_filter)
+        self.keys_input.keywords_changed.connect(self.update_filter)
         key_layout.addWidget(key_label)
         key_layout.addWidget(self.keys_input)
 
@@ -1133,7 +1138,7 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
         self.file_filter["comment"] = self.comment_input.text().strip('')
         self.file_filter["name"] = self.name_input.text().strip('')
 
-        self.emit(SIGNAL("file_filter_updated"))
+        self.file_filter_updated.emit()
 
     def update_labels(self):
         self.keys_input.update_suggested_keywords()
@@ -1154,6 +1159,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
     were loaded with
     """
     pvs_filtered = QtCore.pyqtSignal(list)
+    updated_pv_callback = QtCore.pyqtSignal(dict)
 
     def __init__(self, snapshot, common_settings, parent=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
@@ -1264,7 +1270,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         # Sort by name (alphabetical order)
         self.pv_view.sortItems(0, Qt.AscendingOrder)
 
-        self.connect(self, SIGNAL("update_pv_callback"), self.update_pv)
+        self.updated_pv_callback.connect(self.update_pv)
         self.snapshot.start_continuous_compare(self.update_pv_callback)
 
     def filter_list(self):
@@ -1285,7 +1291,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         self.pvs_filtered.emit(filtered)
 
     def update_pv_callback(self, **data):
-        self.emit(SIGNAL("update_pv_callback"), data)
+        self.updated_pv_callback.emit(data)
 
     def update_pv(self, data):
         # If everything ok, only one line should match
@@ -1651,6 +1657,9 @@ class SnapshotConfigureDialog(QtGui.QDialog):
 
 
 class SnapshotSettingsDialog(QtGui.QWidget):
+
+    new_config = QtCore.pyqtSignal(dict)
+
     def __init__(self, common_settings, parent=None):
         self.common_settings = common_settings
         QtGui.QWidget.__init__(self, parent)
@@ -1676,7 +1685,7 @@ class SnapshotSettingsDialog(QtGui.QWidget):
         # Snapshot directory
         self.save_dir_input = SnapshotFileSelector(self, label_text="", show_files=False)
         self.save_dir_input.setText(self.curr_save_dir)
-        self.connect(self.save_dir_input, SIGNAL("path_changed"), self.monitor_changes)
+        self.save_dir_input.path_changed.connect(self.monitor_changes)
         form_layout.addRow("Saved files directory:", self.save_dir_input)
 
          # Force
@@ -1758,12 +1767,15 @@ class SnapshotSettingsDialog(QtGui.QWidget):
 
         self.monitor_changes()  # To update buttons state
 
-        self.emit(SIGNAL("new_config"), config)
+        self.new_config.emit(config)
+
 
 
 class SnapshotFileSelector(QtGui.QWidget):
 
     """ Widget to select file with dialog box. """
+
+    path_changed = QtCore.pyqtSignal()
 
     def __init__(self, parent=None, label_text="File:", button_text="...", label_width=None,
                  init_path=None, show_files=True, **kw):
@@ -1817,7 +1829,7 @@ class SnapshotFileSelector(QtGui.QWidget):
 
     def change_file_path(self):
         self.file_path = self.file_path_input.text()
-        self.emit(SIGNAL("path_changed"))
+        self.path_changed.emit()
 
     def text(self):
         return self.file_path_input.text()
@@ -1836,6 +1848,7 @@ class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
     the common_settings data structure and are suggested to the user in
     drop down menu. Keywords that are selected are returned as list.
     """
+    keywords_changed = QtCore.pyqtSignal()
 
     def __init__(self, common_settings, defaults_only=False, parent=None):
         QtGui.QComboBox.__init__(self, parent)
@@ -1865,8 +1878,7 @@ class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
             self.layout.addStretch()
 
         self.setCurrentIndex(0)
-        self.connect(self, QtCore.SIGNAL("currentIndexChanged(QString)"),
-                     self.add_to_selected)
+        self.currentIndexChanged[str].connect(self.add_to_selected)
 
         self.update_suggested_keywords()
 
@@ -1922,11 +1934,11 @@ class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
         if keyword and (keyword not in self.selectedKeywords) and (not self.defaults_only or force or self.defaults_only
                                                                     and keyword in default_labels):
             key_widget = SnapshotKeywordWidget(keyword, self)
-            self.connect(key_widget, SIGNAL("delete"), self.remove_keyword)
+            key_widget.delete.connect(self.remove_keyword)
             self.keywordWidgets[keyword] = key_widget
             self.selectedKeywords.append(keyword)
             self.layout.insertWidget(len(self.selectedKeywords)-1, key_widget)
-            self.emit(SIGNAL("keywords_changed"))
+            self.keywords_changed.emit()
             self.setItemText(0, "")
 
     def remove_keyword(self, keyword):
@@ -1937,7 +1949,7 @@ class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
             key_widget = self.keywordWidgets.get(keyword)
             self.layout.removeWidget(key_widget)
             key_widget.deleteLater()
-            self.emit(SIGNAL("keywords_changed"))
+            self.keywords_changed.emit()
             if not self.selectedKeywords:
                 self.setItemText(0, "Select labels ...")
 
@@ -2003,6 +2015,7 @@ class SnapshotKeywordWidget(QtGui.QFrame):
     Graphical representation of the selected widget. A Frame with remove
     button.
     """
+    delete = QtCore.pyqtSignal(str)
 
     def __init__(self, text=None, parent=None):
         QtGui.QFrame.__init__(self, parent)
@@ -2032,7 +2045,7 @@ class SnapshotKeywordWidget(QtGui.QFrame):
     def delete_pressed(self):
         # Emit delete signal with information about removed keyword.
         # main widget will take care of removing it from the list.
-        self.emit(SIGNAL("delete"), self.keyword)
+        self.delete.emit(self.keyword)
 
 
 class SnapshotEditMetadataDialog(QtGui.QDialog):
