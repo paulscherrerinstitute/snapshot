@@ -504,20 +504,20 @@ class Snapshot:
         # If here then all connected
         return(True)
 
-
-
     def get_pvs_names(self):
         # To access a list of all pvs that are under control of snapshot object
         return list(self.pvs.keys())
 
-    def get_not_connected_pvs_names(self):
+    def get_not_connected_pvs_names(self, selected=None):
+        if selected is None:
+            selected = list()
         if self.all_connected:
             return list()
         else:
             not_connected_list = list()
             for pv_name, pv_ref in self.pvs.items():
-                if not pv_ref.connected:
-                    not_connected_list.append(pv_name)
+                if not pv_ref.connected and ((pv_name in selected) or not selected):
+                    not_connected_list.append(pv_name)            # Need to check only subset (selected) of pvs?
             return(not_connected_list)
 
     def replace_metadata(self, save_file_path, metadata):
