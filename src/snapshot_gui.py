@@ -691,13 +691,14 @@ class SnapshotRestoreWidget(QtGui.QWidget):
             if file_data:
                 selected_data[file_name] = file_data
 
+        # First update other GUI components (compare widget) and then pass pvs to compare to the snapshot core
+        self.emit(SIGNAL("files_selected"), selected_data)
+
         if len(selected_files) == 1 and file_data:
             self.snapshot.prepare_pvs_to_restore_from_list(file_data.get("pvs_list", None),
                                                            file_data["meta_data"].get("macros", None))
         else:
             self.snapshot.clear_pvs_to_restore()
-
-        self.emit(SIGNAL("files_selected"), selected_data)
 
     def update_files(self):
         self.emit(SIGNAL("files_updated"), self.file_selector.start_file_list_update())
