@@ -34,7 +34,8 @@ def restore(args):
 
 def gui(args):
     from .snapshot_gui import start_gui
-    start_gui(args.FILE, args.macro, args.dir, args.force, default_labels=args.labels, init_path=args.base)
+    start_gui(args.FILE, args.macro, args.dir, args.force, default_labels=args.labels,
+              force_default_labels=args.force_labels, init_path=args.base, config_path=args.config)
 
 
 def main():
@@ -58,6 +59,8 @@ def main():
                            help="force save/restore in case of disconnected PVs", action='store_true')
     gui_pars.add_argument('--labels', type=str,
                           help="list of comma separated predefined labels e.g.: \"label_1,label_2\"")
+    gui_pars.add_argument('--force_labels', help="force predefined labels", action='store_true')
+    gui_pars.add_argument('--config', help="path to configuration file")
 
     # Save
     save_pars = subparsers.add_parser('save', help='save current state of PVs to file without using GUI')

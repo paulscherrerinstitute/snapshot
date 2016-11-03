@@ -38,11 +38,21 @@ class SnapshotGui(QtGui.QMainWindow):
     thread where core of the application is running
     """
 
-    def __init__(self, req_file_name=None, req_file_macros=None,
-                 save_dir=None, force=False, default_labels=None, init_path=None, parent=None):
+    def __init__(self, req_file_name=None, req_file_macros=None, save_dir=None, force=False, default_labels=None,
+                 force_default_labels=None,init_path=None, config_path=None, parent=None):
         QtGui.QMainWindow.__init__(self, parent)
+
         if req_file_macros is None:
-            req_file_name = dict()
+            req_file_macros = dict()
+
+        if config_path:
+            try:
+                config = json.load(open(config_path))
+            except Exception as e:
+                print(e)
+                config = dict()
+        else:
+            config = dict()
 
         self.resize(1500, 850)
 
@@ -54,15 +64,20 @@ class SnapshotGui(QtGui.QMainWindow):
         self.common_settings["req_file_path"] = ""
         self.common_settings["req_file_macros"] = dict()
         self.common_settings["existing_labels"] = list() # labels that are already in snap files
+        self.common_settings["force"] = False
 
         if isinstance(default_labels, str):
             self.common_settings["default_labels"] = default_labels.split(',')
-        elif isinstance(default_labels, str):
-            self.common_settings["default_labels"] = default_labels
-        else:
-            self.common_settings["default_labels"] = list() # default labels from argument
 
-        self.common_settings["force"] = force
+        elif isinstance(default_labels, list):
+            self.common_settings["default_labels"] = default_labels
+
+        else:
+            self.common_settings["default_labels"] = list() # No defaults
+
+        # default labels also in config file? Add them
+        self.common_settings["default_labels"] += config.get('labels', dict()).get('labels', list())
+        self.common_settings["force_default_labels"] = config.get('labels', dict()).get('mode', force_default_labels)
 
         if not req_file_name:
             self.configure_dialog = SnapshotConfigureDialog(self, init_path=init_path)
@@ -146,6 +161,8 @@ class SnapshotGui(QtGui.QMainWindow):
         # If new files were added to restore list, all elements with Labels
         # should update with new existing labels. Force update for first time
         self.restore_widget.files_updated.connect(self.handle_files_updated)
+        # Trigger files update for first time to properly update label selectors
+        self.restore_widget.clear_update_files()
 
         self.restore_widget.files_selected.connect(self.handle_selected_files)
 
@@ -522,7 +539,7 @@ class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
         labels_label.setMinimumWidth(min_label_width)
         # If default labels are defined, then force default labels
         self.labels_input = SnapshotKeywordSelectorWidget(common_settings,
-                                                          defaults_only=len(common_settings['default_labels'])>0,
+                                                          defaults_only=common_settings['force_default_labels'],
                                                           parent=self)
         labels_layout.addWidget(labels_label)
         labels_layout.addWidget(self.labels_input)
@@ -2126,7 +2143,7 @@ class SnapshotEditMetadataDialog(QtGui.QDialog):
         # Make field for labels
         # If default labels are defined, then force default labels
         self.labels_input = SnapshotKeywordSelectorWidget(common_settings,
-                                                          defaults_only=len(self.common_settings['default_labels'])>0,
+                                                          defaults_only=self.common_settings['force_default_labels'],
                                                           parent=self)
         for label in metadata["labels"]:
             self.labels_input.add_to_selected(label, force=True)
