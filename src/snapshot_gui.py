@@ -49,7 +49,19 @@ class SnapshotGui(QtGui.QMainWindow):
             try:
                 config = json.load(open(config_path))
             except Exception as e:
-                print(e)
+                msg = "Loading configuration file failed! Do you want to continue with out it?\n"
+
+                msg_window = QtGui.QMessageBox(self)
+                msg_window.setWindowTitle("Warning")
+                msg_window.setText(msg)
+                msg_window.setDetailedText(str(e))
+                msg_window.setStandardButtons(QtGui.QMessageBox.Yes | QtGui.QMessageBox.No)
+                msg_window.setDefaultButton(QtGui.QMessageBox.Yes)
+                reply = msg_window.exec_()
+
+                if reply == QtGui.QMessageBox.No:
+                    self.close_gui()
+
                 config = dict()
         else:
             config = dict()
@@ -78,6 +90,9 @@ class SnapshotGui(QtGui.QMainWindow):
         # default labels also in config file? Add them
         self.common_settings["default_labels"] += config.get('labels', dict()).get('labels', list())
         self.common_settings["force_default_labels"] = config.get('labels', dict()).get('mode', force_default_labels)
+
+        # Predefined filters
+        self.common_settings["predefined_filters"] = config.get('filters', dict())
 
         if not req_file_name:
             self.configure_dialog = SnapshotConfigureDialog(self, init_path=init_path)
@@ -1208,8 +1223,32 @@ class SnapshotCompareWidget(QtGui.QWidget):
         pv_filter_label = QtGui.QLabel("Filter:", self)
         pv_filter_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
 
-        self.pv_filter_inp = QtGui.QLineEdit(self)
-        self.pv_filter_inp.setPlaceholderText("Filter by PV name")
+        predefined_filters = self.common_settings["predefined_filters"]
+        if predefined_filters:
+            self.pv_filter_sel = QtGui.QComboBox(self)
+            self.pv_filter_sel.setEditable(True)
+            self.pv_filter_sel.setIconSize(QtCore.QSize(35,15))
+            sel_layout = QtGui.QHBoxLayout()
+            sel_layout.addStretch()
+            self.pv_filter_sel.setLayout(sel_layout)
+            self.pv_filter_inp = self.pv_filter_sel.lineEdit()
+            self.pv_filter_inp.setPlaceholderText("Filter by PV name")
+
+            # Add filters
+            self.pv_filter_sel.addItem(None)
+            for rgx in predefined_filters.get('rgx-filters', list()):
+                self.pv_filter_sel.addItem(QtGui.QIcon(os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                                                    "images/rgx.png")),rgx)
+            self.pv_filter_sel.addItems(predefined_filters.get('filters', list()))
+
+
+            self.pv_filter_sel.currentIndexChanged.connect(self.predefined_selected)
+        else:
+            self.pv_filter_inp = QtGui.QLineEdit(self)
+            self.pv_filter_inp.setPlaceholderText("Filter by PV name")
+            self.pv_filter_sel = self.pv_filter_inp
+
+
         self.pv_filter_inp.textChanged.connect(self.filter_list)
         self._inp_palette_ok = self.pv_filter_inp.palette()
         self._inp_palette_err = QtGui.QPalette()
@@ -1217,7 +1256,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
 
 
         pv_filter_layout.addWidget(pv_filter_label)
-        pv_filter_layout.addWidget(self.pv_filter_inp)
+        pv_filter_layout.addWidget(self.pv_filter_sel)
 
         self.regex = QtGui.QCheckBox("Regex", self)
         self.regex.stateChanged.connect(self.regex_change)
@@ -1318,6 +1357,22 @@ class SnapshotCompareWidget(QtGui.QWidget):
         self.updated_pv_callback.connect(self.update_pv)
         self.snapshot.start_continuous_compare(self.update_pv_callback)
         self.pv_view.setSortingEnabled(True)
+
+    def predefined_selected(self, idx):
+        txt = self.pv_filter_inp.text()
+        if idx == 0:
+            # First empty option
+            pass
+        if not self.pv_filter_sel.itemIcon(idx).isNull():
+            # Set back to first index, to get rid of the icon. Set to regex and pass text of filter to the input
+            self.pv_filter_sel.setCurrentIndex(0)
+            self.regex.setChecked(True)
+            self.pv_filter_inp.setText(txt)
+        else:
+            #Imitate same behaviour
+            self.pv_filter_sel.setCurrentIndex(0)
+            self.regex.setChecked(False)
+            self.pv_filter_inp.setText(txt)
 
     def regex_change(self, state):
         text = self.pv_filter_inp.text()
