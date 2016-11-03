@@ -787,8 +787,11 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         self.file_selector = QtGui.QTreeWidget(self)
         self.file_selector.setRootIsDecorated(False)
         self.file_selector.setIndentation(0)
-        self.file_selector.setColumnCount(3)
-        self.file_selector.setHeaderLabels(["File", "Comment", "Labels"])
+        self.file_selector.setColumnCount(4)
+        self.file_selector.setHeaderLabels(["", "File", "Comment", "Labels"])
+        self.file_selector.headerItem().setIcon(0, QtGui.QIcon(
+            os.path.join(os.path.dirname(os.path.realpath(__file__)), "images/clock.png")))
+        self.file_selector.setAllColumnsShowFocus(True)
         self.file_selector.itemSelectionChanged.connect(self.select_files)
         self.file_selector.setContextMenuPolicy(Qt.CustomContextMenu)
         self.file_selector.customContextMenuRequested.connect(self.open_menu)
@@ -821,6 +824,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
 
 
     def start_file_list_update(self):
+        self.file_selector.setSortingEnabled(False)
         # Rescans directory and adds new/modified files and removes none
         # existing ones from the list.
         save_files, err_to_report = self.get_save_files(self.common_settings["save_dir"], self.file_list)
@@ -849,8 +853,9 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
             msg_window.setText(msg)
             msg_window.setDetailedText(err_details)
             msg_window.setStandardButtons(QtGui.QMessageBox.Ok)
-            reply = msg_window.exec_()
+            msg_window.exec_()
 
+        self.file_selector.setSortingEnabled(True)
         return updated_files
 
     def get_save_files(self, save_dir, current_files):
@@ -874,8 +879,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                     # If there is no metadata (or no req_file specified in the metadata) 
                     # we search using a prefix of the request file. 
                     # The latter is less robust, but is backwards compatible.
-                    if ("req_file_name" in meta_data and \
-                            meta_data["req_file_name"] == req_file_name) \
+                    if ("req_file_name" in meta_data and meta_data["req_file_name"] == req_file_name) \
                             or file_name.startswith(req_file_name.split(".")[0] + "_"):
                         # we really should have basic meta data
                         # (or filters and some other stuff will silently fail)
@@ -888,8 +892,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                         parsed_save_files[file_name] = dict()
                         parsed_save_files[file_name]["pvs_list"] = pvs_list
                         parsed_save_files[file_name]["meta_data"] = meta_data
-                        parsed_save_files[file_name][
-                            "modif_time"] = os.path.getmtime(file_path)
+                        parsed_save_files[file_name]["modif_time"] = os.path.getmtime(file_path)
 
                         if err:  # report errors only for matching saved files
                             err_to_report.append((file_name, err))
@@ -904,16 +907,17 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
             meta_data = modified_data["meta_data"]
             labels = meta_data.get("labels", list())
             comment = meta_data.get("comment", "")
+            time = datetime.datetime.fromtimestamp(modified_data.get("modif_time", 0)).strftime('%d.%m.%Y %H:%M:%S')
 
             # check if already on list (was just modified) and modify file
             # selector
             if modified_file not in self.file_list:
-                selector_item = QtGui.QTreeWidgetItem(
-                    [modified_file, comment, " ".join(labels)])
+                selector_item = QtGui.QTreeWidgetItem([time, modified_file, comment, " ".join(labels)])
                 self.file_selector.addTopLevelItem(selector_item)
                 self.file_list[modified_file] = modified_data
                 self.file_list[modified_file]["file_selector"] = selector_item
                 existing_labels += list(set(labels) - set(existing_labels))
+
             else:
                 # If everything ok only one file should exist in list. Update
                 # its data
@@ -959,11 +963,13 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         self.filter_input.update_labels()
 
         # Set column sizes
-        self.file_selector.resizeColumnToContents(0)
-        self.file_selector.setColumnWidth(1, 350)
+        self.file_selector.resizeColumnToContents(1)
+        self.file_selector.setColumnWidth(0, 60)
+        self.file_selector.setColumnWidth(2, 350)
 
         # Sort by file name (alphabetical order)
-        self.file_selector.sortItems(0, Qt.AscendingOrder)
+        self.file_selector.sortItems(1, Qt.AscendingOrder)
+
         return modif_file_list
 
     def filter_file_list_selector(self):
@@ -991,8 +997,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                     keys_status = True
 
                 if comment_filter:
-                    comment_status = comment_filter in file_to_filter[
-                        "meta_data"]["comment"]
+                    comment_status = comment_filter in file_to_filter["meta_data"]["comment"]
                 else:
                     comment_status = True
 
@@ -1016,7 +1021,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         self.selected_files = list()
         if self.file_selector.selectedItems():
             for item in self.file_selector.selectedItems():
-                self.selected_files.append(item.text(0))
+                self.selected_files.append(item.text(1))
 
         self.files_selected.emit(self.selected_files)
 
@@ -1035,7 +1040,8 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                         self.file_list.pop(selected_file)
                         self.pvs = dict()
                         self.file_selector.takeTopLevelItem(
-                            self.file_selector.indexOfTopLevelItem(self.file_selector.findItems(selected_file, Qt.MatchCaseSensitive, 0)[0]))
+                            self.file_selector.indexOfTopLevelItem(self.file_selector.findItems(
+                                selected_file, Qt.MatchCaseSensitive, 0)[0]))
 
                     except OSError as e:
                         warn = "Problem deleting file:\n" + str(e)
@@ -2013,7 +2019,6 @@ class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
             self.addItem("")
         else:
             self.addItem("Select labels ...")
-
 
         labels.sort()
         self.addItems(labels)
