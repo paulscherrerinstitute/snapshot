@@ -82,17 +82,18 @@ class SnapshotGui(QtGui.QMainWindow):
         self.common_settings["force"] = False
 
         if isinstance(default_labels, str):
-            self.common_settings["default_labels"] = default_labels.split(',')
+            default_labels =  default_labels.split(',')
 
-        elif isinstance(default_labels, list):
-            self.common_settings["default_labels"] = default_labels
+        elif  not isinstance(default_labels, list):
+            default_labels =list()
 
-        else:
-            self.common_settings["default_labels"] = list() # No defaults
 
         # default labels also in config file? Add them
-        self.common_settings["default_labels"] += config.get('labels', dict()).get('labels', list())
-        self.common_settings["force_default_labels"] = config.get('labels', dict()).get('force-labels', False) or force_default_labels
+        self.common_settings["default_labels"] = list(set(default_labels +
+                                                          (config.get('labels', dict()).get('labels', list()))))
+
+        self.common_settings["force_default_labels"] = config.get('labels', dict()).get('force-labels', False) or\
+                                                       force_default_labels
 
         # Predefined filters
         self.common_settings["predefined_filters"] = config.get('filters', dict())
