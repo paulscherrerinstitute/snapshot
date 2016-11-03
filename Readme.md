@@ -25,10 +25,10 @@ After snapshot is build and deployed as conda package (see section [Instalation]
 To use graphical interface snapshot must be started with following command:
 
 ```bash
-snapshot.py [-h] [-m MACRO] [-d DIR] [-b BASE] [-f] [FILE]
+snapshot [-h] [-m MACRO] [-d DIR] [-b BASE] [-f] [FILE]
 
 Longer version of same command:
-snapshot.py gui [-h] [-m MACRO] [-d DIR] [-b BASE] [-f] [FILE]
+snapshot gui [-h] [-m MACRO] [-d DIR] [-b BASE] [-f] [FILE]
 
 positional arguments:
   FILE                  request file.
@@ -39,12 +39,17 @@ positional arguments:
   -d DIR, --dir DIR     directory for saved snapshot files
   -b BASE, --base BASE  base directory for request files
   -f, --force           force save/restore in case of disconnected PVs
+  --labels LABELS       list of comma separated predefined labels e.g.:
+                        "label_1,label_2"
+  --force_labels        force predefined labels
+  --config CONFIG       path to configuration file
 ```
+> Configuration file enables option of predefined labels and filters. Example can be found in [HERE](example/config.cfg)
 
 To be used as command line tool it must be run either with `snapshot save` or `snapshot restore` depending on action needed.
 
 ```bash
-snapshot.py save [-h] [-m MACRO] [-o OUT] [-f] [--timeout TIMEOUT] FILE
+snapshot save [-h] [-m MACRO] [-o OUT] [-f] [--timeout TIMEOUT] FILE
 
 positional arguments:
   FILE                  request file
@@ -59,7 +64,7 @@ optional arguments:
 ```
 
 ```bash
-snapshot.py restore [-h] [-f] [--timeout TIMEOUT] FILE
+snapshot restore [-h] [-f] [--timeout TIMEOUT] FILE
 
 positional arguments:
   FILE               saved snapshot file
