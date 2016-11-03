@@ -603,7 +603,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.restore_all_button.setToolTip("Restores all PVs from the selected .snap file.")
 
         # Buttons layout
-        btn_layout = QtGui.QHBoxLayout(self)
+        btn_layout = QtGui.QHBoxLayout()
         btn_layout.addWidget(self.restore_all_button)
         btn_layout.addWidget(self.restore_button)
 
@@ -1183,9 +1183,15 @@ class SnapshotCompareWidget(QtGui.QWidget):
         pv_filter_layout.setSpacing(10)
         pv_filter_label = QtGui.QLabel("Filter:", self)
         pv_filter_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
+
         self.pv_filter_inp = QtGui.QLineEdit(self)
         self.pv_filter_inp.setPlaceholderText("Filter by PV name")
         self.pv_filter_inp.textChanged.connect(self.filter_list)
+        self._inp_palette_ok = self.pv_filter_inp.palette()
+        self._inp_palette_err = QtGui.QPalette()
+        self._inp_palette_err.setColor(QtGui.QPalette.Base, QtGui.QColor("#F39292"))
+
+
         pv_filter_layout.addWidget(pv_filter_label)
         pv_filter_layout.addWidget(self.pv_filter_inp)
 
@@ -1300,15 +1306,30 @@ class SnapshotCompareWidget(QtGui.QWidget):
     def filter_list(self):
         # Just pass the filter conditions to all items in the list. # Use
         # values directly from GUI elements (filter selectors).
+
+        # If regex, check for syntax errors and prepare compiler object
+        if self.regex.isChecked():
+            try:
+                input = re.compile(self.pv_filter_inp.text())
+                self.pv_filter_inp.setPalette(self._inp_palette_ok)
+            except:
+                # Syntax error (happens a lot during typing an expression). In such cases make compiler which will
+                # not match any pv name and color input "redish"
+                input = re.compile("")
+                self.pv_filter_inp.setPalette(self._inp_palette_err)
+        else:
+            # Normal search
+            input = self.pv_filter_inp.text()
+
+
         filtered = list()
         for i in range(self.pv_view.topLevelItemCount()):
             curr_item = self.pv_view.topLevelItem(i)
             visible = curr_item.apply_filter(self.compare_filter_inp.currentIndex(),
                                              self.completnes_filter_inp.isChecked(),
-                                             self.pv_filter_inp.text(),
+                                             input,
                                              self.compare_filter_inp.currentIndex(),
-                                             self.filter_mode,
-                                             self.regex.isChecked())
+                                             self.filter_mode)
             if visible:
                 filtered.append(curr_item.pv_name)
 
@@ -1462,10 +1483,9 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
         # update_state), this stored values are used.
         self.compare_filter = 0
         self.connected_filter = True
-        self.name_filter = None
+        self.name_filter = ""
         self.mode = "no-file"
         self.files_equal = False
-        self.regex = False
 
     def update_state(self, pv_value, pv_compare, pv_cnct_sts, **kw):
         # Is called whenever pv value, connection status changes or new saved
@@ -1502,7 +1522,7 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
 
         # Filter with saved filter data, to check conditions with new values.
         self.apply_filter(self.compare_filter, self.connected_filter, self.name_filter, self.compare_filter,
-                          self.mode, self.regex)
+                          self.mode)
 
     def add_saved_value(self, index, value):
         if value is not None:
@@ -1528,7 +1548,7 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
             self.setIcon(2, QtGui.QIcon())
 
     def apply_filter(self, compare_filter=PvCompareFilter.show_all, connected_filter=True, name_filter=None,
-                     file_filter=PvCompareFilter.show_neq, filter_mode="no-file", regex=True):
+                     file_filter=PvCompareFilter.show_neq, filter_mode="no-file"):
 
         """ Controls visibility of item, depending on filter conditions. """
         # Save filters to use the when processed by value change
@@ -1537,16 +1557,13 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
         self.name_filter = name_filter
         self.file_filter = file_filter
         self.mode = filter_mode
-        self.regex = regex
 
         # if name filter empty --> no filter applied (show all)
-        if self.regex:
-            name_match = (re.fullmatch(name_filter, self.pv_name) is not None)
-
-        elif name_filter:
+        if isinstance(name_filter, str):
             name_match = name_filter in self.pv_name
         else:
-            name_match = True
+            # regex parser
+            name_match = (name_filter.fullmatch(self.pv_name) is not None)
 
         connected_match = self.connected_filter or self.connect_sts
 
