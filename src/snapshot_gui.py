@@ -829,9 +829,17 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
             os.path.join(os.path.dirname(os.path.realpath(__file__)), "images/clock.png")))
         self.file_selector.setAllColumnsShowFocus(True)
         self.file_selector.setSortingEnabled(True)
+        # Sort by file name (alphabetical order)
+        self.file_selector.sortItems(1, Qt.AscendingOrder)
+
         self.file_selector.itemSelectionChanged.connect(self.select_files)
         self.file_selector.setContextMenuPolicy(Qt.CustomContextMenu)
         self.file_selector.customContextMenuRequested.connect(self.open_menu)
+
+        # Set column sizes
+        self.file_selector.resizeColumnToContents(1)
+        self.file_selector.setColumnWidth(0, 60)
+        self.file_selector.setColumnWidth(2, 350)
 
         # Applies following behavior for multi select:
         #   click            selects only current file
@@ -995,18 +1003,13 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
 
                 # Modify visual representation
                 item_to_modify = modified_file_ref["file_selector"]
-                item_to_modify.setText(1, comment)
-                item_to_modify.setText(2, " ".join(labels))
+                item_to_modify.setText(0, time)
+                item_to_modify.setText(2, comment)
+                item_to_modify.setText(3, " ".join(labels))
         self.filter_input.update_labels()
 
         # Set column sizes
         self.file_selector.resizeColumnToContents(1)
-        self.file_selector.setColumnWidth(0, 60)
-        self.file_selector.setColumnWidth(2, 350)
-
-        # Sort by file name (alphabetical order)
-        self.file_selector.sortItems(1, Qt.AscendingOrder)
-
         return modif_file_list
 
     def filter_file_list_selector(self):
@@ -1485,7 +1488,6 @@ class SnapshotCompareWidget(QtGui.QWidget):
         self.filter_list()
 
     def update_shown_files(self, updated_files):
-        files_to_update = dict()
         # Check if one of updated files is currently selected, and update
         # the values if it is.
         i = 3
@@ -1495,8 +1497,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
                 saved_pvs = was_updated_file["pvs_list"]
                 for pv_name in self.common_settings["pvs_to_restore"]:
                     pv_data = saved_pvs.get(pv_name, {"pv_value": None})
-                    matching_lines = self.pv_view.findItems(
-                        pv_name, Qt.MatchCaseSensitive, 0)
+                    matching_lines = self.pv_view.findItems(pv_name, Qt.MatchCaseSensitive, 0)
                     if matching_lines:
                         pv_value = pv_data.get("pv_value", None)
                         line_to_update = matching_lines[0]
