@@ -943,7 +943,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
             meta_data = modified_data["meta_data"]
             labels = meta_data.get("labels", list())
             comment = meta_data.get("comment", "")
-            time = datetime.datetime.fromtimestamp(modified_data.get("modif_time", 0)).strftime('%d.%m.%Y %H:%M:%S')
+            time = datetime.datetime.fromtimestamp(modified_data.get("modif_time", 0)).strftime('%Y/%m/%d %H:%M:%S')
 
             # check if already on list (was just modified) and modify file
             # selector
