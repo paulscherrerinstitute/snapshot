@@ -48,6 +48,9 @@ class SnapshotGui(QtGui.QMainWindow):
         if config_path:
             try:
                 config = json.load(open(config_path))
+                # force-labels must be type of bool
+                if not isinstance(config.get('labels', dict()).get('force-labels', False), bool):
+                    raise TypeError('"force-labels" must be boolean')
             except Exception as e:
                 msg = "Loading configuration file failed! Do you want to continue with out it?\n"
 
@@ -89,7 +92,7 @@ class SnapshotGui(QtGui.QMainWindow):
 
         # default labels also in config file? Add them
         self.common_settings["default_labels"] += config.get('labels', dict()).get('labels', list())
-        self.common_settings["force_default_labels"] = config.get('labels', dict()).get('mode', force_default_labels)
+        self.common_settings["force_default_labels"] = config.get('labels', dict()).get('force-labels', False) or force_default_labels
 
         # Predefined filters
         self.common_settings["predefined_filters"] = config.get('filters', dict())

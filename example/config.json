@@ -1,6 +1,6 @@
 {
 	"labels":{
-		"force-labels": "True",
+		"force-labels": true,
 		"labels": ["test1","test2","test3"]
 	},
 	"filters":{
