@@ -792,6 +792,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         self.file_selector.headerItem().setIcon(0, QtGui.QIcon(
             os.path.join(os.path.dirname(os.path.realpath(__file__)), "images/clock.png")))
         self.file_selector.setAllColumnsShowFocus(True)
+        self.file_selector.setSortingEnabled(True)
         self.file_selector.itemSelectionChanged.connect(self.select_files)
         self.file_selector.setContextMenuPolicy(Qt.CustomContextMenu)
         self.file_selector.customContextMenuRequested.connect(self.open_menu)
@@ -1234,6 +1235,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         # - saved pv value
         # - status string
         self.pv_view = QtGui.QTreeWidget(self)
+        self.pv_view.setSortingEnabled(True)
         self.pv_view.setRootIsDecorated(False)
         self.pv_view.setIndentation(0)
         self.pv_view.setColumnCount(2)
@@ -1280,6 +1282,8 @@ class SnapshotCompareWidget(QtGui.QWidget):
         parsing the request file. Attributes except PV name are empty at
         init. Will be updated when monitor happens or files are selected.
         """
+        self.pv_view.setSortingEnabled(False)
+
         self.snapshot.stop_continuous_compare()
         # First remove all existing entries
         while self.pv_view.topLevelItemCount() > 0:
@@ -1296,6 +1300,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
 
         self.updated_pv_callback.connect(self.update_pv)
         self.snapshot.start_continuous_compare(self.update_pv_callback)
+        self.pv_view.setSortingEnabled(True)
 
     def regex_change(self, state):
         text = self.pv_filter_inp.text()
