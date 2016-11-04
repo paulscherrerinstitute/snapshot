@@ -45,7 +45,7 @@ positional arguments:
   --config CONFIG       path to configuration file
 ```
 
-> Configuration file enables option of predefined labels and filters. Example can be found in [HERE](example/config.cfg)
+> Configuration file enables option of predefined labels and filters. Example can be found in [HERE](example/config.json)
 
 To be used as command line tool it must be run either with `snapshot save` or `snapshot restore` depending on action needed.
 
