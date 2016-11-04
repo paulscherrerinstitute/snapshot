@@ -25,10 +25,10 @@ After snapshot is build and deployed as conda package (see section [Instalation]
 To use graphical interface snapshot must be started with following command:
 
 ```bash
-snapshot [-h] [-m MACRO] [-d DIR] [-b BASE] [-f] [FILE]
+snapshot [-h] [-m MACRO] [-d DIR] [-b BASE] [-f] [--labels LABELS] [--force_labels] [--config CONFIG] [FILE]
 
 Longer version of same command:
-snapshot gui [-h] [-m MACRO] [-d DIR] [-b BASE] [-f] [FILE]
+snapshot gui [-h] [-m MACRO] [-d DIR] [-b BASE] [-f] [--labels LABELS] [--force_labels] [--config CONFIG] [FILE]
 
 positional arguments:
   FILE                  request file.
@@ -44,6 +44,7 @@ positional arguments:
   --force_labels        force predefined labels
   --config CONFIG       path to configuration file
 ```
+
 > Configuration file enables option of predefined labels and filters. Example can be found in [HERE](example/config.cfg)
 
 To be used as command line tool it must be run either with `snapshot save` or `snapshot restore` depending on action needed.
@@ -88,7 +89,7 @@ examplePv:test-4,[5.0, 6.0, 7.0, 8.0, 9.0, 0.0, 1.0, 2.0, 3.0, 4.0]
 
 # Development
 ## Dependencies
-_Snapshot_ has following dependencies: 
+_Snapshot_ has following dependencies:
  - Python 3
  - pyepics
  - pyqt
