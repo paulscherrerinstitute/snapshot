@@ -327,7 +327,18 @@ class Snapshot:
         if self.compare_state:
             self.start_continuous_compare(callback)
 
-    def restore_pvs(self, save_file_path=None, force=False, callback=None):
+    def restore_pvs(self, save_file_path=None, force=False, callback=None, selected=None):
+        """
+
+        :param save_file_path: Path to snap file. If None, then preloaded values are used-
+        :param force: Force restore if not all needed PVs are connected
+        :param callback: Callback fnc
+        :param selected: List of selected PVs to be restored.
+        :return:
+        """
+        if selected is None:
+            selected = list()
+
         # If file with saved values specified then read file. If no file
         # then just use last stored values
         if self.restore_started:
@@ -344,20 +355,30 @@ class Snapshot:
             self.restore_started = False
             return(ActionStatus.no_data)
 
+
+        # Standard restore (restore all)
         # If force=True, then do restore even if not all PVs are connected.
+        # If only few PVs are selected, check if needed PVs are connected
         # Default is to abort restore if one is missing
 
-        if not force and not self.all_connected:
+        if not force and (not self.check_pvs_connected_status(selected) and selected or
+                                  not self.all_connected and not selected):
             self.restore_started = False
             return(ActionStatus.no_cnct)
+
 
         # Do a restore
         self.restored_pvs_list = list()
         self.restore_callback = callback
-        for key in self.pvs:
-            pv_ref = self.pvs[key]
-            pv_ref.restore_pv(callback=self.check_restore_complete)
+        for pv_name, pv_ref in self.pvs.items():
+            if not selected or pv_name in selected:
+                pv_ref.restore_pv(callback=self.check_restore_complete)
+            else:
+                # pv is not in subset in the "selected only" mode
+                # checking algorithm should think this one was successfully restored
+                self.check_restore_complete(pv_name, PvStatus.ok)
         return(ActionStatus.ok)
+
 
     def check_restore_complete(self, pv_name, status, **kw):
         self.restored_pvs_list.append((pv_name, status))
@@ -468,25 +489,35 @@ class Snapshot:
             check_all = True
 
         if check_all:
-            connections_ok = True
-            for key, pv_ref in self.pvs.items():
-                if pv_ref.cnct_lost:
-                    connections_ok = False
-                    break
-            self.all_connected = connections_ok
+            self.all_connected = self.check_pvs_connected_status()
+
+    def check_pvs_connected_status(self, pvs=None):
+        # If not specific list of pvs is given, then check all
+        if pvs is None:
+            pvs = self.pvs.keys()
+
+        for pv in pvs:
+            pv_ref = self.pvs.get(pv)
+            if pv_ref.cnct_lost:
+                return(False)
+
+        # If here then all connected
+        return(True)
 
     def get_pvs_names(self):
         # To access a list of all pvs that are under control of snapshot object
         return list(self.pvs.keys())
 
-    def get_not_connected_pvs_names(self):
+    def get_not_connected_pvs_names(self, selected=None):
+        if selected is None:
+            selected = list()
         if self.all_connected:
             return list()
         else:
             not_connected_list = list()
             for pv_name, pv_ref in self.pvs.items():
-                if not pv_ref.connected:
-                    not_connected_list.append(pv_name)
+                if not pv_ref.connected and ((pv_name in selected) or not selected):
+                    not_connected_list.append(pv_name)            # Need to check only subset (selected) of pvs?
             return(not_connected_list)
 
     def replace_metadata(self, save_file_path, metadata):

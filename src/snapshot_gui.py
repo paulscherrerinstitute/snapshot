@@ -15,6 +15,7 @@ from .snapshot_ca import PvStatus, ActionStatus, Snapshot, macros_substitution, 
 import json
 import numpy
 import copy
+import re
 
 
 # Define enums
@@ -37,11 +38,36 @@ class SnapshotGui(QtGui.QMainWindow):
     thread where core of the application is running
     """
 
-    def __init__(self, req_file_name=None, req_file_macros=None,
-                 save_dir=None, force=False, parent=None, init_path=None):
+    def __init__(self, req_file_name=None, req_file_macros=None, save_dir=None, force=False, default_labels=None,
+                 force_default_labels=None,init_path=None, config_path=None, parent=None):
         QtGui.QMainWindow.__init__(self, parent)
+
         if req_file_macros is None:
-            req_file_name = dict()
+            req_file_macros = dict()
+
+        if config_path:
+            try:
+                config = json.load(open(config_path))
+                # force-labels must be type of bool
+                if not isinstance(config.get('labels', dict()).get('force-labels', False), bool):
+                    raise TypeError('"force-labels" must be boolean')
+            except Exception as e:
+                msg = "Loading configuration file failed! Do you want to continue with out it?\n"
+
+                msg_window = QtGui.QMessageBox(self)
+                msg_window.setWindowTitle("Warning")
+                msg_window.setText(msg)
+                msg_window.setDetailedText(str(e))
+                msg_window.setStandardButtons(QtGui.QMessageBox.Yes | QtGui.QMessageBox.No)
+                msg_window.setDefaultButton(QtGui.QMessageBox.Yes)
+                reply = msg_window.exec_()
+
+                if reply == QtGui.QMessageBox.No:
+                    self.close_gui()
+
+                config = dict()
+        else:
+            config = dict()
 
         self.resize(1500, 850)
 
@@ -52,8 +78,25 @@ class SnapshotGui(QtGui.QMainWindow):
         self.common_settings["save_file_prefix"] = ""
         self.common_settings["req_file_path"] = ""
         self.common_settings["req_file_macros"] = dict()
-        self.common_settings["existing_labels"] = list()
-        self.common_settings["force"] = force
+        self.common_settings["existing_labels"] = list() # labels that are already in snap files
+        self.common_settings["force"] = False
+
+        if isinstance(default_labels, str):
+            default_labels =  default_labels.split(',')
+
+        elif  not isinstance(default_labels, list):
+            default_labels =list()
+
+
+        # default labels also in config file? Add them
+        self.common_settings["default_labels"] = list(set(default_labels +
+                                                          (config.get('labels', dict()).get('labels', list()))))
+
+        self.common_settings["force_default_labels"] = config.get('labels', dict()).get('force-labels', False) or\
+                                                       force_default_labels
+
+        # Predefined filters
+        self.common_settings["predefined_filters"] = config.get('filters', dict())
 
         if not req_file_name:
             self.configure_dialog = SnapshotConfigureDialog(self, init_path=init_path)
@@ -125,18 +168,22 @@ class SnapshotGui(QtGui.QMainWindow):
         # Compare widget. Must be updated in case of file selection
         self.compare_widget = SnapshotCompareWidget(self.snapshot,
                                                     self.common_settings, self)
+
+        self.compare_widget.pvs_filtered.connect(self.handle_pvs_filtered)
+
         self.save_widget = SnapshotSaveWidget(self.snapshot,
                                               self.common_settings, self)
-        self.connect(self.save_widget, SIGNAL("save_done"),
-                     self.handle_save_done)
+        self.save_widget.saved.connect(self.handle_saved)
+
         self.restore_widget = SnapshotRestoreWidget(self.snapshot,
                                                     self.common_settings, self)
         # If new files were added to restore list, all elements with Labels
         # should update with new existing labels. Force update for first time
-        self.connect(self.restore_widget, SIGNAL("files_updated"),
-                     self.handle_files_updated)
-        self.connect(self.restore_widget, SIGNAL("files_selected"),
-                     self.handle_selected_files)
+        self.restore_widget.files_updated.connect(self.handle_files_updated)
+        # Trigger files update for first time to properly update label selectors
+        self.restore_widget.clear_update_files()
+
+        self.restore_widget.files_selected.connect(self.handle_selected_files)
 
         sr_splitter = QtGui.QSplitter(self)
         sr_splitter.addWidget(self.save_widget)
@@ -187,7 +234,7 @@ class SnapshotGui(QtGui.QMainWindow):
         self.setWindowTitle(
             os.path.basename(self.common_settings["req_file_path"]) + ' - Snapshot')
 
-    def handle_save_done(self):
+    def handle_saved(self):
         # When save is done, save widget is updated by itself
         # Update restore widget (new file in directory)
         self.restore_widget.update_files()
@@ -215,7 +262,7 @@ class SnapshotGui(QtGui.QMainWindow):
 
     def open_settings(self):
         settings_window = SnapshotSettingsDialog(self.common_settings, self)  # Destroyed when closed
-        self.connect(settings_window, SIGNAL("new_config"), self.handle_new_config)
+        settings_window.new_config.connect(self.handle_new_config)
         settings_window.resize(800,200)
         settings_window.show()
 
@@ -233,6 +280,12 @@ class SnapshotGui(QtGui.QMainWindow):
             elif config_name == "save_dir":
                 self.common_settings["save_dir"] = config_value
                 self.restore_widget.clear_update_files()
+
+    def handle_pvs_filtered(self, pvs=None):
+        if pvs is None:
+            pvs = list()
+
+        self.restore_widget.filtered_pvs = pvs
 
     def close_gui(self):
         sys.exit()
@@ -254,6 +307,8 @@ class SnapshotSaveWidget(QtGui.QWidget):
     Data about current app state (such as request file) must be provided as
     part of the structure "common_settings".
     """
+
+    saved = QtCore.pyqtSignal()
 
     def __init__(self, snapshot, common_settings, parent=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
@@ -415,7 +470,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
         self.save_button.setEnabled(True)
         self.sts_info.set_status(status_txt, 3000, status_background)
 
-        self.emit(SIGNAL("save_done"))
+        self.saved.emit()
 
     def update_name(self):
         # When file extension is changed, update all corresponding variables
@@ -501,8 +556,10 @@ class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
         labels_label.setStyleSheet("background-color: None")
         labels_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
         labels_label.setMinimumWidth(min_label_width)
-        self.labels_input = SnapshotKeywordSelectorWidget(
-            common_settings, self.frame)
+        # If default labels are defined, then force default labels
+        self.labels_input = SnapshotKeywordSelectorWidget(common_settings,
+                                                          defaults_only=common_settings['force_default_labels'],
+                                                          parent=self)
         labels_layout.addWidget(labels_label)
         labels_layout.addWidget(self.labels_input)
 
@@ -525,7 +582,7 @@ class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
         self.frame_layout.addLayout(file_prefix_layout)
 
     def update_labels(self):
-        self.labels_input.update_sugested_keywords()
+        self.labels_input.update_suggested_keywords()
 
     def toggle(self):
         self.frame.setVisible(self.isChecked())
@@ -546,12 +603,16 @@ class SnapshotRestoreWidget(QtGui.QWidget):
     Data about current app state (such as request file) must be provided as
     part of the structure "common_settings".
     """
+    files_selected = QtCore.pyqtSignal(dict)
+    files_updated = QtCore.pyqtSignal(dict)
+    restored_callback = QtCore.pyqtSignal(dict, bool)
 
     def __init__(self, snapshot, common_settings, parent=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
 
         self.snapshot = snapshot
         self.common_settings = common_settings
+        self.filtered_pvs = list()
         # dict of available files to avoid multiple openings of one file when
         # not needed.
         self.file_list = dict()
@@ -565,11 +626,23 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         # Create list with: file names, comment, labels
         self.file_selector = SnapshotRestoreFileSelector(snapshot,
                                                          common_settings, self)
-        self.connect(self.file_selector, SIGNAL("files_selected"),
-                     self.handle_selected_files)
 
-        self.restore_button = QtGui.QPushButton("Restore", self)
-        self.restore_button.clicked.connect(self.start_restore)
+        self.file_selector.files_selected.connect(self.handle_selected_files)
+
+        self.restore_button = QtGui.QPushButton("Restore Filtered", self)
+        self.restore_button.clicked.connect(self.start_restore_filtered)
+        self.restore_button.setToolTip("Restores only currently filtered PVs from the selected .snap file.")
+
+        self.restore_all_button = QtGui.QPushButton("Restore All", self)
+        #self._filtered = None
+        self.restore_all_button.clicked.connect(self.start_restore_all)
+        self.restore_all_button.setToolTip("Restores all PVs from the selected .snap file.")
+
+        # Buttons layout
+        btn_layout = QtGui.QHBoxLayout()
+        btn_layout.addWidget(self.restore_all_button)
+        btn_layout.addWidget(self.restore_button)
+
 
         # Status widgets
         self.sts_log = self.common_settings["sts_log"]
@@ -581,24 +654,40 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
         # Add all widgets to main layout
         layout.addWidget(self.file_selector)
-        layout.addWidget(self.restore_button)
+        layout.addLayout(btn_layout)
 
-        self.connect(self, SIGNAL("restore_done_callback"), self.restore_done)
+        self.restored_callback.connect(self.restore_done)
 
     def handle_new_snapshot_instance(self, snapshot):
         self.file_selector.handle_new_snapshot_instance(snapshot)
         self.snapshot = snapshot
         self.clear_update_files()
 
-    def start_restore(self):
+    def start_restore_all(self):
+        self.do_restore()
+
+    def start_restore_filtered(self):
+        filtered_n = len(self.filtered_pvs)
+
+        if filtered_n == len(self.snapshot.pvs):  # all pvs selected
+            self.do_restore()  #This way functions below skip unnecessary checks
+        elif filtered_n:
+            self.do_restore(filtered_only=True)
+        # Do not start a restore if nothing to restore
+
+    def do_restore(self, filtered_only=False):
         # Check if restore can be done (values loaded to snapshot).
+        if filtered_only:
+            filtered = self.filtered_pvs
+        else:
+            filtered = None
+
         if self.snapshot.restore_values_loaded:
             # Check if all pvs connected or in force mode)
             force = self.common_settings["force"]
-            not_connected_pvs = self.snapshot.get_not_connected_pvs_names()
+            not_connected_pvs = self.snapshot.get_not_connected_pvs_names(filtered)
             do_restore = True
             if not force and not_connected_pvs:
-                # If file exists, user must decide whether to overwrite it or not
                 msg = "Some PVs are not connected (see details). Do you want to restore anyway?\n"
 
                 msg_window = QtGui.QMessageBox(self)
@@ -619,7 +708,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                 if self.snapshot.restore_values_loaded:
                     # First disable restore button (will be enabled when finished)
                     # Then Use one of the preloaded saved files to restore
-                    self.restore_button.setEnabled(False)
+                    self.restore_all_button.setEnabled(False)
                     # Force updating the GUI and disabling the button before future actions
                     QtCore.QCoreApplication.processEvents()
                     self.sts_log.log_line("Restore started.")
@@ -628,18 +717,18 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                     QtCore.QCoreApplication.processEvents()
 
                     status = self.snapshot.restore_pvs(callback=self.restore_done_callback,
-                                                       force=force)
+                                                       force=force, selected=filtered)
                     if status == ActionStatus.no_data:
                         # Because of checking "restore_values_loaded" before
                         # starting a restore, this case should not happen.
                         self.sts_log.log_line("ERROR: Nothing to restore.")
                         self.sts_info.set_status("Restore rejected", 3000, "#F06464")
-                        self.restore_button.setEnabled(True)
+                        self.restore_all_button.setEnabled(True)
                     elif status == ActionStatus.no_cnct:
                         self.sts_log.log_line(
                             "ERROR: Restore rejected. One or more PVs not connected.")
                         self.sts_info.set_status("Restore rejected", 3000, "#F06464")
-                        self.restore_button.setEnabled(True)
+                        self.restore_all_button.setEnabled(True)
                     elif status == ActionStatus.busy:
                         self.sts_log.log_line(
                             "ERROR: Restore rejected. Previous restore not finished.")
@@ -652,7 +741,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
     def restore_done_callback(self, status, forced, **kw):
         # Raise callback to handle GUI specific in GUI thread
-        self.emit(SIGNAL("restore_done_callback"), status, forced)
+        self.restored_callback.emit(status, forced)
 
     def restore_done(self, status, forced):
         # When snapshot finishes restore, GUI must be updated with
@@ -670,7 +759,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
             self.sts_info.set_status("Restore done", 3000, "#64C864")
 
         # Enable button when restore is finished
-        self.restore_button.setEnabled(True)
+        self.restore_all_button.setEnabled(True)
 
     def handle_selected_files(self, selected_files):
         # Prepare for restore if one specific file is selected, or clear
@@ -681,16 +770,17 @@ class SnapshotRestoreWidget(QtGui.QWidget):
             if file_data:
                 selected_data[file_name] = file_data
 
+        # First update other GUI components (compare widget) and then pass pvs to compare to the snapshot core
+        self.files_selected.emit(selected_data)
+
         if len(selected_files) == 1 and file_data:
             self.snapshot.prepare_pvs_to_restore_from_list(file_data.get("pvs_list", None),
                                                            file_data["meta_data"].get("macros", None))
         else:
             self.snapshot.clear_pvs_to_restore()
 
-        self.emit(SIGNAL("files_selected"), selected_data)
-
     def update_files(self):
-        self.emit(SIGNAL("files_updated"), self.file_selector.start_file_list_update())
+        self.files_updated.emit(self.file_selector.start_file_list_update())
 
     def clear_update_files(self):
         self.file_selector.clear_file_selector()
@@ -703,6 +793,8 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
     Widget for visual representation (and selection) of existing saved_value
     files.
     """
+
+    files_selected = QtCore.pyqtSignal(list)
 
     def __init__(self, snapshot, common_settings, parent=None, save_file_sufix=".snap", **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
@@ -725,18 +817,29 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         self.filter_input = SnapshotFileFilterWidget(
             self.common_settings, self)
 
-        self.connect(self.filter_input, SIGNAL(
-            "file_filter_updated"), self.filter_file_list_selector)
+        self.filter_input.file_filter_updated.connect(self.filter_file_list_selector)
 
         # Create list with: file names, comment, labels
         self.file_selector = QtGui.QTreeWidget(self)
         self.file_selector.setRootIsDecorated(False)
         self.file_selector.setIndentation(0)
-        self.file_selector.setColumnCount(3)
-        self.file_selector.setHeaderLabels(["File", "Comment", "Labels"])
+        self.file_selector.setColumnCount(4)
+        self.file_selector.setHeaderLabels(["", "File", "Comment", "Labels"])
+        self.file_selector.headerItem().setIcon(0, QtGui.QIcon(
+            os.path.join(os.path.dirname(os.path.realpath(__file__)), "images/clock.png")))
+        self.file_selector.setAllColumnsShowFocus(True)
+        self.file_selector.setSortingEnabled(True)
+        # Sort by file name (alphabetical order)
+        self.file_selector.sortItems(1, Qt.AscendingOrder)
+
         self.file_selector.itemSelectionChanged.connect(self.select_files)
         self.file_selector.setContextMenuPolicy(Qt.CustomContextMenu)
         self.file_selector.customContextMenuRequested.connect(self.open_menu)
+
+        # Set column sizes
+        self.file_selector.resizeColumnToContents(1)
+        self.file_selector.setColumnWidth(0, 60)
+        self.file_selector.setColumnWidth(2, 350)
 
         # Applies following behavior for multi select:
         #   click            selects only current file
@@ -766,6 +869,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
 
 
     def start_file_list_update(self):
+        self.file_selector.setSortingEnabled(False)
         # Rescans directory and adds new/modified files and removes none
         # existing ones from the list.
         save_files, err_to_report = self.get_save_files(self.common_settings["save_dir"], self.file_list)
@@ -794,8 +898,9 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
             msg_window.setText(msg)
             msg_window.setDetailedText(err_details)
             msg_window.setStandardButtons(QtGui.QMessageBox.Ok)
-            reply = msg_window.exec_()
+            msg_window.exec_()
 
+        self.file_selector.setSortingEnabled(True)
         return updated_files
 
     def get_save_files(self, save_dir, current_files):
@@ -819,8 +924,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                     # If there is no metadata (or no req_file specified in the metadata) 
                     # we search using a prefix of the request file. 
                     # The latter is less robust, but is backwards compatible.
-                    if ("req_file_name" in meta_data and \
-                            meta_data["req_file_name"] == req_file_name) \
+                    if ("req_file_name" in meta_data and meta_data["req_file_name"] == req_file_name) \
                             or file_name.startswith(req_file_name.split(".")[0] + "_"):
                         # we really should have basic meta data
                         # (or filters and some other stuff will silently fail)
@@ -833,8 +937,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                         parsed_save_files[file_name] = dict()
                         parsed_save_files[file_name]["pvs_list"] = pvs_list
                         parsed_save_files[file_name]["meta_data"] = meta_data
-                        parsed_save_files[file_name][
-                            "modif_time"] = os.path.getmtime(file_path)
+                        parsed_save_files[file_name]["modif_time"] = os.path.getmtime(file_path)
 
                         if err:  # report errors only for matching saved files
                             err_to_report.append((file_name, err))
@@ -849,16 +952,17 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
             meta_data = modified_data["meta_data"]
             labels = meta_data.get("labels", list())
             comment = meta_data.get("comment", "")
+            time = datetime.datetime.fromtimestamp(modified_data.get("modif_time", 0)).strftime('%Y/%m/%d %H:%M:%S')
 
             # check if already on list (was just modified) and modify file
             # selector
             if modified_file not in self.file_list:
-                selector_item = QtGui.QTreeWidgetItem(
-                    [modified_file, comment, " ".join(labels)])
+                selector_item = QtGui.QTreeWidgetItem([time, modified_file, comment, " ".join(labels)])
                 self.file_selector.addTopLevelItem(selector_item)
                 self.file_list[modified_file] = modified_data
                 self.file_list[modified_file]["file_selector"] = selector_item
                 existing_labels += list(set(labels) - set(existing_labels))
+
             else:
                 # If everything ok only one file should exist in list. Update
                 # its data
@@ -899,16 +1003,13 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
 
                 # Modify visual representation
                 item_to_modify = modified_file_ref["file_selector"]
-                item_to_modify.setText(1, comment)
-                item_to_modify.setText(2, " ".join(labels))
+                item_to_modify.setText(0, time)
+                item_to_modify.setText(2, comment)
+                item_to_modify.setText(3, " ".join(labels))
         self.filter_input.update_labels()
 
         # Set column sizes
-        self.file_selector.resizeColumnToContents(0)
-        self.file_selector.setColumnWidth(1, 350)
-
-        # Sort by file name (alphabetical order)
-        self.file_selector.sortItems(0, Qt.AscendingOrder)
+        self.file_selector.resizeColumnToContents(1)
         return modif_file_list
 
     def filter_file_list_selector(self):
@@ -936,8 +1037,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                     keys_status = True
 
                 if comment_filter:
-                    comment_status = comment_filter in file_to_filter[
-                        "meta_data"]["comment"]
+                    comment_status = comment_filter in file_to_filter["meta_data"]["comment"]
                 else:
                     comment_status = True
 
@@ -961,9 +1061,9 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         self.selected_files = list()
         if self.file_selector.selectedItems():
             for item in self.file_selector.selectedItems():
-                self.selected_files.append(item.text(0))
+                self.selected_files.append(item.text(1))
 
-        self.emit(SIGNAL("files_selected"), self.selected_files)
+        self.files_selected.emit(self.selected_files)
 
     def delete_files(self):
         if self.selected_files:
@@ -980,7 +1080,8 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                         self.file_list.pop(selected_file)
                         self.pvs = dict()
                         self.file_selector.takeTopLevelItem(
-                            self.file_selector.indexOfTopLevelItem(self.file_selector.findItems(selected_file, Qt.MatchCaseSensitive, 0)[0]))
+                            self.file_selector.indexOfTopLevelItem(self.file_selector.findItems(
+                                selected_file, Qt.MatchCaseSensitive, 0)[0]))
 
                     except OSError as e:
                         warn = "Problem deleting file:\n" + str(e)
@@ -1022,6 +1123,7 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
 
         Emits signal: filter_changed when any of the filter changed.
     """
+    file_filter_updated = QtCore.pyqtSignal()
 
     def __init__(self, common_settings, parent=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
@@ -1047,11 +1149,9 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
         # Labels filter
         key_layout = QtGui.QHBoxLayout()
         key_label = QtGui.QLabel("Labels:", self)
-        self.keys_input = SnapshotKeywordSelectorWidget(
-            self.common_settings, self)
+        self.keys_input = SnapshotKeywordSelectorWidget(self.common_settings, parent=self)  # No need to force defaults
         self.keys_input.setPlaceholderText("label_1 label_2 ...")
-        self.connect(self.keys_input, SIGNAL("keywords_changed"),
-                     self.update_filter)
+        self.keys_input.keywords_changed.connect(self.update_filter)
         key_layout.addWidget(key_label)
         key_layout.addWidget(self.keys_input)
 
@@ -1085,10 +1185,10 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
         self.file_filter["comment"] = self.comment_input.text().strip('')
         self.file_filter["name"] = self.name_input.text().strip('')
 
-        self.emit(SIGNAL("file_filter_updated"))
+        self.file_filter_updated.emit()
 
     def update_labels(self):
-        self.keys_input.update_sugested_keywords()
+        self.keys_input.update_suggested_keywords()
 
     def clear(self):
         self.keys_input.clear_keywords()
@@ -1105,6 +1205,8 @@ class SnapshotCompareWidget(QtGui.QWidget):
     monitored are already in the "snapshot" object controlled by worker. They
     were loaded with
     """
+    pvs_filtered = QtCore.pyqtSignal(list)
+    updated_pv_callback = QtCore.pyqtSignal(dict)
 
     def __init__(self, snapshot, common_settings, parent=None, **kw):
         QtGui.QWidget.__init__(self, parent, **kw)
@@ -1127,11 +1229,44 @@ class SnapshotCompareWidget(QtGui.QWidget):
         pv_filter_layout.setSpacing(10)
         pv_filter_label = QtGui.QLabel("Filter:", self)
         pv_filter_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
-        self.pv_filter_inp = QtGui.QLineEdit(self)
-        self.pv_filter_inp.setPlaceholderText("Filter by PV name")
+
+        predefined_filters = self.common_settings["predefined_filters"]
+        if predefined_filters:
+            self.pv_filter_sel = QtGui.QComboBox(self)
+            self.pv_filter_sel.setEditable(True)
+            self.pv_filter_sel.setIconSize(QtCore.QSize(35,15))
+            sel_layout = QtGui.QHBoxLayout()
+            sel_layout.addStretch()
+            self.pv_filter_sel.setLayout(sel_layout)
+            self.pv_filter_inp = self.pv_filter_sel.lineEdit()
+            self.pv_filter_inp.setPlaceholderText("Filter by PV name")
+
+            # Add filters
+            self.pv_filter_sel.addItem(None)
+            for rgx in predefined_filters.get('rgx-filters', list()):
+                self.pv_filter_sel.addItem(QtGui.QIcon(os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                                                    "images/rgx.png")),rgx)
+            self.pv_filter_sel.addItems(predefined_filters.get('filters', list()))
+
+
+            self.pv_filter_sel.currentIndexChanged.connect(self.predefined_selected)
+        else:
+            self.pv_filter_inp = QtGui.QLineEdit(self)
+            self.pv_filter_inp.setPlaceholderText("Filter by PV name")
+            self.pv_filter_sel = self.pv_filter_inp
+
+
         self.pv_filter_inp.textChanged.connect(self.filter_list)
+        self._inp_palette_ok = self.pv_filter_inp.palette()
+        self._inp_palette_err = QtGui.QPalette()
+        self._inp_palette_err.setColor(QtGui.QPalette.Base, QtGui.QColor("#F39292"))
+
+
         pv_filter_layout.addWidget(pv_filter_label)
-        pv_filter_layout.addWidget(self.pv_filter_inp)
+        pv_filter_layout.addWidget(self.pv_filter_sel)
+
+        self.regex = QtGui.QCheckBox("Regex", self)
+        self.regex.stateChanged.connect(self.regex_change)
 
         self.compare_filter_inp = QtGui.QComboBox(self)
         self.compare_filter_inp.addItems(
@@ -1143,8 +1278,16 @@ class SnapshotCompareWidget(QtGui.QWidget):
         self.completnes_filter_inp.setChecked(True)
         self.completnes_filter_inp.stateChanged.connect(self.filter_list)
         self.completnes_filter_inp.setMaximumWidth(500)
+
         filter_layout.addLayout(pv_filter_layout)
+        filter_layout.addWidget(self.regex)
+
+        sep = QtGui.QFrame(self)
+        sep.setFrameShape(QtGui.QFrame.VLine)
+        filter_layout.addWidget(sep)
+
         filter_layout.addWidget(self.compare_filter_inp)
+
         filter_layout.addWidget(self.completnes_filter_inp)
         filter_layout.setAlignment(Qt.AlignLeft)
         filter_layout.setSpacing(10)
@@ -1155,6 +1298,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         # - saved pv value
         # - status string
         self.pv_view = QtGui.QTreeWidget(self)
+        self.pv_view.setSortingEnabled(True)
         self.pv_view.setRootIsDecorated(False)
         self.pv_view.setIndentation(0)
         self.pv_view.setColumnCount(2)
@@ -1201,6 +1345,8 @@ class SnapshotCompareWidget(QtGui.QWidget):
         parsing the request file. Attributes except PV name are empty at
         init. Will be updated when monitor happens or files are selected.
         """
+        self.pv_view.setSortingEnabled(False)
+
         self.snapshot.stop_continuous_compare()
         # First remove all existing entries
         while self.pv_view.topLevelItemCount() > 0:
@@ -1215,20 +1361,73 @@ class SnapshotCompareWidget(QtGui.QWidget):
         # Sort by name (alphabetical order)
         self.pv_view.sortItems(0, Qt.AscendingOrder)
 
-        self.connect(self, SIGNAL("update_pv_callback"), self.update_pv)
+        self.updated_pv_callback.connect(self.update_pv)
         self.snapshot.start_continuous_compare(self.update_pv_callback)
+        self.pv_view.setSortingEnabled(True)
+
+    def predefined_selected(self, idx):
+        txt = self.pv_filter_inp.text()
+        if idx == 0:
+            # First empty option
+            pass
+        if not self.pv_filter_sel.itemIcon(idx).isNull():
+            # Set back to first index, to get rid of the icon. Set to regex and pass text of filter to the input
+            self.pv_filter_sel.setCurrentIndex(0)
+            self.regex.setChecked(True)
+            self.pv_filter_inp.setText(txt)
+        else:
+            #Imitate same behaviour
+            self.pv_filter_sel.setCurrentIndex(0)
+            self.regex.setChecked(False)
+            self.pv_filter_inp.setText(txt)
+
+    def regex_change(self, state):
+        text = self.pv_filter_inp.text()
+        if state:
+            if not text:
+                self.pv_filter_inp.setText('.*')
+            else:
+                self.filter_list()
+        elif text == '.*':
+            self.pv_filter_inp.setText('')
+        else:
+            self.filter_list()
 
     def filter_list(self):
         # Just pass the filter conditions to all items in the list. # Use
         # values directly from GUI elements (filter selectors).
+
+        # If regex, check for syntax errors and prepare compiler object
+        if self.regex.isChecked():
+            try:
+                input = re.compile(self.pv_filter_inp.text())
+                self.pv_filter_inp.setPalette(self._inp_palette_ok)
+            except:
+                # Syntax error (happens a lot during typing an expression). In such cases make compiler which will
+                # not match any pv name and color input "redish"
+                input = re.compile("")
+                self.pv_filter_inp.setPalette(self._inp_palette_err)
+        else:
+            # Normal search
+            input = self.pv_filter_inp.text()
+
+
+        filtered = list()
         for i in range(self.pv_view.topLevelItemCount()):
             curr_item = self.pv_view.topLevelItem(i)
-            curr_item.apply_filter(self.compare_filter_inp.currentIndex(),
-                                   self.completnes_filter_inp.isChecked(),
-                                   self.pv_filter_inp.text(), self.compare_filter_inp.currentIndex(), self.filter_mode)
+            visible = curr_item.apply_filter(self.compare_filter_inp.currentIndex(),
+                                             self.completnes_filter_inp.isChecked(),
+                                             input,
+                                             self.compare_filter_inp.currentIndex(),
+                                             self.filter_mode)
+            if visible:
+                filtered.append(curr_item.pv_name)
+
+        # Notify that pvs vere filtered
+        self.pvs_filtered.emit(filtered)
 
     def update_pv_callback(self, **data):
-        self.emit(SIGNAL("update_pv_callback"), data)
+        self.updated_pv_callback.emit(data)
 
     def update_pv(self, data):
         # If everything ok, only one line should match
@@ -1289,7 +1488,6 @@ class SnapshotCompareWidget(QtGui.QWidget):
         self.filter_list()
 
     def update_shown_files(self, updated_files):
-        files_to_update = dict()
         # Check if one of updated files is currently selected, and update
         # the values if it is.
         i = 3
@@ -1299,8 +1497,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
                 saved_pvs = was_updated_file["pvs_list"]
                 for pv_name in self.common_settings["pvs_to_restore"]:
                     pv_data = saved_pvs.get(pv_name, {"pv_value": None})
-                    matching_lines = self.pv_view.findItems(
-                        pv_name, Qt.MatchCaseSensitive, 0)
+                    matching_lines = self.pv_view.findItems(pv_name, Qt.MatchCaseSensitive, 0)
                     if matching_lines:
                         pv_value = pv_data.get("pv_value", None)
                         line_to_update = matching_lines[0]
@@ -1374,7 +1571,7 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
         # update_state), this stored values are used.
         self.compare_filter = 0
         self.connected_filter = True
-        self.name_filter = None
+        self.name_filter = ""
         self.mode = "no-file"
         self.files_equal = False
 
@@ -1412,8 +1609,8 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
                 self.setText(1, "")
 
         # Filter with saved filter data, to check conditions with new values.
-        self.apply_filter(self.compare_filter, self.connected_filter,
-                          self.name_filter, self.compare_filter, self.mode)
+        self.apply_filter(self.compare_filter, self.connected_filter, self.name_filter, self.compare_filter,
+                          self.mode)
 
     def add_saved_value(self, index, value):
         if value is not None:
@@ -1438,10 +1635,8 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
         else:
             self.setIcon(2, QtGui.QIcon())
 
-    def apply_filter(self, compare_filter=PvCompareFilter.show_all,
-                     connected_filter=True, name_filter=None,
-                     file_filter=PvCompareFilter.show_neq,
-                     filter_mode="no-file"):
+    def apply_filter(self, compare_filter=PvCompareFilter.show_all, connected_filter=True, name_filter=None,
+                     file_filter=PvCompareFilter.show_neq, filter_mode="no-file"):
 
         """ Controls visibility of item, depending on filter conditions. """
         # Save filters to use the when processed by value change
@@ -1452,10 +1647,11 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
         self.mode = filter_mode
 
         # if name filter empty --> no filter applied (show all)
-        if name_filter:
+        if isinstance(name_filter, str):
             name_match = name_filter in self.pv_name
         else:
-            name_match = True
+            # regex parser
+            name_match = (name_filter.fullmatch(self.pv_name) is not None)
 
         connected_match = self.connected_filter or self.connect_sts
 
@@ -1480,6 +1676,8 @@ class SnapshotCompareTreeWidgetItem(QtGui.QTreeWidgetItem):
                              (compare_filter == PvCompareFilter.show_all))
             self.setHidden(not(name_match and ((self.connect_sts and compare_match) or (
                            not self.connect_sts and connected_match))))
+
+        return(not self.isHidden())
 
 
 # Status widgets
@@ -1592,6 +1790,9 @@ class SnapshotConfigureDialog(QtGui.QDialog):
 
 
 class SnapshotSettingsDialog(QtGui.QWidget):
+
+    new_config = QtCore.pyqtSignal(dict)
+
     def __init__(self, common_settings, parent=None):
         self.common_settings = common_settings
         QtGui.QWidget.__init__(self, parent)
@@ -1617,7 +1818,7 @@ class SnapshotSettingsDialog(QtGui.QWidget):
         # Snapshot directory
         self.save_dir_input = SnapshotFileSelector(self, label_text="", show_files=False)
         self.save_dir_input.setText(self.curr_save_dir)
-        self.connect(self.save_dir_input, SIGNAL("path_changed"), self.monitor_changes)
+        self.save_dir_input.path_changed.connect(self.monitor_changes)
         form_layout.addRow("Saved files directory:", self.save_dir_input)
 
          # Force
@@ -1699,12 +1900,15 @@ class SnapshotSettingsDialog(QtGui.QWidget):
 
         self.monitor_changes()  # To update buttons state
 
-        self.emit(SIGNAL("new_config"), config)
+        self.new_config.emit(config)
+
 
 
 class SnapshotFileSelector(QtGui.QWidget):
 
     """ Widget to select file with dialog box. """
+
+    path_changed = QtCore.pyqtSignal()
 
     def __init__(self, parent=None, label_text="File:", button_text="...", label_width=None,
                  init_path=None, show_files=True, **kw):
@@ -1758,7 +1962,7 @@ class SnapshotFileSelector(QtGui.QWidget):
 
     def change_file_path(self):
         self.file_path = self.file_path_input.text()
-        self.emit(SIGNAL("path_changed"))
+        self.path_changed.emit()
 
     def text(self):
         return self.file_path_input.text()
@@ -1777,11 +1981,17 @@ class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
     the common_settings data structure and are suggested to the user in
     drop down menu. Keywords that are selected are returned as list.
     """
+    keywords_changed = QtCore.pyqtSignal()
 
-    def __init__(self, common_settings, parent=None):
+    def __init__(self, common_settings, defaults_only=False, parent=None):
         QtGui.QComboBox.__init__(self, parent)
-        self.setEditable(True)
+
+        self.defaults_only = defaults_only
         self.common_settings = common_settings
+
+        # data holders
+        self.selectedKeywords = list()
+        self.keywordWidgets = dict()
 
         # Main layout
         # [selected widgets][input][drop down arrow (part of QComboBox)]
@@ -1790,24 +2000,25 @@ class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
         self.layout.setContentsMargins(5, 0, 35, 0)
         self.layout.setSpacing(2)
 
-        self.input = SnapshotKeywordSelectorInput(self.input_handler, self)
-        self.layout.addWidget(self.input)
+        if not defaults_only:
+            self.setEditable(True)
+            # Extra styling
+            self.lineEdit().setStyleSheet("background-color: white")
+
+            self.input = SnapshotKeywordSelectorInput(self.input_handler, self)
+            self.layout.addWidget(self.input)
+        else:
+            self.layout.addStretch()
+
         self.setCurrentIndex(0)
-        self.connect(self, QtCore.SIGNAL("currentIndexChanged(QString)"),
-                     self.add_to_selected)
+        self.currentIndexChanged[str].connect(self.add_to_selected)
 
-        self.update_sugested_keywords()
+        self.update_suggested_keywords()
 
-        # data holders
-        self.selected_keywords = list()
-        self.keyword_widgets = dict()
-
-        # Extra styling
-        self.lineEdit().setStyleSheet("background-color: white")
 
     def get_keywords(self):
         # Return list of currently selected keywords
-        return self.selected_keywords
+        return self.selectedKeywords
 
     def input_handler(self, event):
         # Is called in self.input widget, every time when important events
@@ -1834,48 +2045,65 @@ class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
                 key_to_add = self.input.text()
             self.add_to_selected(key_to_add)
 
-        elif event.key() == Qt.Key_Backspace and len(self.selected_keywords):
-            self.remove_keyword(self.selected_keywords[-1])
+        elif event.key() == Qt.Key_Backspace and len(self.selectedKeywords):
+            self.remove_keyword(self.selectedKeywords[-1])
 
     def focusInEvent(self, event):
         # Focus should always be on the self.input
-        self.input.setFocus()
+        if not self.defaults_only:
+            self.input.setFocus()
 
-    def add_to_selected(self, keyword):
+    def add_to_selected(self, keyword, force=False):
         # When called, keyword is added to list of selected keywords and
         # new graphical representation is added left to the input field
         self.setCurrentIndex(0)
-        self.input.setText("")
+        if not self.defaults_only:
+            self.input.setText("")
+
+        default_labels = self.common_settings["default_labels"]
         keyword = keyword.strip()
-        if keyword and (keyword not in self.selected_keywords):
+
+        # Skip if already selected or not in predefined labels if defaults_only (force=True overrides defaults_only)
+        if keyword and (keyword not in self.selectedKeywords) and (not self.defaults_only or force or self.defaults_only
+                                                                    and keyword in default_labels):
             key_widget = SnapshotKeywordWidget(keyword, self)
-            self.connect(key_widget, SIGNAL("delete"), self.remove_keyword)
-            self.keyword_widgets[keyword] = key_widget
-            self.selected_keywords.append(keyword)
-            self.layout.insertWidget(len(self.selected_keywords)-1, key_widget)
-            self.emit(SIGNAL("keywords_changed"))
+            key_widget.delete.connect(self.remove_keyword)
+            self.keywordWidgets[keyword] = key_widget
+            self.selectedKeywords.append(keyword)
+            self.layout.insertWidget(len(self.selectedKeywords)-1, key_widget)
+            self.keywords_changed.emit()
+            self.setItemText(0, "")
 
     def remove_keyword(self, keyword):
         # Remove keyword from list of selected and delete graphical element
         keyword = keyword.strip()
-        if keyword in self.selected_keywords:
-            self.selected_keywords.remove(keyword)
-            key_widget = self.keyword_widgets.get(keyword)
+        if keyword in self.selectedKeywords:
+            self.selectedKeywords.remove(keyword)
+            key_widget = self.keywordWidgets.get(keyword)
             self.layout.removeWidget(key_widget)
             key_widget.deleteLater()
-            self.emit(SIGNAL("keywords_changed"))
+            self.keywords_changed.emit()
+            if not self.selectedKeywords:
+                self.setItemText(0, "Select labels ...")
 
     def setPlaceholderText(self, text):
-        # Placeholder text is always in the input field
-        self.input.setPlaceholderText(text)
+        # Placeholder tefirst_itemxt is always in the input field
+        if not self.defaults_only:
+            self.input.setPlaceholderText(text)
 
-    def update_sugested_keywords(self):
+    def update_suggested_keywords(self):
         # Method to be called when global list of existing labels (keywords)
         # is changed and widget must be updated.
         self.clear()
-        self.common_settings["existing_labels"].sort()
-        self.addItem("")
-        self.addItems(self.common_settings["existing_labels"])
+        labels = list() + self.common_settings["default_labels"]
+        if not self.defaults_only:
+            labels += self.common_settings["existing_labels"]
+            self.addItem("")
+        else:
+            self.addItem("Select labels ...")
+
+        labels.sort()
+        self.addItems(labels)
 
     def clear_keywords(self):
         keywords_to_remove = copy.copy(self.get_keywords())
@@ -1919,6 +2147,7 @@ class SnapshotKeywordWidget(QtGui.QFrame):
     Graphical representation of the selected widget. A Frame with remove
     button.
     """
+    delete = QtCore.pyqtSignal(str)
 
     def __init__(self, text=None, parent=None):
         QtGui.QFrame.__init__(self, parent)
@@ -1948,7 +2177,7 @@ class SnapshotKeywordWidget(QtGui.QFrame):
     def delete_pressed(self):
         # Emit delete signal with information about removed keyword.
         # main widget will take care of removing it from the list.
-        self.emit(SIGNAL("delete"), self.keyword)
+        self.delete.emit(self.keyword)
 
 
 class SnapshotEditMetadataDialog(QtGui.QDialog):
@@ -1972,9 +2201,12 @@ class SnapshotEditMetadataDialog(QtGui.QDialog):
         form_layout.addRow("Comment:", self.comment_input)
 
         # Make field for labels
-        self.labels_input = SnapshotKeywordSelectorWidget(common_settings, self)
+        # If default labels are defined, then force default labels
+        self.labels_input = SnapshotKeywordSelectorWidget(common_settings,
+                                                          defaults_only=self.common_settings['force_default_labels'],
+                                                          parent=self)
         for label in metadata["labels"]:
-            self.labels_input.add_to_selected(label)
+            self.labels_input.add_to_selected(label, force=True)
         form_layout.addRow("Labels:", self.labels_input)
 
         self.button_box = QtGui.QDialogButtonBox(
