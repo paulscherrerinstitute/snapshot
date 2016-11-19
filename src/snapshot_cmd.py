@@ -5,10 +5,8 @@ import os
 from .snapshot_ca import PvStatus, ActionStatus, Snapshot, macros_substitution, parse_macros, parse_dict_macros_to_text
 
 def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10):
-    req_file_name = os.path.basename(req_file_path)
-
     if os.path.isdir(save_file_path):
-        save_file_path += '/{}_{}.snap'.format(os.path.splitext(req_file_name)[0],
+        save_file_path += '/{}_{}.snap'.format(os.path.splitext(os.path.basename(req_file_path))[0],
                                               datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M%S'))
 
     logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
@@ -23,7 +21,7 @@ def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10
     while not snapshot.all_connected and time.time() < end_time:
         time.sleep(0.2)
 
-    status, pv_status = snapshot.save_pvs(req_file_name, save_file_path, force)
+    status, pv_status = snapshot.save_pvs(save_file_path, force)
 
     if status != ActionStatus.ok:
         for pv_name in snapshot.get_not_connected_pvs_names():
@@ -37,6 +35,11 @@ def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10
 
 
 def restore(saved_file_path, force=False, timeout=10):
+    logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
+    logging.info('Start restoring the snapshot.')
+    if force:
+        logging.info('Started in force mode. Unavailable PVs will be ignored.')
+
     snapshot = Snapshot(saved_file_path) # Use saved file as request file here
 
     # Prparse file to check for any problems in the snapshot file.
@@ -45,6 +48,7 @@ def restore(saved_file_path, force=False, timeout=10):
     if err:
         logging.warning('While loading file following problems were detected:\n * ' + '\n * '.join(err))
 
+    logging.info('Waiting for PVs connections (timeout: {} s) ...'.format(timeout))
     end_time = time.time() + timeout
     while not snapshot.all_connected and time.time() < end_time:
         time.sleep(0.2)
