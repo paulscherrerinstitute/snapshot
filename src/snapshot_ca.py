@@ -7,9 +7,9 @@
 
 from epics import *
 ca.AUTO_CLEANUP = True  # For pyepics versions older than 3.2.4, this was set to True only for
-                      # python 2 but not for python 3, which resulted in errors when closing
-                      # the application. If true, ca.finalize_libca() is called when app is
-                      # closed
+                        # python 2 but not for python 3, which resulted in errors when closing
+                        # the application. If true, ca.finalize_libca() is called when app is
+                        # closed
 import numpy
 import json
 import time
@@ -181,9 +181,9 @@ class Snapshot:
         self.macros = macros
 
         # Other important states
-        self._restore_started = False
-        self.restore_blocking_done = False
         self.all_connected = False  # TODO think of managing other way
+        self._restore_started = False
+        self._restore_blocking_done = False
         self._restore_callback = None
         self._current_restore_forced = False
 
@@ -331,14 +331,14 @@ class Snapshot:
             self.restore_callback = None
 
     def restore_pvs_blocking(self, save_file_path=None, force=False, timeout=10):
-        self.restore_blocking_done = False
+        self._restore_blocking_done = False
         status =  self.restore_pvs(save_file_path, force=force, callback=self.set_restore_blocking_done)
         if status == ActionStatus.ok:
             end_time = time.time() + timeout
-            while not self.restore_blocking_done and time.time() < end_time:
+            while not self._restore_blocking_done and time.time() < end_time:
                 time.sleep(0.2)
 
-            if self.restore_blocking_done:
+            if self._restore_blocking_done:
                 return ActionStatus.ok
             else:
                 return ActionStatus.timeout
@@ -347,7 +347,7 @@ class Snapshot:
 
     def set_restore_blocking_done(self, status, forced):
         # If this was called, then restore is done
-        self.restore_blocking_done = True
+        self._restore_blocking_done = True
 
 
     def update_all_connected_status(self, pvname=None, **kw):

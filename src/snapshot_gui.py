@@ -46,6 +46,7 @@ class SnapshotGui(QtGui.QMainWindow):
             req_file_macros = dict()
 
         if config_path:
+            # Validate configuration file
             try:
                 config = json.load(open(config_path))
                 # force-labels must be type of bool
@@ -79,7 +80,7 @@ class SnapshotGui(QtGui.QMainWindow):
         self.common_settings["req_file_path"] = ""
         self.common_settings["req_file_macros"] = dict()
         self.common_settings["existing_labels"] = list() # labels that are already in snap files
-        self.common_settings["force"] = False
+        self.common_settings["force"] = force
 
         if isinstance(default_labels, str):
             default_labels =  default_labels.split(',')
@@ -214,7 +215,8 @@ class SnapshotGui(QtGui.QMainWindow):
 
     def open_new_req_file(self):
         # First pause old snapshot
-        self.snapshot.stop_continuous_compare()
+        #TODO handle compare
+        #self.snapshot.stop_continuous_compare()
 
         self.configure_dialog = SnapshotConfigureDialog(self, init_path=os.path.dirname(
             self.common_settings['req_file_path']))
@@ -428,8 +430,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
                 comment = ""
 
             # Start saving process and notify when finished
-            status, pvs_status = self.snapshot.save_pvs(os.path.basename(self.common_settings["req_file_path"]),
-                                                        self.file_path,
+            status, pvs_status = self.snapshot.save_pvs(self.file_path,
                                                         force=force,
                                                         labels=labels,
                                                         comment=comment,
@@ -629,22 +630,21 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
         self.file_selector.files_selected.connect(self.handle_selected_files)
 
+        # Make restore buttons
         self.restore_button = QtGui.QPushButton("Restore Filtered", self)
         self.restore_button.clicked.connect(self.start_restore_filtered)
         self.restore_button.setToolTip("Restores only currently filtered PVs from the selected .snap file.")
 
         self.restore_all_button = QtGui.QPushButton("Restore All", self)
-        #self._filtered = None
         self.restore_all_button.clicked.connect(self.start_restore_all)
         self.restore_all_button.setToolTip("Restores all PVs from the selected .snap file.")
 
-        # Buttons layout
         btn_layout = QtGui.QHBoxLayout()
         btn_layout.addWidget(self.restore_all_button)
         btn_layout.addWidget(self.restore_button)
 
 
-        # Status widgets
+        # Link to status widgets
         self.sts_log = self.common_settings["sts_log"]
         self.sts_info = self.common_settings["sts_info"]
 
@@ -675,6 +675,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
             self.do_restore(filtered_only=True)
         # Do not start a restore if nothing to restore
 
+
     def do_restore(self, filtered_only=False):
         # Check if restore can be done (values loaded to snapshot).
         if filtered_only:
@@ -682,10 +683,24 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         else:
             filtered = None
 
-        if self.snapshot.restore_values_loaded:
+        # Restore can be done only if specific file is selected
+        if len(self.file_selector.selected_files) == 1:
+            file_data = self.file_selector.file_list.get(self.file_selector.selected_files[0])
+
+            # Prepare pvs with values to restore
+            if file_data:
+                pvs_in_file = file_data.get("pvs_list", None) # is actually a dict
+                pvs_to_restore = copy.copy(file_data.get("pvs_list", None)) # is actually a dict
+
+                if filtered is not None:
+                    for pvname in pvs_in_file.keys():
+                        if pvname not in filtered:
+                            pvs_to_restore.pop(pvname, None) #remove unfiltered pvs
+
+
             # Check if all pvs connected or in force mode)
             force = self.common_settings["force"]
-            not_connected_pvs = self.snapshot.get_not_connected_pvs_names(filtered)
+            not_connected_pvs = self.snapshot.get_not_connected_pvs_names(filtered) #TODO might be handled different way
             do_restore = True
             if not force and not_connected_pvs:
                 msg = "Some PVs are not connected (see details). Do you want to restore anyway?\n"
@@ -705,33 +720,36 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                     force = True
 
             if do_restore:
-                if self.snapshot.restore_values_loaded:
-                    # First disable restore button (will be enabled when finished)
-                    # Then Use one of the preloaded saved files to restore
-                    self.restore_all_button.setEnabled(False)
-                    # Force updating the GUI and disabling the button before future actions
-                    QtCore.QCoreApplication.processEvents()
-                    self.sts_log.log_line("Restore started.")
-                    self.sts_info.set_status("Restoring ...", 0, "orange")
-                    # Force updating the GUI with new status
-                    QtCore.QCoreApplication.processEvents()
+                # First disable restore button (will be enabled when finished)
+                # Then Use one of the preloaded saved files to restore
+                self.restore_all_button.setEnabled(False)
+                self.restore_button.setEnabled(False)
 
-                    status = self.snapshot.restore_pvs(callback=self.restore_done_callback,
-                                                       force=force, selected=filtered)
-                    if status == ActionStatus.no_data:
-                        # Because of checking "restore_values_loaded" before
-                        # starting a restore, this case should not happen.
-                        self.sts_log.log_line("ERROR: Nothing to restore.")
-                        self.sts_info.set_status("Restore rejected", 3000, "#F06464")
-                        self.restore_all_button.setEnabled(True)
-                    elif status == ActionStatus.no_cnct:
-                        self.sts_log.log_line(
-                            "ERROR: Restore rejected. One or more PVs not connected.")
-                        self.sts_info.set_status("Restore rejected", 3000, "#F06464")
-                        self.restore_all_button.setEnabled(True)
-                    elif status == ActionStatus.busy:
-                        self.sts_log.log_line(
-                            "ERROR: Restore rejected. Previous restore not finished.")
+                # Force updating the GUI and disabling the button before future actions
+                QtCore.QCoreApplication.processEvents()
+                self.sts_log.log_line("Restore started.")
+                self.sts_info.set_status("Restoring ...", 0, "orange")
+                # Force updating the GUI with new status
+                QtCore.QCoreApplication.processEvents()
+
+                status = self.snapshot.restore_pvs(pvs_to_restore, callback=self.restore_done_callback,
+                                                   force=force)
+                if status == ActionStatus.no_data:
+                    # Because of checking "restore_values_loaded" before
+                    # starting a restore, this case should not happen.
+                    self.sts_log.log_line("ERROR: Nothing to restore.")
+                    self.sts_info.set_status("Restore rejected", 3000, "#F06464")
+                    self.restore_all_button.setEnabled(True)
+                    self.restore_button.setEnabled(True)
+                elif status == ActionStatus.no_cnct:
+                    self.sts_log.log_line(
+                        "ERROR: Restore rejected. One or more PVs not connected.")
+                    self.sts_info.set_status("Restore rejected", 3000, "#F06464")
+                    self.restore_all_button.setEnabled(True)
+                    self.restore_button.setEnabled(True)
+                elif status == ActionStatus.busy:
+                    self.sts_log.log_line(
+                        "ERROR: Restore rejected. Previous restore not finished.")
         else:
             # Don't start a restore if file not selected
             warn = "Cannot start a restore. File with saved values is not selected."
@@ -740,7 +758,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                                       QtGui.QMessageBox.NoButton)
 
     def restore_done_callback(self, status, forced, **kw):
-        # Raise callback to handle GUI specific in GUI thread
+        # Raise callback to handle GUI specifics in GUI thread
         self.restored_callback.emit(status, forced)
 
     def restore_done(self, status, forced):
@@ -760,8 +778,15 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
         # Enable button when restore is finished
         self.restore_all_button.setEnabled(True)
+        self.restore_button.setEnabled(True)
 
     def handle_selected_files(self, selected_files):
+        '''
+
+        :param selected_files: list of selected file names
+        :return:
+        '''
+        # TODO fix this currently just passing signal to update compare widget
         # Prepare for restore if one specific file is selected, or clear
         # restore data if none specific file is selected.
         selected_data = dict()
@@ -772,12 +797,6 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
         # First update other GUI components (compare widget) and then pass pvs to compare to the snapshot core
         self.files_selected.emit(selected_data)
-
-        if len(selected_files) == 1 and file_data:
-            self.snapshot.prepare_pvs_to_restore_from_list(file_data.get("pvs_list", None),
-                                                           file_data["meta_data"].get("macros", None))
-        else:
-            self.snapshot.clear_pvs_to_restore()
 
     def update_files(self):
         self.files_updated.emit(self.file_selector.start_file_list_update())
@@ -1334,7 +1353,6 @@ class SnapshotCompareWidget(QtGui.QWidget):
         cb.setText(self.pv_view.selectedItems()[0].text(0), mode=cb.Clipboard)
 
     def handle_new_snapshot_instance(self, snapshot):
-        #self.new_selected_files(dict()) # act as there is no selected file
         self.snapshot = snapshot
         self.populate_compare_list()
 
@@ -1346,8 +1364,8 @@ class SnapshotCompareWidget(QtGui.QWidget):
         init. Will be updated when monitor happens or files are selected.
         """
         self.pv_view.setSortingEnabled(False)
-
-        self.snapshot.stop_continuous_compare()
+        #TODO handle compare
+        #self.snapshot.stop_continuous_compare()
         # First remove all existing entries
         while self.pv_view.topLevelItemCount() > 0:
             self.pv_view.takeTopLevelItem(0)
@@ -1362,7 +1380,8 @@ class SnapshotCompareWidget(QtGui.QWidget):
         self.pv_view.sortItems(0, Qt.AscendingOrder)
 
         self.updated_pv_callback.connect(self.update_pv)
-        self.snapshot.start_continuous_compare(self.update_pv_callback)
+        # TODO handle compare
+        #self.snapshot.start_continuous_compare(self.update_pv_callback)
         self.pv_view.setSortingEnabled(True)
 
     def predefined_selected(self, idx):
