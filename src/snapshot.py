@@ -33,7 +33,7 @@ def restore(args):
     restore(args.FILE, args.force, args.timeout)
 
 def gui(args):
-    from .snapshot_gui import start_gui
+    from .gui.snapshot_gui import start_gui
     start_gui(args.FILE, args.macro, save_dir=args.dir, force=args.force, default_labels=args.labels,
               force_default_labels=args.force_labels, init_path=args.base, config_path=args.config)
 

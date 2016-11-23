@@ -28,7 +28,7 @@ class ActionStatus(Enum):
     busy = 0
     ok = 1
     no_data = 2
-    no_cnct = 3
+    no_conn = 3
     timeout = 4
 
 
@@ -104,7 +104,7 @@ class SnapshotPv(PV):
                 if value is None:
                     callback(pvname=self.pvname, status=PvStatus.no_value)
 
-                elif not self.compare(value):
+                elif not self.compare_to_curr(value):
                     if isinstance(value, str):
                         # pyepics needs value as bytes not as string
                         value = str.encode(value)
@@ -122,12 +122,18 @@ class SnapshotPv(PV):
         elif callback:
             callback(pvname=self.pvname, status=PvStatus.access_err)
 
+    def compare_to_curr(self, value):
+        return(SnapshotPv.compare(value, self.value, self.is_array))
 
-    def compare(self, value):
-        if self.is_array:
-            return(numpy.array_equal(value, self.value))
+    @staticmethod
+    def compare(value1, value2, is_array=False):
+        if is_array:
+            return(numpy.array_equal(value1, value2))
         else:
-            return(value == self.value)
+            return(value1 == value2)
+
+    def add_conn_callback(self, callback):
+        self.cnct_callback = callback
 
     def _internal_cnct_callback(self, conn, **kw):
         """
@@ -146,11 +152,6 @@ class SnapshotPv(PV):
         if self.cnct_callback:
             self.cnct_callback(conn=conn, **kw)
 
-        # TODO check if this still needed
-        # If connection is lost call all "normal" callbacks, to update
-        # the status.
-        #if not conn:
-        #    self.run_callbacks()
 
     @staticmethod
     def macros_substitution(string, macros):
@@ -158,8 +159,6 @@ class SnapshotPv(PV):
             macro = "$(" + key + ")"
             string = string.replace(macro, macros[key])
         return string
-
-
 
 
 class Snapshot:
@@ -234,7 +233,7 @@ class Snapshot:
         # All other parameters (packed in kw) are appended to file as meta data
         pvs_status = dict()
         if not force and not self.all_connected:
-            return(ActionStatus.no_cnct, pvs_status)
+            return(ActionStatus.no_conn, pvs_status)
 
         # Update metadata
         kw["save_time"] = time.time()
@@ -307,7 +306,7 @@ class Snapshot:
 
         if not force and (not self.check_pvs_connected_status(pvs)):
             self._restore_started = False
-            return(ActionStatus.no_cnct)
+            return(ActionStatus.no_conn)
 
         # Do a restore
         self.restored_pvs_list = list()
