@@ -16,18 +16,17 @@ from ..snapshot_ca import Snapshot, parse_dict_macros_to_text
 from .compare import SnapshotCompareWidget
 from .save import SnapshotSaveWidget
 from .restore import SnapshotRestoreWidget
-from .utils import SnapshotConfigureDialog, SnapshotSettingsDialog
+from .utils import SnapshotConfigureDialog, SnapshotSettingsDialog, DetailedMsgBox
 
 
 class SnapshotGui(QtGui.QMainWindow):
-
     """
     Main GUI class for Snapshot application. It needs separate working
     thread where core of the application is running
     """
 
     def __init__(self, req_file_name=None, req_file_macros=None, save_dir=None, force=False, default_labels=None,
-                 force_default_labels=None,init_path=None, config_path=None, parent=None):
+                 force_default_labels=None, init_path=None, config_path=None, parent=None):
         QtGui.QMainWindow.__init__(self, parent)
 
         if req_file_macros is None:
@@ -42,13 +41,7 @@ class SnapshotGui(QtGui.QMainWindow):
                     raise TypeError('"force-labels" must be boolean')
             except Exception as e:
                 msg = "Loading configuration file failed! Do you want to continue with out it?\n"
-
-                msg_window = QtGui.QMessageBox(self)
-                msg_window.setWindowTitle("Warning")
-                msg_window.setText(msg)
-                msg_window.setDetailedText(str(e))
-                msg_window.setStandardButtons(QtGui.QMessageBox.Yes | QtGui.QMessageBox.No)
-                msg_window.setDefaultButton(QtGui.QMessageBox.Yes)
+                msg_window = DetailedMsgBox(msg, str(e), 'Warning')
                 reply = msg_window.exec_()
 
                 if reply == QtGui.QMessageBox.No:
@@ -67,20 +60,20 @@ class SnapshotGui(QtGui.QMainWindow):
         self.common_settings["save_file_prefix"] = ""
         self.common_settings["req_file_path"] = ""
         self.common_settings["req_file_macros"] = dict()
-        self.common_settings["existing_labels"] = list() # labels that are already in snap files
+        self.common_settings["existing_labels"] = list()  # labels that are already in snap files
         self.common_settings["force"] = force
 
         if isinstance(default_labels, str):
-            default_labels =  default_labels.split(',')
+            default_labels = default_labels.split(',')
 
-        elif  not isinstance(default_labels, list):
-            default_labels =list()
+        elif not isinstance(default_labels, list):
+            default_labels = list()
 
         # default labels also in config file? Add them
         self.common_settings["default_labels"] = list(set(default_labels +
                                                           (config.get('labels', dict()).get('labels', list()))))
 
-        self.common_settings["force_default_labels"] = config.get('labels', dict()).get('force-labels', False) or\
+        self.common_settings["force_default_labels"] = config.get('labels', dict()).get('force-labels', False) or \
                                                        force_default_labels
 
         # Predefined filters
@@ -169,15 +162,14 @@ class SnapshotGui(QtGui.QMainWindow):
         # should update with new existing labels. Force update for first time
         self.restore_widget.files_updated.connect(self.handle_files_updated)
         # Trigger files update for first time to properly update label selectors
-        self.restore_widget.clear_update_files()
+        self.restore_widget.update_files()
 
         self.restore_widget.files_selected.connect(self.handle_selected_files)
 
         sr_splitter = QtGui.QSplitter(self)
         sr_splitter.addWidget(self.save_widget)
         sr_splitter.addWidget(self.restore_widget)
-        element_size = (
-            self.save_widget.sizeHint().width() + self.restore_widget.sizeHint().width())/2
+        element_size = (self.save_widget.sizeHint().width() + self.restore_widget.sizeHint().width()) / 2
         sr_splitter.setSizes([element_size, element_size])
 
         main_splitter = QtGui.QSplitter(self)
@@ -201,10 +193,6 @@ class SnapshotGui(QtGui.QMainWindow):
         main_splitter.setSizes(widgets_sizes)
 
     def open_new_req_file(self):
-        # First pause old snapshot
-        #TODO handle compare
-        #self.snapshot.stop_continuous_compare()
-
         self.configure_dialog = SnapshotConfigureDialog(self, init_path=os.path.dirname(
             self.common_settings['req_file_path']))
         self.configure_dialog.accepted.connect(self.change_req_file)
@@ -232,7 +220,7 @@ class SnapshotGui(QtGui.QMainWindow):
         self.common_settings["req_file_path"] = self.configure_dialog.file_path
         self.common_settings["req_file_macros"] = self.configure_dialog.macros
 
-    def init_snapshot(self, req_file_path, req_macros = None):
+    def init_snapshot(self, req_file_path, req_macros=None):
         req_macros = req_macros or {}
 
         self.snapshot = Snapshot(req_file_path, req_macros)
@@ -252,7 +240,7 @@ class SnapshotGui(QtGui.QMainWindow):
     def open_settings(self):
         settings_window = SnapshotSettingsDialog(self.common_settings, self)  # Destroyed when closed
         settings_window.new_config.connect(self.handle_new_config)
-        settings_window.resize(800,200)
+        settings_window.resize(800, 200)
         settings_window.show()
 
     def handle_new_config(self, config):
@@ -282,7 +270,6 @@ class SnapshotGui(QtGui.QMainWindow):
 
 # -------- Status widgets -----------
 class SnapshotStatusLog(QtGui.QWidget):
-
     """ Command line like logger widget """
 
     def __init__(self, parent=None):
@@ -304,7 +291,6 @@ class SnapshotStatusLog(QtGui.QWidget):
 
 
 class SnapshotStatus(QtGui.QStatusBar):
-
     def __init__(self, common_settings, parent=None):
         QtGui.QStatusBar.__init__(self, parent)
         self.common_settings = common_settings

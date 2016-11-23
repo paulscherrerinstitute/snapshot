@@ -4,10 +4,11 @@ import logging
 import os
 from .snapshot_ca import PvStatus, ActionStatus, Snapshot, macros_substitution, parse_macros, parse_dict_macros_to_text
 
+
 def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10):
     if os.path.isdir(save_file_path):
         save_file_path += '/{}_{}.snap'.format(os.path.splitext(os.path.basename(req_file_path))[0],
-                                              datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M%S'))
+                                               datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M%S'))
 
     logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
     logging.info('Start saving the snapshot.')
@@ -40,7 +41,7 @@ def restore(saved_file_path, force=False, timeout=10):
     if force:
         logging.info('Started in force mode. Unavailable PVs will be ignored.')
 
-    snapshot = Snapshot(saved_file_path) # Use saved file as request file here
+    snapshot = Snapshot(saved_file_path)  # Use saved file as request file here
 
     # Prparse file to check for any problems in the snapshot file.
     saved_pvs, meta_data, err = snapshot.parse_from_save_file(saved_file_path)
@@ -70,4 +71,3 @@ def restore(saved_file_path, force=False, timeout=10):
         for pv_name in snapshot.get_not_connected_pvs_names():
             logging.error('\"{}\" cannot be accessed.'.format(pv_name))
         logging.info('Snapshot file was not restored.')
-

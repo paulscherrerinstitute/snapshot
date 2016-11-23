@@ -10,7 +10,6 @@ import copy
 
 
 class SnapshotConfigureDialog(QtGui.QDialog):
-
     """ Dialog window to select and apply file. """
 
     def __init__(self, parent=None, init_path=None, **kw):
@@ -68,7 +67,6 @@ class SnapshotConfigureDialog(QtGui.QDialog):
 
 
 class SnapshotSettingsDialog(QtGui.QWidget):
-
     new_config = QtCore.pyqtSignal(dict)
 
     def __init__(self, common_settings, parent=None):
@@ -99,7 +97,7 @@ class SnapshotSettingsDialog(QtGui.QWidget):
         self.save_dir_input.path_changed.connect(self.monitor_changes)
         form_layout.addRow("Saved files directory:", self.save_dir_input)
 
-         # Force
+        # Force
         self.force_input = QtGui.QCheckBox(self)
         self.force_input.setChecked(self.curr_forced)
         self.force_input.stateChanged.connect(self.monitor_changes)
@@ -141,7 +139,7 @@ class SnapshotSettingsDialog(QtGui.QWidget):
     def monitor_changes(self):
         parsed_macros = parse_macros(self.macro_input.text())
 
-        if (parsed_macros != self.curr_macros) or (self.save_dir_input.text() != self.curr_save_dir) or\
+        if (parsed_macros != self.curr_macros) or (self.save_dir_input.text() != self.curr_save_dir) or \
                 (self.force_input.isChecked() != self.curr_forced):
             self.ok_button.setDisabled(False)
             self.apply_button.setDisabled(False)
@@ -160,17 +158,15 @@ class SnapshotSettingsDialog(QtGui.QWidget):
                 self.curr_save_dir = self.save_dir_input.text()
             else:
                 # Prompt user that path is not valid
-                warn = "Cannot set saved files directory to: \"" + self.save_dir_input.text() +\
+                warn = "Cannot set saved files directory to: \"" + self.save_dir_input.text() + \
                        "\". Check if it is valid path to directory."
                 QtGui.QMessageBox.warning(self, "Warning", warn,
                                           QtGui.QMessageBox.Ok)
                 self.save_dir_input.setText(self.curr_save_dir)
 
-
         if parsed_macros != self.curr_macros:
             config["macros"] = parse_macros(self.macro_input.text())
             self.curr_macros = parse_macros(self.macro_input.text())
-
 
         if self.force_input.isChecked() != self.curr_forced:
             config["force"] = self.force_input.isChecked()
@@ -181,9 +177,7 @@ class SnapshotSettingsDialog(QtGui.QWidget):
         self.new_config.emit(config)
 
 
-
 class SnapshotFileSelector(QtGui.QWidget):
-
     """ Widget to select file with dialog box. """
 
     path_changed = QtCore.pyqtSignal()
@@ -225,7 +219,7 @@ class SnapshotFileSelector(QtGui.QWidget):
             self.initial_file_path = init_path
 
     def open_selector(self):
-        dialog=QtGui.QFileDialog(self)
+        dialog = QtGui.QFileDialog(self)
         dialog.fileSelected.connect(self.handle_selected)
         dialog.setDirectory(self.initial_file_path)
 
@@ -253,7 +247,6 @@ class SnapshotFileSelector(QtGui.QWidget):
 
 
 class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
-
     """
     Widget for defining keywords (labels). Existing keywords are read from
     the common_settings data structure and are suggested to the user in
@@ -292,7 +285,6 @@ class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
         self.currentIndexChanged[str].connect(self.add_to_selected)
 
         self.update_suggested_keywords()
-
 
     def get_keywords(self):
         # Return list of currently selected keywords
@@ -343,12 +335,12 @@ class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
 
         # Skip if already selected or not in predefined labels if defaults_only (force=True overrides defaults_only)
         if keyword and (keyword not in self.selectedKeywords) and (not self.defaults_only or force or self.defaults_only
-                                                                    and keyword in default_labels):
+        and keyword in default_labels):
             key_widget = SnapshotKeywordWidget(keyword, self)
             key_widget.delete.connect(self.remove_keyword)
             self.keywordWidgets[keyword] = key_widget
             self.selectedKeywords.append(keyword)
-            self.layout.insertWidget(len(self.selectedKeywords)-1, key_widget)
+            self.layout.insertWidget(len(self.selectedKeywords) - 1, key_widget)
             self.keywords_changed.emit()
             self.setItemText(0, "")
 
@@ -390,7 +382,6 @@ class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
 
 
 class SnapshotKeywordSelectorInput(QtGui.QLineEdit):
-
     """
     Subclass of QLineEdit, which handles keyboard events in a keyword
     selector specific way (defines keys for applying new keyword to selected,
@@ -406,8 +397,8 @@ class SnapshotKeywordSelectorInput(QtGui.QLineEdit):
 
     def keyPressEvent(self, event):
         # Pass special key events to the main widget, handle others.
-        if event.key() in [Qt.Key_Tab, Qt.Key_Enter, Qt.Key_Return, Qt.Key_Space, Qt.Key_Escape] or\
-           (not self.text().strip() and event.key() == Qt.Key_Backspace):
+        if event.key() in [Qt.Key_Tab, Qt.Key_Enter, Qt.Key_Return, Qt.Key_Space, Qt.Key_Escape] or \
+                (not self.text().strip() and event.key() == Qt.Key_Backspace):
             self.callback(event)
         else:
             QtGui.QLineEdit.keyPressEvent(self, event)
@@ -420,7 +411,6 @@ class SnapshotKeywordSelectorInput(QtGui.QLineEdit):
 
 
 class SnapshotKeywordWidget(QtGui.QFrame):
-
     """
     Graphical representation of the selected widget. A Frame with remove
     button.
@@ -432,7 +422,7 @@ class SnapshotKeywordWidget(QtGui.QFrame):
         self.layout = QtGui.QHBoxLayout()
         self.layout.setContentsMargins(3, 0, 0, 0)
         self.layout.setSpacing(0)
-        self.setMaximumHeight(parent.size().height()-4)
+        self.setMaximumHeight(parent.size().height() - 4)
         self.setLayout(self.layout)
 
         self.keyword = text
@@ -518,3 +508,13 @@ class SnapshotEditMetadataDialog(QtGui.QDialog):
         self.metadata["labels"].clear()
         self.metadata["labels"] = self.labels_input.get_keywords()
         self.accept()
+
+
+class DetailedMsgBox(QtGui.QMessageBox):
+    def __init__(self, msg='', details='', title='', parent=None,
+                 std_buttons=QtGui.QMessageBox.Yes | QtGui.QMessageBox.No):
+        super().__init__(parent=parent)
+        self.setText(msg)
+        self.setDetailedText(details)
+        self.setWindowTitle(title)
+        self.setStandardButtons(std_buttons)

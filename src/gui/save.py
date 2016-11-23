@@ -11,10 +11,10 @@ import datetime
 import os
 from ..snapshot_ca import PvStatus, ActionStatus
 
-from .utils import SnapshotKeywordSelectorWidget
+from .utils import SnapshotKeywordSelectorWidget, DetailedMsgBox
+
 
 class SnapshotSaveWidget(QtGui.QWidget):
-
     """
     Save widget is a widget that enables user to save current state of PVs
     listed in request file. Widget includes:
@@ -74,6 +74,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
         # then update output file name and finish adding widgets to layout
         self.advanced = SnapshotAdvancedSaveSettings("Advanced", self.common_settings, self)
 
+        self.name_extension = ''
         self.update_name()
 
         extension_rb_layout.addWidget(file_name_label)
@@ -116,12 +117,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
             # If file exists, user must decide whether to overwrite it or not
             msg = "Some PVs are not connected (see details). Do you want to save anyway?\n"
 
-            msg_window = QtGui.QMessageBox(self)
-            msg_window.setWindowTitle("Warning")
-            msg_window.setText(msg)
-            msg_window.setDetailedText("\n".join(not_connected_pvs))
-            msg_window.setStandardButtons(QtGui.QMessageBox.Yes | QtGui.QMessageBox.No)
-            msg_window.setDefaultButton(QtGui.QMessageBox.Yes)
+            msg_window = DetailedMsgBox(msg, "\n".join(not_connected_pvs), "Warning", self)
             reply = msg_window.exec_()
 
             if reply == QtGui.QMessageBox.No:
@@ -154,10 +150,10 @@ class SnapshotSaveWidget(QtGui.QWidget):
                                                         force=force,
                                                         labels=labels,
                                                         comment=comment,
-                                                        symlink_path= os.path.join(
-                                                                        self.common_settings["save_dir"],
-                                                                        self.common_settings["save_file_prefix"] +
-                                                                        'latest' + self.save_file_sufix))
+                                                        symlink_path=os.path.join(
+                                                            self.common_settings["save_dir"],
+                                                            self.common_settings["save_file_prefix"] +
+                                                            'latest' + self.save_file_sufix))
             if status == ActionStatus.no_conn:
                 self.sts_log.log_line(
                     "ERROR: Save rejected. One or more PVs not connected.")
@@ -209,13 +205,13 @@ class SnapshotSaveWidget(QtGui.QWidget):
             self.common_settings["save_file_prefix"] = self.advanced.file_prefix_input.text()
         else:
             self.common_settings["save_file_prefix"] = os.path.split(self.common_settings
-                ["req_file_path"])[1].split(".")[0] + "_"
+                                                                     ["req_file_path"])[1].split(".")[0] + "_"
 
         self.file_path = os.path.join(self.common_settings["save_dir"],
                                       self.common_settings["save_file_prefix"] +
                                       self.name_extension + self.save_file_sufix)
         self.file_name_rb.setText(self.common_settings["save_file_prefix"] +
-                                    name_extension_rb)
+                                  name_extension_rb)
 
     def check_file_existance(self):
         # If file exists, user must decide whether to overwrite it or not
@@ -243,7 +239,7 @@ class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
         min_label_width = 120
         # frame is a container with all widgets, tat should be collapsed
         self.frame = QtGui.QFrame(self)
-        self.frame.setContentsMargins(0,20,0,0)
+        self.frame.setContentsMargins(0, 20, 0, 0)
         self.frame.setStyleSheet("background-color: None")
         self.setCheckable(True)
         self.frame.setVisible(False)
@@ -297,7 +293,7 @@ class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
         self.file_prefix_input.textChanged.connect(
             self.parent.update_name)
 
-        #self.frame_layout.addStretch()
+        # self.frame_layout.addStretch()
         self.frame_layout.addLayout(comment_layout)
         self.frame_layout.addLayout(labels_layout)
         self.frame_layout.addLayout(file_prefix_layout)
@@ -308,4 +304,3 @@ class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
     def toggle(self):
         self.frame.setVisible(self.isChecked())
         self.parent.update_name()
-

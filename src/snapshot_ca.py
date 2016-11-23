@@ -6,10 +6,11 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 from epics import *
+
 ca.AUTO_CLEANUP = True  # For pyepics versions older than 3.2.4, this was set to True only for
-                        # python 2 but not for python 3, which resulted in errors when closing
-                        # the application. If true, ca.finalize_libca() is called when app is
-                        # closed
+# python 2 but not for python 3, which resulted in errors when closing
+# the application. If true, ca.finalize_libca() is called when app is
+# closed
 import numpy
 import json
 import time
@@ -57,16 +58,14 @@ class SnapshotPv(PV):
         self.cnct_callback = connection_callback
         self.is_array = False
 
-        PV.__init__(self, pvname,
-                    connection_callback=self._internal_cnct_callback,
-                    auto_monitor=True, connection_timeout=None, **kw)
+        super().__init__(pvname, connection_callback=self._internal_cnct_callback, auto_monitor=True,
+                         connection_timeout=None, **kw)
 
     def save_pv(self):
         """
         None blocking get. Returns latest value (monitored). If not able to get value (no connection or access),
         'None' is returned.
         """
-        pv_status = PvStatus.ok  # Will be changed if error occurs.
         if self.connected:
             # Must be after connection test. If checking access when not
             # connected pyepics tries to reconnect which takes some time.
@@ -81,14 +80,13 @@ class SnapshotPv(PV):
                         saved_value = numpy.asarray([saved_value])
 
                 if self.value is None:
-                    return (saved_value, PvStatus.no_value)
+                    return saved_value, PvStatus.no_value
                 else:
-                    return (saved_value, PvStatus.ok)
+                    return saved_value, PvStatus.ok
             else:
-                return (None, PvStatus.access_err)
+                return None, PvStatus.access_err
         else:
-            return (None, PvStatus.access_err)
-
+            return None, PvStatus.access_err
 
     def restore_pv(self, value, callback=None):
         """
@@ -123,17 +121,20 @@ class SnapshotPv(PV):
             callback(pvname=self.pvname, status=PvStatus.access_err)
 
     def compare_to_curr(self, value):
-        return(SnapshotPv.compare(value, self.value, self.is_array))
+        return SnapshotPv.compare(value, self.value, self.is_array)
 
     @staticmethod
     def compare(value1, value2, is_array=False):
         if is_array:
-            return(numpy.array_equal(value1, value2))
+            return numpy.array_equal(value1, value2)
         else:
-            return(value1 == value2)
+            return value1 == value2
 
     def add_conn_callback(self, callback):
         self.cnct_callback = callback
+
+    def remove_conn_callback(self):
+        self.cnct_callback = None
 
     def _internal_cnct_callback(self, conn, **kw):
         """
@@ -151,7 +152,6 @@ class SnapshotPv(PV):
         # If user specifies his own connection callback, call it here.
         if self.cnct_callback:
             self.cnct_callback(conn=conn, **kw)
-
 
     @staticmethod
     def macros_substitution(string, macros):
@@ -180,12 +180,11 @@ class Snapshot:
         self.macros = macros
 
         # Other important states
-        self.all_connected = False  # TODO think of managing other way
+        self.all_connected = False
         self._restore_started = False
         self._restore_blocking_done = False
         self._restore_callback = None
         self._current_restore_forced = False
-
 
         # Uses default parsing method. If other format is needed, subclass
         # and re implement parse_req_file method. It must return list of
@@ -227,18 +226,16 @@ class Snapshot:
 
             self.update_all_connected_status()
 
-
     def save_pvs(self, save_file_path, force=False, symlink_path=None, **kw):
         # get values of all PVs and save them to file
         # All other parameters (packed in kw) are appended to file as meta data
         pvs_status = dict()
         if not force and not self.all_connected:
-            return(ActionStatus.no_conn, pvs_status)
+            return ActionStatus.no_conn, pvs_status
 
         # Update metadata
         kw["save_time"] = time.time()
         kw["req_file_name"] = os.path.basename(self.req_file_path)
-
 
         pvs_data = dict()
         for pvname, pv_ref in self.pvs.items():
@@ -252,22 +249,22 @@ class Snapshot:
 
         self.parse_to_save_file(pvs_data, save_file_path, self.macros, symlink_path, **kw)
 
-        return(ActionStatus.ok, pvs_status)
+        return ActionStatus.ok, pvs_status
 
     def restore_pvs(self, pvs_raw, force=False, callback=None, custom_macros=None):
-        '''
+        """
 
         :param pvs_raw: can be a dict of pvs with saved values or a path to a .snap file
         :param force: force restore if not all needed PVs are connected
         :param callback: callback fnc
         :param custom_macros: used only if there is no self.macros and not a .snap file
         :return:
-        '''
+        """
         # Check if busy
         if self._restore_started:
             # Cannot do a restore, previous not finished
-            return(ActionStatus.busy)
-    
+            return ActionStatus.busy
+
         self._restore_started = True
         self._current_restore_forced = force
 
@@ -277,7 +274,7 @@ class Snapshot:
 
         if isinstance(pvs_raw, str):
             pvs_raw, meta_data, err = self.parse_from_save_file(pvs_raw)
-            custom_macros = meta_data.get('macros', dict()) # if no self.macros use ones from file
+            custom_macros = meta_data.get('macros', dict())  # if no self.macros use ones from file
 
         pvs = dict()
 
@@ -297,7 +294,7 @@ class Snapshot:
         if not pvs:
             # Nothing to restore
             self._restore_started = False
-            return(ActionStatus.no_data)
+            return ActionStatus.no_data
 
         # Standard restore (restore all)
         # If force=True, then do restore even if not all PVs are connected.
@@ -306,21 +303,20 @@ class Snapshot:
 
         if not force and (not self.check_pvs_connected_status(pvs)):
             self._restore_started = False
-            return(ActionStatus.no_conn)
+            return ActionStatus.no_conn
 
         # Do a restore
         self.restored_pvs_list = list()
         self.restore_callback = callback
         for pvname, pv_ref in self.pvs.items():
-            save_data = pvs.get(pvname) #Check if this pv is to be restored
+            save_data = pvs.get(pvname)  # Check if this pv is to be restored
             if save_data:
                 pv_ref.restore_pv(save_data.get('value', None), callback=self.check_restore_complete)
             else:
                 # pv is not in subset in the "selected only" mode
                 # checking algorithm should think this one was successfully restored
                 self.check_restore_complete(pvname, PvStatus.ok)
-        return(ActionStatus.ok)
-
+        return ActionStatus.ok
 
     def check_restore_complete(self, pvname, status, **kw):
         self.restored_pvs_list.append((pvname, status))
@@ -331,7 +327,7 @@ class Snapshot:
 
     def restore_pvs_blocking(self, save_file_path=None, force=False, timeout=10):
         self._restore_blocking_done = False
-        status =  self.restore_pvs(save_file_path, force=force, callback=self.set_restore_blocking_done)
+        status = self.restore_pvs(save_file_path, force=force, callback=self.set_restore_blocking_done)
         if status == ActionStatus.ok:
             end_time = time.time() + timeout
             while not self._restore_blocking_done and time.time() < end_time:
@@ -347,7 +343,6 @@ class Snapshot:
     def set_restore_blocking_done(self, status, forced):
         # If this was called, then restore is done
         self._restore_blocking_done = True
-
 
     def update_all_connected_status(self, pvname=None, **kw):
         check_all = False
@@ -373,10 +368,10 @@ class Snapshot:
         for pv in pvs:
             pv_ref = self.pvs.get(pv)
             if not pv_ref.connected:
-                return(False)
+                return False
 
         # If here then all connected
-        return(True)
+        return True
 
     def get_pvs_names(self):
         # To access a list of all pvs that are under control of snapshot object
@@ -391,8 +386,8 @@ class Snapshot:
             not_connected_list = list()
             for pvname, pv_ref in self.pvs.items():
                 if not pv_ref.connected and ((pvname in selected) or not selected):
-                    not_connected_list.append(pvname)            # Need to check only subset (selected) of pvs?
-            return(not_connected_list)
+                    not_connected_list.append(pvname)  # Need to check only subset (selected) of pvs?
+            return not_connected_list
 
     def replace_metadata(self, save_file_path, metadata):
         # Will replace metadata in the save file with the provided one
@@ -425,7 +420,7 @@ class Snapshot:
         req_file.close()
         return req_pvs
 
-    def parse_to_save_file(self, pvs, save_file_path, macros=None, symlink_path=None,  **kw):
+    def parse_to_save_file(self, pvs, save_file_path, macros=None, symlink_path=None, **kw):
         # This function is called at each save of PV values.
         # This is a parser which generates save file from pvs
         # All parameters in **kw are packed as meta data
@@ -440,7 +435,7 @@ class Snapshot:
 
         for pvname, data in pvs.items():
             value = data.get("value")
-            pvname_raw =  data.get("raw_name")
+            pvname_raw = data.get("raw_name")
             if value is not None:
                 if isinstance(value, numpy.ndarray):
                     save_file.write("{},{}\n".format(pvname_raw, json.dumps(value.tolist())))
@@ -453,10 +448,9 @@ class Snapshot:
 
         # Create symlink _latest.snap
         if symlink_path:
-            try:
+            if os.path.isfile(symlink_path):
                 os.remove(symlink_path)
-            except:
-                pass
+
             os.symlink(save_file_path, symlink_path)
 
     def parse_from_save_file(self, save_file_path):
@@ -510,11 +504,17 @@ class Snapshot:
             err.insert(0, 'No meta data in the file.')
 
         saved_file.close()
-        return(saved_pvs, meta_data, err)
+        return saved_pvs, meta_data, err
+
 
 # Helper functions functions to support macros parsing for users of this lib
 def parse_macros(macros_str):
-    """ Converting comma separated macros string to dictionary. """
+    """
+    Converting comma separated macros string to dictionary.
+
+    :param macros_str: string of macros in style SYS=TST,D=A
+    :return: dict of macros
+    """
 
     macros = dict()
     if macros_str:
@@ -523,10 +523,17 @@ def parse_macros(macros_str):
             split_macro = macro.split('=')
             if len(split_macro) == 2:
                 macros[split_macro[0]] = split_macro[1]
-    return(macros)
+    return macros
+
 
 def parse_dict_macros_to_text(macros):
-    """ Converting dict() separated macros string to comma separated. """
+    """
+    Converting dict() separated macros string to comma separated.
+
+    :param macros: dict of macros, substitutions
+    :return: macro string
+    """
+
     macros_str = ""
     for macro, subs in macros.items():
         macros_str += macro + "=" + subs + ","
@@ -535,4 +542,4 @@ def parse_dict_macros_to_text(macros):
         # Clear last comma
         macros_str = macros_str[0:-1]
 
-    return(macros_str)
+    return macros_str

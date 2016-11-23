@@ -11,11 +11,10 @@ import os
 from ..snapshot_ca import PvStatus, ActionStatus
 import copy
 
-from .utils import SnapshotKeywordSelectorWidget, SnapshotEditMetadataDialog
+from .utils import SnapshotKeywordSelectorWidget, SnapshotEditMetadataDialog, DetailedMsgBox
 
 
 class SnapshotRestoreWidget(QtGui.QWidget):
-
     """
     Restore widget is a widget that enables user to restore saved state of PVs
     listed in request file from one of the saved files.
@@ -66,14 +65,9 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         btn_layout.addWidget(self.restore_all_button)
         btn_layout.addWidget(self.restore_button)
 
-
         # Link to status widgets
         self.sts_log = self.common_settings["sts_log"]
         self.sts_info = self.common_settings["sts_info"]
-
-        # Create file list for first time and update the GUI with new data
-        # (label widgets)
-        self.clear_update_files()
 
         # Add all widgets to main layout
         layout.addWidget(self.file_selector)
@@ -93,11 +87,10 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         filtered_n = len(self.filtered_pvs)
 
         if filtered_n == len(self.snapshot.pvs):  # all pvs selected
-            self.do_restore()  #This way functions below skip unnecessary checks
+            self.do_restore()  # This way functions below skip unnecessary checks
         elif filtered_n:
             self.do_restore(filtered_only=True)
-        # Do not start a restore if nothing to restore
-
+            # Do not start a restore if nothing to restore
 
     def do_restore(self, filtered_only=False):
         # Check if restore can be done (values loaded to snapshot).
@@ -112,28 +105,21 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
             # Prepare pvs with values to restore
             if file_data:
-                pvs_in_file = file_data.get("pvs_list", None) # is actually a dict
-                pvs_to_restore = copy.copy(file_data.get("pvs_list", None)) # is actually a dict
+                pvs_in_file = file_data.get("pvs_list", None)  # is actually a dict
+                pvs_to_restore = copy.copy(file_data.get("pvs_list", None))  # is actually a dict
 
                 if filtered is not None:
                     for pvname in pvs_in_file.keys():
                         if pvname not in filtered:
-                            pvs_to_restore.pop(pvname, None) #remove unfiltered pvs
-
+                            pvs_to_restore.pop(pvname, None)  # remove unfiltered pvs
 
             # Check if all pvs connected or in force mode)
             force = self.common_settings["force"]
-            not_connected_pvs = self.snapshot.get_not_connected_pvs_names(filtered) #TODO might be handled different way
+            not_connected_pvs = self.snapshot.get_not_connected_pvs_names(filtered)
             do_restore = True
             if not force and not_connected_pvs:
                 msg = "Some PVs are not connected (see details). Do you want to restore anyway?\n"
-
-                msg_window = QtGui.QMessageBox(self)
-                msg_window.setWindowTitle("Warning")
-                msg_window.setText(msg)
-                msg_window.setDetailedText("\n".join(not_connected_pvs))
-                msg_window.setStandardButtons(QtGui.QMessageBox.Yes | QtGui.QMessageBox.No)
-                msg_window.setDefaultButton(QtGui.QMessageBox.Yes)
+                msg_window = DetailedMsgBox(msg, "\n".join(not_connected_pvs), 'Warning', self)
                 reply = msg_window.exec_()
 
                 if reply == QtGui.QMessageBox.No:
@@ -204,12 +190,13 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.restore_button.setEnabled(True)
 
     def handle_selected_files(self, selected_files):
-        '''
+        """
+        Handle sub widgets and emits signal when files are selected.
 
         :param selected_files: list of selected file names
         :return:
-        '''
-        # TODO fix this currently just passing signal to update compare widget
+        """
+
         # Prepare for restore if one specific file is selected, or clear
         # restore data if none specific file is selected.
         selected_data = dict()
@@ -230,7 +217,6 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
 
 class SnapshotRestoreFileSelector(QtGui.QWidget):
-
     """
     Widget for visual representation (and selection) of existing saved_value
     files.
@@ -321,10 +307,10 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         err_details = ""
         if err_to_report:
             for item in err_to_report:
-                if item[1]: # list of errors
+                if item[1]:  # list of errors
 
                     err_details += '- - - ' + item[0] + \
-                                   ' - - -\n * ' # file name
+                                   ' - - -\n * '  # file name
                     err_details += '\n * '.join(item[1])
                     err_details += '\n\n'
 
@@ -333,11 +319,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         if err_details:
             msg = str(len(err_to_report)) + " of the snapshot saved files (.snap) were loaded with errors " \
                                             "(see details)."
-            msg_window = QtGui.QMessageBox(self)
-            msg_window.setWindowTitle("Warning")
-            msg_window.setText(msg)
-            msg_window.setDetailedText(err_details)
-            msg_window.setStandardButtons(QtGui.QMessageBox.Ok)
+            msg_window = DetailedMsgBox(msg, err_details, 'Warning', self, QtGui.QMessageBox.Ok)
             msg_window.exec_()
 
         self.file_selector.setSortingEnabled(True)
@@ -354,7 +336,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
             file_path = os.path.join(save_dir, file_name)
             if os.path.isfile(file_path) and file_name.endswith(self.save_file_sufix):
                 if (file_name not in current_files) or \
-                   (current_files[file_name]["modif_time"] != os.path.getmtime(file_path)):
+                        (current_files[file_name]["modif_time"] != os.path.getmtime(file_path)):
 
                     pvs_list, meta_data, err = self.snapshot.parse_from_save_file(
                         file_path)
@@ -382,7 +364,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                         if err:  # report errors only for matching saved files
                             err_to_report.append((file_name, err))
 
-        return(parsed_save_files, err_to_report)
+        return parsed_save_files, err_to_report
 
     def update_file_list_selector(self, modif_file_list):
 
@@ -432,8 +414,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                             laoded_file]["meta_data"]["labels"]
                         i = 0
                         for label in labels_to_remove:
-                            in_use[i] = in_use[
-                                i] or label in loaded_file_labels
+                            in_use[i] = in_use[i] or label in loaded_file_labels
                             i += 1
                     i = 0
                     for label in labels_to_remove:
@@ -488,7 +469,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
 
                 # Set visibility if any of the filters conditions met
                 file_line.setHidden(
-                    not(name_status and keys_status and comment_status))
+                    not (name_status and keys_status and comment_status))
 
     def open_menu(self, point):
         self.menu.show()
@@ -521,7 +502,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                         self.pvs = dict()
                         self.file_selector.takeTopLevelItem(
                             self.file_selector.indexOfTopLevelItem(self.file_selector.findItems(
-                                selected_file, Qt.MatchCaseSensitive, 0)[0]))
+                                selected_file, Qt.MatchCaseSensitive, 1)[0]))
 
                     except OSError as e:
                         warn = "Problem deleting file:\n" + str(e)
@@ -534,16 +515,17 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
             if len(self.selected_files) == 1:
                 settings_window = SnapshotEditMetadataDialog(
                     self.file_list.get(self.selected_files[0])["meta_data"],
-                                        self.common_settings, self)
-                settings_window.resize(800,200)
+                    self.common_settings, self)
+                settings_window.resize(800, 200)
                 # if OK was pressed, update actual file and reflect changes in the list
                 if settings_window.exec_():
-                    self.snapshot.replace_metadata(self.selected_files[0], self.file_list.get(self.selected_files[0])["meta_data"])
+                    self.snapshot.replace_metadata(self.selected_files[0],
+                                                   self.file_list.get(self.selected_files[0])["meta_data"])
                     self.parent.clear_update_files()
             else:
                 QtGui.QMessageBox.information(self, "Information", "Please select one file only",
-                                                  QtGui.QMessageBox.Ok,
-                                                  QtGui.QMessageBox.NoButton)
+                                              QtGui.QMessageBox.Ok,
+                                              QtGui.QMessageBox.NoButton)
 
     def clear_file_selector(self):
         self.file_selector.clear()  # Clears and "deselects" itmes on file selector
@@ -553,7 +535,6 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
 
 
 class SnapshotFileFilterWidget(QtGui.QWidget):
-
     """
         Is a widget with 3 filter options:
             - by time (removed)
@@ -635,4 +616,3 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
         self.name_input.setText('')
         self.comment_input.setText('')
         self.update_filter()
-
