@@ -315,28 +315,27 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         :param files: dict of files with their data
         :return:
         '''
-        self.beginResetModel()
+        self.beginInsertColumns(QtCore.QModelIndex(), 3, len(files)+2)
         self.file_compare_struct = dict()
         for file_name, file_data in files.items():
             pvs_list_full_names = self._replace_macros_on_file_data(file_data)
 
-            # To get a proper update, need to go through all pexisting pvs. Otherwise values of PVs listed in request
+            # To get a proper update, need to go through all existing pvs. Otherwise values of PVs listed in request
             # but not in the saved file are not cleared (value from previous file is seen on the screen)
             self._headers.append(file_name)
             for pvname, pv_line in self._pvs_lines.items():
                 pv_data = pvs_list_full_names.get(pvname, {"value": None})
                 pv_line.append_snap_value(pv_data.get("value", None))
-
-        self.endResetModel()
+        self.endInsertColumns()
 
     def clear_snap_files(self):
-        self.beginResetModel()
+        self.beginRemoveColumns(QtCore.QModelIndex(), 3, self.columnCount(self.createIndex(-1, -1))-1)
         # remove all snap files
         for pvname, pv_line in self._pvs_lines.items(): # Go through all existing pv lines
             pv_line.clear_snap_values()
 
         self._headers = self._headers[0:3]
-        self.endResetModel()
+        self.endRemoveColumns()
 
     def clear_pvs(self):
         '''
@@ -358,11 +357,6 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
                 for pvname, pv_line in self._pvs_lines.items():
                     pv_data = saved_pvs.get(pvname, {"value": None})
                     pv_line.change_snap_value(idx ,pv_data.get("value", None))
-
-    def _set_snap_data(self, pvs_list):
-        for pvname, pv_line in self._pvs_lines.items():
-            pv_data = pvs_list.get(pvname, {"value": None})
-            pv_line.append_snap_value(pv_data.get("value", None))
 
     def _replace_macros_on_file_data(self, file_data):
         if self.snapshot.macros:
