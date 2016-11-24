@@ -48,7 +48,6 @@ class SnapshotCompareWidget(QtGui.QWidget):
         # Build model and set default visualization on view (column widths, etc)
         self.model.add_pvs(snapshot.pvs.values())
         view.setModel(self._proxy)
-        view.set_default_visualization()
 
         # ---------- Filter control elements ---------------
         # - text input to filter by name
@@ -228,8 +227,8 @@ class SnapshotPvTableView(QtGui.QTableView):
         :return:
         """
         super().setModel(model)
-        self.model().sourceModel().columnsInserted.connect(self.set_default_visualization)
-        self.model().sourceModel().columnsRemoved.connect(self.set_default_visualization)
+        self.model().sourceModel().columnsInserted.connect(self.set_snap_visualization)
+        self.model().sourceModel().columnsRemoved.connect(self.set_snap_visualization)
         self.set_default_visualization()
 
     def dataChanged(self, mode_idx, mode_idx1):
