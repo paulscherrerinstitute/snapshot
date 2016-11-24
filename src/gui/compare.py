@@ -416,12 +416,12 @@ class SnapshotPvTableLine(QtCore.QObject):
     _pv_changed = QtCore.pyqtSignal(dict)
     _pv_conn_changed = QtCore.pyqtSignal(dict)
     data_changed = QtCore.pyqtSignal(QtCore.QObject)
+    _DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 
     def __init__(self, pv_ref, parent=None):
         super().__init__(parent)
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        self._WARN_ICON = QtGui.QIcon(os.path.join(dir_path, "images/warn.png"))
-        self._NEQ_ICON = QtGui.QIcon(os.path.join(dir_path, "images/neq.png"))
+        self._WARN_ICON = QtGui.QIcon(os.path.join(self._DIR_PATH, "images/warn.png"))
+        self._NEQ_ICON = QtGui.QIcon(os.path.join(self._DIR_PATH, "images/neq.png"))
 
         self._pv_ref = pv_ref
         self.pvname = pv_ref.pvname
