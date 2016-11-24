@@ -139,8 +139,6 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                 QtCore.QCoreApplication.processEvents()
                 self.sts_log.log_msgs("Restore started.", time.time())
                 self.sts_info.set_status("Restoring ...", 0, "orange")
-                # Force updating the GUI with new status
-                QtCore.QCoreApplication.processEvents()
 
                 status = self.snapshot.restore_pvs(pvs_to_restore, callback=self.restore_done_callback,
                                                    force=force)

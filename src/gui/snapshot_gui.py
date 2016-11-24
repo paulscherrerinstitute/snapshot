@@ -135,15 +135,15 @@ class SnapshotGui(QtGui.QMainWindow):
         # Status components are needed by other GUI elements
         self.status_log = SnapshotStatusLog(self)
         self.common_settings["sts_log"] = self.status_log
-        status_bar = SnapshotStatus(self.common_settings, self)
-        self.common_settings["sts_info"] = status_bar
+        self.status_bar = SnapshotStatus(self.common_settings, self)
+        self.common_settings["sts_info"] = self.status_bar
 
         # Create status log show/hide control and add it to status bar
         self.show_log_control = QtGui.QCheckBox("Show status log")
         self.show_log_control.setStyleSheet("background-color: transparent")
         self.show_log_control.stateChanged.connect(self.status_log.setVisible)
         self.status_log.setVisible(False)
-        status_bar.addPermanentWidget(self.show_log_control)
+        self.status_bar.addPermanentWidget(self.show_log_control)
 
         # Creating main layout
         # Compare widget. Must be updated in case of file selection
@@ -180,7 +180,7 @@ class SnapshotGui(QtGui.QMainWindow):
 
         # Set default widget and add status bar
         self.setCentralWidget(main_splitter)
-        self.setStatusBar(status_bar)
+        self.setStatusBar(self.status_bar)
 
         # Show GUI and manage window properties
         self.show()
@@ -199,17 +199,19 @@ class SnapshotGui(QtGui.QMainWindow):
         self.configure_dialog.exec_()
 
     def change_req_file(self):
+        self.status_bar.set_status("Loading new request file ...", 0, "orange")
         self.set_request_file()
-
-        self.init_snapshot(self.common_settings['req_file_path'], self.common_settings['req_file_macros'])
+        req_file_path = self.common_settings['req_file_path']
+        self.init_snapshot(req_file_path, self.common_settings['req_file_macros'])
 
         # handle all gui components
         self.restore_widget.handle_new_snapshot_instance(self.snapshot)
         self.save_widget.handle_new_snapshot_instance(self.snapshot)
         self.compare_widget.handle_new_snapshot_instance(self.snapshot)
 
-        self.setWindowTitle(
-            os.path.basename(self.common_settings["req_file_path"]) + ' - Snapshot')
+        self.setWindowTitle(os.path.basename(req_file_path) + ' - Snapshot')
+
+        self.status_bar.set_status("New request file loaded.", 0, "#64C864")
 
     def handle_saved(self):
         # When save is done, save widget is updated by itself
@@ -313,8 +315,13 @@ class SnapshotStatus(QtGui.QStatusBar):
         style = "background-color : " + background
         self.setStyleSheet(style)
 
+        # Force GUI updates to show status
+        QtCore.QCoreApplication.processEvents()
+
         if duration:
             self.timer.start(duration)
+
+
 
     def clear_status(self):
         self.set_status("Ready", 0, "rgba(0, 0, 0, 30)")
