@@ -1,8 +1,9 @@
-import time
 import datetime
 import logging
 import os
-from .snapshot_ca import PvStatus, ActionStatus, Snapshot, macros_substitution, parse_macros, parse_dict_macros_to_text
+import time
+
+from ..ca_core.snapshot_ca import PvStatus, ActionStatus, Snapshot
 
 
 def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10):

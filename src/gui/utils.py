@@ -1,12 +1,13 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+import copy
+import os
+
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
-import os
-import sys
-from ..snapshot_ca import parse_macros, parse_dict_macros_to_text
-import copy
+
+from ..ca_core.snapshot_ca import parse_macros, parse_dict_macros_to_text
 
 
 class SnapshotConfigureDialog(QtGui.QDialog):

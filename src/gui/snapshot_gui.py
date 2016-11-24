@@ -4,18 +4,18 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-from PyQt4 import QtGui, QtCore
-from PyQt4.QtCore import Qt
-import time
 import datetime
+import json
 import os
 import sys
-import json
 
-from ..snapshot_ca import Snapshot, parse_dict_macros_to_text
+from PyQt4 import QtGui, QtCore
+from PyQt4.QtCore import Qt
+
+from ..ca_core.snapshot_ca import Snapshot, parse_dict_macros_to_text
 from .compare import SnapshotCompareWidget
-from .save import SnapshotSaveWidget
 from .restore import SnapshotRestoreWidget
+from .save import SnapshotSaveWidget
 from .utils import SnapshotConfigureDialog, SnapshotSettingsDialog, DetailedMsgBox
 
 
@@ -333,7 +333,7 @@ def start_gui(*args, **kwargs):
 
     # Load an application style
     default_style_path = os.path.dirname(os.path.realpath(__file__))
-    default_style_path = os.path.join(default_style_path, "../qss/default.qss")
+    default_style_path = os.path.join(default_style_path, "qss/default.qss")
     app.setStyleSheet("file:///" + default_style_path)
 
     gui = SnapshotGui(*args, **kwargs)

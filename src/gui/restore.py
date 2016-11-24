@@ -4,14 +4,15 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+import copy
+import datetime
+import os
+import time
+
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
-import datetime
-import time
-import os
-from ..snapshot_ca import PvStatus, ActionStatus
-import copy
 
+from ..ca_core.snapshot_ca import PvStatus, ActionStatus
 from .utils import SnapshotKeywordSelectorWidget, SnapshotEditMetadataDialog, DetailedMsgBox
 
 

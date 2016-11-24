@@ -1,8 +1,8 @@
-import sys
 import argparse
 import re
-from .snapshot_ca import parse_macros
+import sys
 
+from .ca_core.snapshot_ca import parse_macros
 # close with ctrl+C
 import signal
 
@@ -27,14 +27,14 @@ def _support_old_args(args_replacements):
 
 
 def save(args):
-    from .snapshot_cmd import save
+    from .cmd.snapshot_cmd import save
     save(args.FILE, args.out, args.macro, args.force, args.timeout)
 
     # req_file_path, save_file_path='.', macros=None, force=False, timeout=10
 
 
 def restore(args):
-    from .snapshot_cmd import restore
+    from .cmd.snapshot_cmd import restore
     restore(args.FILE, args.force, args.timeout)
 
 
