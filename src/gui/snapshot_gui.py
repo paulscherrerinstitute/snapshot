@@ -282,11 +282,15 @@ class SnapshotStatusLog(QtGui.QWidget):
         layout.addWidget(self.sts_log)
         self.setLayout(layout)
 
-    def log_line(self, text):
-        # New message is added with time of the action
-        time_stamp = "[" + datetime.datetime.fromtimestamp(
-            time.time()).strftime('%H:%M:%S.%f') + "] "
-        self.sts_log.insertPlainText(time_stamp + text + "\n")
+    def log_msgs(self, msgs, msg_times):
+        if not isinstance(msgs, list):
+            msgs = [msgs]
+
+        if not isinstance(msg_times, list):
+            msg_times = [msg_times] * len(msgs)
+
+        msg_times = (datetime.datetime.fromtimestamp(t).strftime('%H:%M:%S.%f') for t in msg_times)
+        self.sts_log.insertPlainText("\n".join("[{}] {}".format(*t) for t in zip(msg_times, msgs)) + "\n")
         self.sts_log.ensureCursorVisible()
 
 

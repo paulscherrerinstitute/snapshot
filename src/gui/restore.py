@@ -7,6 +7,7 @@
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
 import datetime
+import time
 import os
 from ..snapshot_ca import PvStatus, ActionStatus
 import copy
@@ -136,7 +137,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
                 # Force updating the GUI and disabling the button before future actions
                 QtCore.QCoreApplication.processEvents()
-                self.sts_log.log_line("Restore started.")
+                self.sts_log.log_msgs("Restore started.", time.time())
                 self.sts_info.set_status("Restoring ...", 0, "orange")
                 # Force updating the GUI with new status
                 QtCore.QCoreApplication.processEvents()
@@ -146,19 +147,17 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                 if status == ActionStatus.no_data:
                     # Because of checking "restore_values_loaded" before
                     # starting a restore, this case should not happen.
-                    self.sts_log.log_line("ERROR: Nothing to restore.")
+                    self.sts_log.log_msgs("ERROR: Nothing to restore.", time.time)
                     self.sts_info.set_status("Restore rejected", 3000, "#F06464")
                     self.restore_all_button.setEnabled(True)
                     self.restore_button.setEnabled(True)
                 elif status == ActionStatus.no_conn:
-                    self.sts_log.log_line(
-                        "ERROR: Restore rejected. One or more PVs not connected.")
+                    self.sts_log.log_msgs("ERROR: Restore rejected. One or more PVs not connected.", time.time())
                     self.sts_info.set_status("Restore rejected", 3000, "#F06464")
                     self.restore_all_button.setEnabled(True)
                     self.restore_button.setEnabled(True)
                 elif status == ActionStatus.busy:
-                    self.sts_log.log_line(
-                        "ERROR: Restore rejected. Previous restore not finished.")
+                    self.sts_log.log_msgs("ERROR: Restore rejected. Previous restore not finished.", time.time())
         else:
             # Don't start a restore if file not selected
             warn = "Cannot start a restore. File with saved values is not selected."
@@ -174,20 +173,30 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         # When snapshot finishes restore, GUI must be updated with
         # status of the restore action.
         error = False
-        for key in status:
-            pv_status = status[key]
-            if pv_status == PvStatus.access_err:
-                error = True and not forced
-                self.sts_log.log_line("WARNING: " + key +
-                                      ": Not restored (no connection or no write access).")
-                self.sts_info.set_status("Restore error", 3000, "#F06464")
+        msgs = list()
+        msg_times = list()
+        status_txt = ""
+        status_background = ""
+        for pvname, sts in status.items():
+            if sts == PvStatus.access_err:
+                error = not forced  #if here and not in force mode, then this is error state
+                msgs.append("WARNING: {}: Not restored (no connection or no read access)".format(pvname))
+                msg_times.append(time.time())
+                status_txt = "Restore error"
+                status_background = "#F06464"
+        self.sts_log.log_msgs(msgs, msg_times)
+
         if not error:
-            self.sts_log.log_line("Restore successful.")
-            self.sts_info.set_status("Restore done", 3000, "#64C864")
+            self.sts_log.log_msgs("Restore finished.", time.time())
+            status_txt = "Restore done"
+            status_background = "#64C864"
 
         # Enable button when restore is finished
         self.restore_all_button.setEnabled(True)
         self.restore_button.setEnabled(True)
+
+        if status_txt:
+            self.sts_info.set_status(status_txt, 3000, status_background)
 
     def handle_selected_files(self, selected_files):
         """

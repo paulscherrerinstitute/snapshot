@@ -134,7 +134,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
 
         if do_save and self.check_file_existance():
             self.save_button.setEnabled(False)
-            self.sts_log.log_line("Save started.")
+            self.sts_log.log_msgs("Save started.", time.time())
             self.sts_info.set_status("Saving ...", 0, "orange")
 
             # Use advanced settings only if selected
@@ -155,8 +155,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
                                                             self.common_settings["save_file_prefix"] +
                                                             'latest' + self.save_file_sufix))
             if status == ActionStatus.no_conn:
-                self.sts_log.log_line(
-                    "ERROR: Save rejected. One or more PVs not connected.")
+                self.sts_log.log_msgs("ERROR: Save rejected. One or more PVs not connected.", time.time())
                 self.sts_info.set_status("Cannot save", 3000, "#F06464")
                 self.save_button.setEnabled(True)
             else:
@@ -170,22 +169,28 @@ class SnapshotSaveWidget(QtGui.QWidget):
     def save_done(self, status, forced):
         # Enable save button, and update status widgets
         error = False
-        for pv_name, sts in status.items():
+        msgs = list()
+        msg_times = list()
+        status_txt = ""
+        status_background = ""
+        for pvname, sts in status.items():
             if sts == PvStatus.access_err:
-                error = True and not forced
-                self.sts_log.log_line("WARNING: " + pv_name +
-                                      ": Not saved (no connection or no read access)")
-
+                error = not forced  #if here and not in force mode, then this is error state
+                msgs.append("WARNING: {}: Not saved (no connection or no read access)".format(pvname))
+                msg_times.append(time.time())
                 status_txt = "Save error"
                 status_background = "#F06464"
+        self.sts_log.log_msgs(msgs, msg_times)
 
         if not error:
-            self.sts_log.log_line("Save successful.")
+            self.sts_log.log_msgs("Save finished.", time.time())
             status_txt = "Save done"
             status_background = "#64C864"
 
         self.save_button.setEnabled(True)
-        self.sts_info.set_status(status_txt, 3000, status_background)
+
+        if status_txt:
+            self.sts_info.set_status(status_txt, 3000, status_background)
 
         self.saved.emit()
 
