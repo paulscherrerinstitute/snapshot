@@ -358,6 +358,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self.beginResetModel()
         for line in self._pvs_lines.values():
             line.disconnect_callbacks()
+        self._data = list()
         self._pvs_lines = dict()
         self.endResetModel()
 

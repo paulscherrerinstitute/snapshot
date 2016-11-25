@@ -211,7 +211,7 @@ class SnapshotGui(QtGui.QMainWindow):
 
         self.setWindowTitle(os.path.basename(req_file_path) + ' - Snapshot')
 
-        self.status_bar.set_status("New request file loaded.", 0, "#64C864")
+        self.status_bar.set_status("New request file loaded.", 3000, "#64C864")
 
     def handle_saved(self):
         # When save is done, save widget is updated by itself
@@ -302,7 +302,7 @@ class SnapshotStatus(QtGui.QStatusBar):
         self.common_settings = common_settings
         self.setSizeGripEnabled(False)
         self.timer = QtCore.QTimer(self)
-        self.timer.timeout.connect(self.clear_status)
+        self.timer.timeout.connect(self._clear_status)
         self.status_txt = QtGui.QLabel()
         self.status_txt.setStyleSheet("background-color: transparent")
         self.addWidget(self.status_txt)
@@ -321,9 +321,7 @@ class SnapshotStatus(QtGui.QStatusBar):
         if duration:
             self.timer.start(duration)
 
-
-
-    def clear_status(self):
+    def _clear_status(self):
         self.set_status("Ready", 0, "rgba(0, 0, 0, 30)")
 
 
