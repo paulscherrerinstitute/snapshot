@@ -93,7 +93,7 @@ class SnapshotGui(QtGui.QMainWindow):
         if req_file_macros is None:
             req_file_macros = dict()
 
-        if not req_file_name:
+        if not req_file_path:
             configure_dialog = SnapshotConfigureDialog(self, init_path=init_path, init_macros=req_file_macros)
             configure_dialog.accepted.connect(self.set_request_file)
 
@@ -102,7 +102,7 @@ class SnapshotGui(QtGui.QMainWindow):
                 self.close_gui()
 
         else:
-            self.common_settings["req_file_path"] = os.path.abspath(req_file_name)
+            self.common_settings["req_file_path"] = os.path.abspath(req_file_path)
             self.common_settings["req_file_macros"] = req_file_macros
 
         self.common_settings["pvs_to_restore"] = list()
