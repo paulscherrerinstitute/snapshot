@@ -52,10 +52,11 @@ class SnapshotConfigureDialog(QtGui.QDialog):
             QtGui.QDialogButtonBox.Ok | QtGui.QDialogButtonBox.Cancel)
         layout.addWidget(button_box)
 
-        button_box.accepted.connect(self.config_accepted)
-        self.rejected =  button_box.rejected
 
-    def config_accepted(self):
+        button_box.accepted.connect(self._config_accepted)
+        button_box.rejected.connect(self._config_rejected)
+
+    def _config_accepted(self):
         # Save to file path to local variable and emit signal
         if not self.file_selector.file_path:
             file_path = ""
@@ -64,7 +65,7 @@ class SnapshotConfigureDialog(QtGui.QDialog):
         if os.path.isfile(file_path):
             try:
                 self.accepted.emit(file_path, parse_macros(self.macros_input.text()))
-                self.close()
+                self.done(QtGui.QDialog.Accepted)
             except MacroError as e:
                 QtGui.QMessageBox.warning(self, "Warning", str(e),
                                       QtGui.QMessageBox.Ok,
@@ -73,6 +74,10 @@ class SnapshotConfigureDialog(QtGui.QDialog):
         else:
             warn = "File {} does not exist!".format(file_path)
             QtGui.QMessageBox.warning(self, "Warning", warn, QtGui.QMessageBox.Ok, QtGui.QMessageBox.NoButton)
+
+    def _config_rejected(self):
+        self.reject()
+        self.done(QtGui.QDialog.Rejected)
 
     def focusInEvent(self, event):
         self.file_selector.setFocus()

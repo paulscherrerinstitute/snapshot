@@ -96,10 +96,10 @@ class SnapshotGui(QtGui.QMainWindow):
         if not req_file_name:
             configure_dialog = SnapshotConfigureDialog(self, init_path=init_path, init_macros=req_file_macros)
             configure_dialog.accepted.connect(self.set_request_file)
-            configure_dialog.rejected.connect(self.close_gui)
 
             self.hide()
-            configure_dialog.exec_()
+            if configure_dialog.exec_() == QtGui.QDialog.Rejected:
+                self.close_gui()
 
         else:
             self.common_settings["req_file_path"] = os.path.abspath(req_file_name)
@@ -209,8 +209,7 @@ class SnapshotGui(QtGui.QMainWindow):
         configure_dialog = SnapshotConfigureDialog(self, init_path=self.common_settings['req_file_path'],
                                                    init_macros=self.common_settings['req_file_macros'])
         configure_dialog.accepted.connect(self.change_req_file)
-        configure_dialog.rejected.connect(self.close_gui)
-        configure_dialog.exec_()
+        configure_dialog.exec_()  # Do not act on rejected
 
     def change_req_file(self, req_file_path, macros):
         self.status_bar.set_status("Loading new request file ...", 0, "orange")
@@ -260,8 +259,8 @@ class SnapshotGui(QtGui.QMainWindow):
         if reopen_config:
             configure_dialog = SnapshotConfigureDialog(self, init_path=req_file_path, init_macros=req_macros)
             configure_dialog.accepted.connect(self.init_snapshot)
-            configure_dialog.rejected.connect(self.close_gui)
-            configure_dialog.exec_()
+            if configure_dialog.exec_() == QtGui.QDialog.Rejected:
+                self.close_gui()
 
         self.common_settings["pvs_to_restore"] = self.snapshot.get_pvs_names()
 
