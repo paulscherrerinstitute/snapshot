@@ -2,7 +2,7 @@ import argparse
 import re
 import sys
 
-from .ca_core.snapshot_ca import parse_macros
+from .ca_core.snapshot_ca import parse_macros, MacroError
 # close with ctrl+C
 import signal
 
@@ -116,9 +116,6 @@ usage: {}       {}
 Can be used as graphical interface tool or a command line tool.'''
 
     args = args_pars.parse_args()
-
-    # Parse macros string if exists
-    args.macro = parse_macros(args.macro)
 
     args.func(args)
 

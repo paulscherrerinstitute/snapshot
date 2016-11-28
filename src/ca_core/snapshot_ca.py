@@ -13,6 +13,7 @@ ca.AUTO_CLEANUP = True  # For pyepics versions older than 3.2.4, this was set to
 # closed
 import numpy
 import json
+import re
 import time
 import os
 from enum import Enum
@@ -33,11 +34,12 @@ class ActionStatus(Enum):
     timeout = 4
 
 
-def macros_substitution(string, macros):
-    for key in macros:
+def macros_substitution(txt:str, macros):
+    for key, value in macros.items():
         macro = "$(" + key + ")"
-        string = string.replace(macro, macros[key])
-    return string
+        txt = txt.replace(macro, value)
+
+    return txt
 
 
 ##
@@ -168,10 +170,15 @@ class Snapshot:
         snap (saved) files
 
         :param req_file_path: path to the request file
-        :param macros: macros to be substituted in request file
+        :param macros: macros to be substituted in request file (can be dict or str "A=B,C=D")
         :param snap_file_dir: directory with snapshot files (if snap file is relative, it will be relative to this
         :return:
         """
+
+        if isinstance(macros, str):
+            macros = parse_macros(macros) # Raises MacroError in case of problems
+        elif macros is None:
+            macros = dict()
 
         # holds path to the req_file_path as this is sort of identifier
         self.req_file_path = os.path.normpath(os.path.abspath(req_file_path))
@@ -186,10 +193,10 @@ class Snapshot:
         self._restore_callback = None
         self._current_restore_forced = False
 
-        # Uses default parsing method. If other format is needed, subclass
-        # and re implement parse_req_file method. It must return list of
-        # PV names.
-        self.add_pvs(self.parse_req_file(req_file_path))
+        req_f = SnapshotReqFile(self.req_file_path, changeable_macros=macros.keys())
+        pvs =  req_f.read()
+
+        self.add_pvs(pvs)
 
     def add_pvs(self, pv_list):
         # pyepics will handle PVs to have only one connection per PV.
@@ -404,22 +411,6 @@ class Snapshot:
 
     # Parser functions
 
-    def parse_req_file(self, req_file_path):
-        # This function is called at each initialization.
-        # This is a parser for a simple request file which supports macro
-        # substitution. Macros are defined as dictionary.
-        # {'SYS': 'MY-SYS'} will change all $(SYS) macros with MY-SYS
-        req_pvs = list()
-        req_file = open(req_file_path)
-        for line in req_file:
-            # skip comments and empty lines
-            if not line.startswith(('#', "data{", "}")) and line.strip():
-                pvname = line.rstrip().split(',')[0]
-                req_pvs.append(pvname)
-
-        req_file.close()
-        return req_pvs
-
     def parse_to_save_file(self, pvs, save_file_path, macros=None, symlink_path=None, **kw):
         # This function is called at each save of PV values.
         # This is a parser which generates save file from pvs
@@ -453,7 +444,8 @@ class Snapshot:
 
             os.symlink(save_file_path, symlink_path)
 
-    def parse_from_save_file(self, save_file_path):
+    @staticmethod
+    def parse_from_save_file(save_file_path):
         # This function is called in compare function.
         # This is a parser which has a desired value for each PV.
         # To support other format of file, override this method in subclass
@@ -507,6 +499,141 @@ class Snapshot:
         return saved_pvs, meta_data, err
 
 
+class SnapshotReqFile(object):
+    def __init__(self, path: str, parent=None, macros:dict = None, changeable_macros:list = None):
+        '''
+
+        :param path: file path
+        :param parent: SnapshotReqFile from which current file was called
+        :param macros: dict of macros (keys) and values
+        :param changeable_macros: list of "global" macros which can stay unreplaced and will be handled by
+                                  Shanpshot object. This macros will be ignored in error handling.
+        :return:
+        '''
+        if macros is None:
+            macros = dict()
+        if changeable_macros is None:
+            changeable_macros = list()
+
+        self._path = os.path.abspath(path)
+        self._parent = parent
+        self._macros = macros
+        self._c_macros = changeable_macros
+
+        if parent:
+            self._trace = '{} [line {}: {}] >> {}'.format(parent._trace, parent._curr_line_n, parent._curr_line,
+                                                          self._path)
+        else:
+            self._trace = self._path
+
+        self._curr_line_n = 0
+        self._curr_line_txt = ''
+        self._err = list()
+
+    def read(self):
+        f = open(self._path)
+
+        pvs = list()
+        err = list()
+
+        self._curr_line_n = 0
+        for self._curr_line in f:
+            self._curr_line_n += 1
+            self._curr_line = self._curr_line.strip()
+
+            # skip comments and empty lines
+            if not self._curr_line.startswith(('#', "data{", "}", "!")) and self._curr_line.strip():
+                    # First replace macros, then check if any unreplaced macros which are not "global"
+                    pvname = macros_substitution((self._curr_line.rstrip().split(',', maxsplit=1)[0]), self._macros)
+
+                    try:
+                        # Check if any unreplaced macros
+                        self._validate_macros_in_txt(pvname)
+                    except MacroError as e:
+                        f.close()
+                        raise ReqParseError(self._format_err((self._curr_line_n, self._curr_line), e))
+
+                    pvs.append(pvname)
+
+            elif self._curr_line.startswith('!'):
+                # Calling another req file
+                split_line = self._curr_line[1:].split(',', maxsplit=1)
+
+                if len(split_line) > 1:
+                    macro_txt = split_line[1].strip()
+                    if not macro_txt.startswith(('\"', '\'')):
+                        f.close()
+                        raise ReqFileFormatError(self._format_err((self._curr_line_n, self._curr_line),
+                                                                  'Syntax error. Macros argument must be quoted.'))
+                    else:
+                        quote_type = macro_txt[0]
+
+                    if not macro_txt.endswith(quote_type):
+                        f.close()
+                        raise ReqFileFormatError(self._format_err((self._curr_line_n, self._curr_line),
+                                                                  'Syntax error. Macros argument must be quoted.'))
+
+                    macro_txt = macros_substitution(macro_txt[1:-1], self._macros)
+                    try:
+                        self._validate_macros_in_txt(macro_txt) # Check if any unreplaced macros
+                        macros = parse_macros(macro_txt)
+
+                    except MacroError as e:
+                        f.close()
+                        raise ReqParseError(self._format_err((self._curr_line_n, self._curr_line), e))
+
+                else:
+                    macros = dict()
+
+                path = os.path.join(os.path.dirname(self._path), split_line[0])
+                msg = self._check_looping(path)
+                if msg:
+                    f.close()
+                    raise ReqFileInfLoopError(self._format_err((self._curr_line_n, self._curr_line), msg))
+
+                try:
+                    sub_f = SnapshotReqFile(path, parent=self, macros=macros)
+                    sub_pvs = sub_f.read()
+                    pvs += sub_pvs
+
+                except IOError as e:
+                    f.close()
+                    raise IOError(self._format_err((self._curr_line, self._curr_line_n), e))
+        f.close()
+        return pvs
+
+    def _format_err(self, line: tuple, msg: str):
+        return('{} [line {}: {}]: {}'.format(self._trace, line[0], line[1], msg))
+
+    def _validate_macros_in_txt(self, txt: str):
+        invalid_macros = list()
+        macro_rgx = re.compile('\$\(.*?\)')  # find all of type $()
+        raw_macros = macro_rgx.findall(txt)
+        for raw_macro in raw_macros:
+            if raw_macro not in self._macros.values() and raw_macro[2:-1] not in self._c_macros:
+                #There are unknown macros which were not substituted
+                invalid_macros.append(raw_macro)
+
+        if invalid_macros:
+            raise MacroError('Following macros were not defined: {}'.format(', '.join(invalid_macros)))
+
+    def _check_looping(self, path):
+        path = os.path.normpath(os.path.abspath(path))
+        ancestor = self  # eventually could call self again
+
+        while ancestor is not None:
+            if os.path.normpath(os.path.abspath(ancestor._path)) == path:
+                if ancestor._parent:
+                    msg = 'Infinity loop detected. File {} was already called from {}'.format(path,
+                                                                                              ancestor._parent._path)
+                else:
+                    msg = 'Infinity loop detected. File {} was already loaded as root request file.'.format(path)
+
+                return(msg)
+            else:
+                ancestor = ancestor._parent
+
+
 # Helper functions functions to support macros parsing for users of this lib
 def parse_macros(macros_str):
     """
@@ -520,9 +647,11 @@ def parse_macros(macros_str):
     if macros_str:
         macros_list = macros_str.split(',')
         for macro in macros_list:
-            split_macro = macro.split('=')
+            split_macro = macro.strip().split('=')
             if len(split_macro) == 2:
                 macros[split_macro[0]] = split_macro[1]
+            else:
+                raise MacroError('Following string cannot be parsed to macros: {}'.format(macros_str))
     return macros
 
 
@@ -543,3 +672,20 @@ def parse_dict_macros_to_text(macros):
         macros_str = macros_str[0:-1]
 
     return macros_str
+
+
+# Exceptions
+class SnapshotError(Exception):
+    pass
+
+class MacroError(SnapshotError):
+    pass
+
+class ReqParseError(SnapshotError):
+    pass
+
+class ReqFileFormatError(ReqParseError):
+    pass
+
+class ReqFileInfLoopError(ReqParseError):
+    pass

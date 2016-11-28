@@ -7,16 +7,14 @@ import os
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
 
-from ..ca_core.snapshot_ca import parse_macros, parse_dict_macros_to_text
+from ..ca_core.snapshot_ca import parse_macros, parse_dict_macros_to_text, MacroError
 
 
 class SnapshotConfigureDialog(QtGui.QDialog):
     """ Dialog window to select and apply file. """
-
-    def __init__(self, parent=None, init_path=None, **kw):
+    accepted = QtCore.pyqtSignal(str, dict)
+    def __init__(self, parent=None, init_path=None, init_macros=None,  **kw):
         QtGui.QDialog.__init__(self, parent, **kw)
-        self.file_path = ""
-        self.macros = ""
         layout = QtGui.QVBoxLayout()
         layout.setMargin(10)
         layout.setSpacing(10)
@@ -36,6 +34,15 @@ class SnapshotConfigureDialog(QtGui.QDialog):
         macros_layout.addWidget(self.macros_input)
         macros_layout.setSpacing(10)
 
+        if not init_macros:
+            self.macros_input.setText('')
+
+        elif isinstance(init_macros, dict):
+            self.macros_input.setText(parse_dict_macros_to_text(init_macros))
+
+        else: # string
+            self.macros_input.setText(init_macros)
+
         self.setMinimumSize(600, 50)
 
         layout.addWidget(self.file_selector)
@@ -46,22 +53,26 @@ class SnapshotConfigureDialog(QtGui.QDialog):
         layout.addWidget(button_box)
 
         button_box.accepted.connect(self.config_accepted)
-        button_box.rejected.connect(self.reject)
+        self.rejected =  button_box.rejected
 
     def config_accepted(self):
         # Save to file path to local variable and emit signal
         if not self.file_selector.file_path:
-            self.file_path = ""
+            file_path = ""
         else:
-            self.file_path = self.file_selector.file_path
-        if os.path.exists(self.file_path):
-            self.macros = parse_macros(self.macros_input.text())
-            self.accept()
-        else:
-            warn = "File does not exist!"
-            QtGui.QMessageBox.warning(self, "Warning", warn,
+            file_path = self.file_selector.file_path
+        if os.path.isfile(file_path):
+            try:
+                self.accepted.emit(file_path, parse_macros(self.macros_input.text()))
+                self.close()
+            except MacroError as e:
+                QtGui.QMessageBox.warning(self, "Warning", str(e),
                                       QtGui.QMessageBox.Ok,
                                       QtGui.QMessageBox.NoButton)
+
+        else:
+            warn = "File {} does not exist!".format(file_path)
+            QtGui.QMessageBox.warning(self, "Warning", warn, QtGui.QMessageBox.Ok, QtGui.QMessageBox.NoButton)
 
     def focusInEvent(self, event):
         self.file_selector.setFocus()
@@ -217,7 +228,8 @@ class SnapshotFileSelector(QtGui.QWidget):
 
         self.initial_file_path = self.text()
         if init_path:
-            self.initial_file_path = init_path
+            self.initial_file_path = os.path.abspath(init_path)
+            self.setText(self.initial_file_path)
 
     def open_selector(self):
         dialog = QtGui.QFileDialog(self)
@@ -519,3 +531,22 @@ class DetailedMsgBox(QtGui.QMessageBox):
         self.setDetailedText(details)
         self.setWindowTitle(title)
         self.setStandardButtons(std_buttons)
+        self.setSizeGripEnabled(True)
+
+    def resizeEvent(self, e):
+        result = QtGui.QMessageBox.resizeEvent(self, e)
+        self.setMinimumHeight(0)
+        self.setMaximumHeight(16777215)
+        self.setMinimumWidth(0)
+        self.setMaximumWidth(16777215)
+        self.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+
+        textEdit = self.findChild(QtGui.QTextEdit)
+        if textEdit != None :
+            textEdit.setMinimumHeight(0)
+            textEdit.setMaximumHeight(16777215)
+            textEdit.setMinimumWidth(0)
+            textEdit.setMaximumWidth(16777215)
+            textEdit.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+
+        return result

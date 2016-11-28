@@ -12,7 +12,7 @@ import sys
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
 
-from ..ca_core.snapshot_ca import Snapshot, parse_dict_macros_to_text
+from ..ca_core.snapshot_ca import Snapshot, SnapshotError, ReqParseError
 from .compare import SnapshotCompareWidget
 from .restore import SnapshotRestoreWidget
 from .save import SnapshotSaveWidget
@@ -25,12 +25,23 @@ class SnapshotGui(QtGui.QMainWindow):
     thread where core of the application is running
     """
 
-    def __init__(self, req_file_name=None, req_file_macros=None, save_dir=None, force=False, default_labels=None,
-                 force_default_labels=None, init_path=None, config_path=None, parent=None):
-        QtGui.QMainWindow.__init__(self, parent)
+    def __init__(self, req_file_name: str = None, req_file_macros = None, save_dir: str = None, force: bool =False,
+                 default_labels: list = None, force_default_labels: bool = None, init_path: str = None,
+                 config_path: str = None, parent=None):
+        '''
 
-        if req_file_macros is None:
-            req_file_macros = dict()
+        :param req_file_name:
+        :param req_file_macros:
+        :param save_dir:
+        :param force:
+        :param default_labels:
+        :param force_default_labels:
+        :param init_path:
+        :param config_path:
+        :param parent:
+        :return:
+        '''
+        QtGui.QMainWindow.__init__(self, parent)
 
         if config_path:
             # Validate configuration file
@@ -79,14 +90,16 @@ class SnapshotGui(QtGui.QMainWindow):
         # Predefined filters
         self.common_settings["predefined_filters"] = config.get('filters', dict())
 
+        if req_file_macros is None:
+            req_file_macros = dict()
+
         if not req_file_name:
-            self.configure_dialog = SnapshotConfigureDialog(self, init_path=init_path)
-            self.configure_dialog.macros_input.setText(parse_dict_macros_to_text(req_file_macros))
-            self.configure_dialog.accepted.connect(self.set_request_file)
-            self.configure_dialog.rejected.connect(self.close_gui)
+            configure_dialog = SnapshotConfigureDialog(self, init_path=init_path, init_macros=req_file_macros)
+            configure_dialog.accepted.connect(self.set_request_file)
+            configure_dialog.rejected.connect(self.close_gui)
 
             self.hide()
-            self.configure_dialog.exec_()
+            configure_dialog.exec_()
 
         else:
             self.common_settings["req_file_path"] = os.path.abspath(req_file_name)
@@ -193,16 +206,16 @@ class SnapshotGui(QtGui.QMainWindow):
         main_splitter.setSizes(widgets_sizes)
 
     def open_new_req_file(self):
-        self.configure_dialog = SnapshotConfigureDialog(self, init_path=os.path.dirname(
-            self.common_settings['req_file_path']))
-        self.configure_dialog.accepted.connect(self.change_req_file)
-        self.configure_dialog.exec_()
+        configure_dialog = SnapshotConfigureDialog(self, init_path=self.common_settings['req_file_path'],
+                                                   init_macros=self.common_settings['req_file_macros'])
+        configure_dialog.accepted.connect(self.change_req_file)
+        configure_dialog.rejected.connect(self.close_gui)
+        configure_dialog.exec_()
 
-    def change_req_file(self):
+    def change_req_file(self, req_file_path, macros):
         self.status_bar.set_status("Loading new request file ...", 0, "orange")
-        self.set_request_file()
-        req_file_path = self.common_settings['req_file_path']
-        self.init_snapshot(req_file_path, self.common_settings['req_file_macros'])
+        self.set_request_file(req_file_path, macros)
+        self.init_snapshot(req_file_path, macros)
 
         # handle all gui components
         self.restore_widget.handle_new_snapshot_instance(self.snapshot)
@@ -218,14 +231,38 @@ class SnapshotGui(QtGui.QMainWindow):
         # Update restore widget (new file in directory)
         self.restore_widget.update_files()
 
-    def set_request_file(self):
-        self.common_settings["req_file_path"] = self.configure_dialog.file_path
-        self.common_settings["req_file_macros"] = self.configure_dialog.macros
+    def set_request_file(self, path:str, macros: dict):
+        self.common_settings["req_file_path"] = path
+        self.common_settings["req_file_macros"] = macros
 
     def init_snapshot(self, req_file_path, req_macros=None):
         req_macros = req_macros or {}
+        reopen_config = False
+        try:
+            self.snapshot = Snapshot(req_file_path, req_macros)
+            self.set_request_file(req_file_path, req_macros)
 
-        self.snapshot = Snapshot(req_file_path, req_macros)
+        except IOError:
+            warn = "File {} does not exist!".format(req_file_path)
+            QtGui.QMessageBox.warning(self, "Warning", warn, QtGui.QMessageBox.Ok, QtGui.QMessageBox.NoButton)
+            reopen_config = True
+
+        except ReqParseError as e:
+            msg = 'Snapshot cannot be loaded due to a syntax error in request file. See details.'
+            msg_window = DetailedMsgBox(msg, str(e), 'Warning', self, QtGui.QMessageBox.Ok)
+            msg_window.exec_()
+            reopen_config = True
+
+        except SnapshotError as e:
+            QtGui.QMessageBox.warning(self, "Warning", str(e), QtGui.QMessageBox.Ok, QtGui.QMessageBox.NoButton)
+            reopen_config = True
+
+        if reopen_config:
+            configure_dialog = SnapshotConfigureDialog(self, init_path=req_file_path, init_macros=req_macros)
+            configure_dialog.accepted.connect(self.init_snapshot)
+            configure_dialog.rejected.connect(self.close_gui)
+            configure_dialog.exec_()
+
         self.common_settings["pvs_to_restore"] = self.snapshot.get_pvs_names()
 
     def handle_files_updated(self, updated_files):
