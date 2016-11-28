@@ -1,29 +1,34 @@
-import time
 import datetime
 import logging
 import os
-from .snapshot_ca import PvStatus, ActionStatus, Snapshot, macros_substitution, parse_macros, parse_dict_macros_to_text
+import sys
+import time
+
+from ..ca_core.snapshot_ca import PvStatus, ActionStatus, Snapshot, SnapshotError
+
 
 def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10):
-    req_file_name = os.path.basename(req_file_path)
-
     if os.path.isdir(save_file_path):
-        save_file_path += '/{}_{}.snap'.format(os.path.splitext(req_file_name)[0],
-                                              datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M%S'))
+        save_file_path += '/{}_{}.snap'.format(os.path.splitext(os.path.basename(req_file_path))[0],
+                                               datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M%S'))
 
     logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
     logging.info('Start saving the snapshot.')
     if force:
         logging.info('Started in force mode. Unavailable PVs will be ignored.')
     macros = macros or {}
-    snapshot = Snapshot(req_file_path, macros)
+    try:
+        snapshot = Snapshot(req_file_path, macros)
+    except (IOError, SnapshotError) as e:
+        logging.error('Snapshot cannot be loaded due to a following error: {}'.format(e))
+        sys.exit(1)
 
     logging.info('Waiting for PVs connections (timeout: {} s) ...'.format(timeout))
     end_time = time.time() + timeout
     while not snapshot.all_connected and time.time() < end_time:
         time.sleep(0.2)
 
-    status, pv_status = snapshot.save_pvs(req_file_name, save_file_path, force)
+    status, pv_status = snapshot.save_pvs(save_file_path, force)
 
     if status != ActionStatus.ok:
         for pv_name in snapshot.get_not_connected_pvs_names():
@@ -32,19 +37,29 @@ def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10
     else:
         for pv_name, status in pv_status.items():
             if status == PvStatus.access_err:
-                logging.info('\"{}\": Not saved. No connection or no read access.'.format(pv_name))
+                logging.warning('\"{}\": Not saved. No connection or no read access.'.format(pv_name))
         logging.info('Snapshot file was saved.')
 
 
 def restore(saved_file_path, force=False, timeout=10):
-    snapshot = Snapshot(saved_file_path) # Use saved file as request file here
+    logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
+    logging.info('Start restoring the snapshot.')
+    if force:
+        logging.info('Started in force mode. Unavailable PVs will be ignored.')
 
-    # Prparse file to check for any problems in the snapshot file.
-    saved_pvs, meta_data, err = snapshot.parse_from_save_file(saved_file_path)
+    try:
+        # Preparse file to check for any problems in the snapshot file.
+        saved_pvs, meta_data, err = Snapshot.parse_from_save_file(saved_file_path)
 
-    if err:
-        logging.warning('While loading file following problems were detected:\n * ' + '\n * '.join(err))
+        if err:
+            logging.warning('While loading file following problems were detected:\n * ' + '\n * '.join(err))
+        # Use saved file as request file here
+        snapshot = Snapshot(saved_file_path, macros=meta_data.get('macros', dict()))
+    except (IOError, SnapshotError) as e:
+        logging.error('Snapshot cannot be loaded due to a following error: {}'.format(e))
+        sys.exit(1)
 
+    logging.info('Waiting for PVs connections (timeout: {} s) ...'.format(timeout))
     end_time = time.time() + timeout
     while not snapshot.all_connected and time.time() < end_time:
         time.sleep(0.2)
@@ -66,4 +81,3 @@ def restore(saved_file_path, force=False, timeout=10):
         for pv_name in snapshot.get_not_connected_pvs_names():
             logging.error('\"{}\" cannot be accessed.'.format(pv_name))
         logging.info('Snapshot file was not restored.')
-

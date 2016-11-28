@@ -21,3 +21,10 @@ QTreeWidget::item:pressed,QTreeWidget::item:selected{
     border-bottom: 1px solid #FFFFFF;
 }
 
+QTableView::item:pressed,QTableView::item:selected{
+    background-color: #FF6347;
+    color: #FFFFFF;
+    border-bottom: 1px solid #FFFFFF;
+}
+
+

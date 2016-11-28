@@ -12,12 +12,19 @@ conda install -c https://conda.anaconda.org/paulscherrerinstitute snapshot
 ```
 
 # Usage
-To define a set of PVs which should be saved/restored the _snapshot_ tool requires a "request" file. Request files are in the following format. Beside accepting explicit channels also the use of macros are possible.
+To define a set of PVs which should be saved/restored the _snapshot_ tool requires a "request" file. Request files are in the following format. Beside accepting explicit channels also the use of macros are possible. From version 1.5.0 on, request files format was extended to support nested loading of request files.
 
 ```
 examplePv:test-1
 examplePv:test-2
 $(SYS):test-3
+
+# Loading other request files with different macro values
+!./relative/path/file1.req, "SYS=$(SYS),ID=1"
+!./relative/path/file1.req, "SYS=$(SYS),ID=2"
+
+# Also from absolute path
+!/absolute/path/file2.req, "SYS=$(SYS),ID=1"
 ```
 
 After snapshot is build and deployed as conda package (see section [Instalation](#installation) it can be used in graphical mode or as command line tool.
