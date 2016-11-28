@@ -30,8 +30,6 @@ def save(args):
     from .cmd.snapshot_cmd import save
     save(args.FILE, args.out, args.macro, args.force, args.timeout)
 
-    # req_file_path, save_file_path='.', macros=None, force=False, timeout=10
-
 
 def restore(args):
     from .cmd.snapshot_cmd import restore

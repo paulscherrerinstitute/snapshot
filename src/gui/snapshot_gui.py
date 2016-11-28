@@ -25,20 +25,20 @@ class SnapshotGui(QtGui.QMainWindow):
     thread where core of the application is running
     """
 
-    def __init__(self, req_file_name: str = None, req_file_macros = None, save_dir: str = None, force: bool =False,
+    def __init__(self, req_file_path: str = None, req_file_macros = None, save_dir: str = None, force: bool =False,
                  default_labels: list = None, force_default_labels: bool = None, init_path: str = None,
                  config_path: str = None, parent=None):
         '''
 
-        :param req_file_name:
-        :param req_file_macros:
-        :param save_dir:
-        :param force:
-        :param default_labels:
-        :param force_default_labels:
-        :param init_path:
-        :param config_path:
-        :param parent:
+        :param req_file_path: path to request file
+        :param req_file_macros: macros can be as dict (key, value pairs) or a string in format A=B,C=D
+        :param save_dir: path to the default save directory
+        :param force: force saving on disconnected channels
+        :param default_labels: list of default labels
+        :param force_default_labels: if True, user can only select predefined labels
+        :param init_path: default path to be shown on the file selector
+        :param config_path: path to configuration file
+        :param parent: Parent QtObject
         :return:
         '''
         QtGui.QMainWindow.__init__(self, parent)
@@ -105,16 +105,17 @@ class SnapshotGui(QtGui.QMainWindow):
             self.common_settings["req_file_path"] = os.path.abspath(req_file_name)
             self.common_settings["req_file_macros"] = req_file_macros
 
-        if not save_dir:
-            # Default save dir
-            save_dir = os.path.dirname(self.common_settings["req_file_path"])
-
-        self.common_settings["save_dir"] = os.path.abspath(save_dir)
         self.common_settings["pvs_to_restore"] = list()
 
         # Before creating GUI, snapshot must be initialized.
         self.init_snapshot(self.common_settings["req_file_path"],
                            self.common_settings["req_file_macros"])
+
+        if not save_dir:
+            # Default save dir (do this once we have valid req file)
+            save_dir = os.path.dirname(self.common_settings["req_file_path"])
+
+        self.common_settings["save_dir"] = os.path.abspath(save_dir)
 
         # Create main GUI components:
         #         menu bar
