@@ -193,6 +193,9 @@ class SnapshotCompareWidget(QtGui.QWidget):
             self.pv_filter_sel.setCurrentIndex(0)
             self.regex.setChecked(False)
             self.pv_filter_inp.setText(txt)
+            
+    def filter_update(self):
+        self._proxy.apply_filter()
 
 
 class SnapshotPvTableView(QtGui.QTableView):
@@ -562,17 +565,17 @@ class SnapshotPvFilterProxyModel(QtGui.QSortFilterProxyModel):
 
     def set_name_filter(self, filter):
         self._name_filter = filter
-        self._apply_filter()
+        self.apply_filter()
 
     def set_eq_filter(self, mode):
         self._eq_filter = PvCompareFilter(mode)
-        self._apply_filter()
+        self.apply_filter()
 
     def set_disconn_filter(self, state):
         self._disconn_filter = state
-        self._apply_filter()
+        self.apply_filter()
 
-    def _apply_filter(self):
+    def apply_filter(self):
         # during invalidateFilter(), filterAcceptsRow() is called for each row
         self._filtered_pvs = list()
         self.invalidateFilter()
