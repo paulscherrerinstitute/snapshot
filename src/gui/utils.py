@@ -62,6 +62,7 @@ class SnapshotConfigureDialog(QtGui.QDialog):
             file_path = ""
         else:
             file_path = self.file_selector.file_path
+
         if os.path.isfile(file_path):
             try:
                 self.accepted.emit(file_path, parse_macros(self.macros_input.text()))
