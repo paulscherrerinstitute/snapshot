@@ -1,0 +1,45 @@
+
+src
+***
+
+* src package
+
+  * Subpackages
+
+    * src.ca_core package
+
+      * Submodules
+
+      * src.ca_core.snapshot_ca module
+
+      * Module contents
+
+    * src.cmd package
+
+      * Submodules
+
+      * src.cmd.snapshot_cmd module
+
+      * Module contents
+
+    * src.gui package
+
+      * Submodules
+
+      * src.gui.compare module
+
+      * src.gui.restore module
+
+      * src.gui.save module
+
+      * src.gui.snapshot_gui module
+
+      * src.gui.utils module
+
+      * Module contents
+
+  * Submodules
+
+  * src.snapshot module
+
+  * Module contents

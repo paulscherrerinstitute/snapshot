@@ -1,0 +1,494 @@
+
+src.gui package
+***************
+
+
+Submodules
+==========
+
+
+src.gui.compare module
+======================
+
+class class src.gui.compare.PvCompareFilter
+
+   Bases: "enum.Enum"
+
+   An enumeration.
+
+   show_all = <PvCompareFilter.show_all: 0>
+
+   show_eq = <PvCompareFilter.show_eq: 2>
+
+   show_neq = <PvCompareFilter.show_neq: 1>
+
+class class src.gui.compare.SnapshotCompareWidget(snapshot, common_settings, parent=None, **kw)
+
+   Bases: "PyQt4.QtGui.QWidget"
+
+   filter_update()
+
+   handle_new_snapshot_instance(snapshot)
+
+   new_selected_files(selected_files)
+
+   pvs_filtered
+
+   update_shown_files(updated_files)
+
+class class src.gui.compare.SnapshotPvFilterProxyModel(parent=None)
+
+   Bases: "PyQt4.QtGui.QSortFilterProxyModel"
+
+   Proxy model providing a custom filtering functionality for PV table
+
+   apply_filter()
+
+   filterAcceptsRow(idx: int, source_parent: PyQt4.QtCore.QModelIndex)
+
+      Reimplemented parent method, to define a PV table filtering.
+
+      Parameters:
+         * **idx** -- index of the table line
+
+         * **source_parent** --
+
+      Returns:
+         visible (True), hidden(False)
+
+   filtered
+
+   set_disconn_filter(state)
+
+   set_eq_filter(mode)
+
+   set_name_filter(filter)
+
+class class src.gui.compare.SnapshotPvTableLine(pv_ref, parent=None)
+
+   Bases: "PyQt4.QtCore.QObject"
+
+   Model of row in the PV table. Uses SnapshotPv callbacks to update
+   its visualization of the PV state.
+
+   append_snap_value(value)
+
+   are_snap_values_eq()
+
+   change_snap_value(idx, value)
+
+   clear_snap_values()
+
+   data_changed
+
+   disconnect_callbacks()
+
+      Disconnect from SnapshotPv object. Should be called before
+      removing line from model. :return:
+
+   get_snap_count()
+
+   is_snap_eq_to_pv(idx)
+
+   static string_repr(value)
+
+class class src.gui.compare.SnapshotPvTableModel(snapshot: src.ca_core.snapshot_ca.Snapshot, parent=None)
+
+   Bases: "PyQt4.QtCore.QAbstractTableModel"
+
+   Model of the PV table. Handles adding and removing PVs (rows) and
+   snapshot files (columns). Each row (PV) is represented with
+   SnapshotPvTableLine object.
+
+   add_pvs(pvs: list)
+
+      Create new rows for given pvs.
+
+      Parameters:
+         **pvs** -- list of snapshot PVs
+
+      Returns:
+   add_snap_files(files: list)
+
+      Add 1 column for each file in the list
+
+      Parameters:
+         **files** -- dict of files with their data
+
+      Returns:
+   clear_pvs()
+
+      Removes all data from the model. :return:
+
+   clear_snap_files()
+
+   columnCount(parent)
+
+   data(index, role)
+
+   get_pv_line_model(line: int)
+
+   get_pvname(idx: PyQt4.QtCore.QModelIndex)
+
+   handle_pv_change(pv_line)
+
+   headerData(section, orientation, role)
+
+   rowCount(parent)
+
+   update_snap_files(updated_files)
+
+class class src.gui.compare.SnapshotPvTableView(parent=None)
+
+   Bases: "PyQt4.QtGui.QTableView"
+
+   Default visualization of the PV model.
+
+   dataChanged(mode_idx, mode_idx1)
+
+      Force update of the view on any data change in the model. If
+      self.viewport().update() is not called here the view is not
+      updated if application window is not in focus.
+
+      Parameters:
+         * **mode_idx** --
+
+         * **mode_idx1** --
+
+      Returns:
+   reset()
+
+   setModel(model)
+
+      Extend  default method to apply default column widths (all PV
+      names should be fully visible) :param model: :return:
+
+   set_default_visualization()
+
+   set_snap_visualization()
+
+      Whenever the view is updated with new columns with snap values
+      to 200, and extend last one :return:
+
+
+src.gui.restore module
+======================
+
+class class src.gui.restore.SnapshotFileFilterWidget(common_settings, parent=None, **kw)
+
+   Bases: "PyQt4.QtGui.QWidget"
+
+   Is a widget with 3 filter options:
+      * by time (removed)
+
+      * by comment
+
+      * by labels
+
+      * by name
+
+   Emits signal: filter_changed when any of the filter changed.
+
+   clear()
+
+   file_filter_updated
+
+   update_filter()
+
+   update_labels()
+
+class class src.gui.restore.SnapshotRestoreFileSelector(snapshot, common_settings, parent=None, save_file_sufix='.snap', **kw)
+
+   Bases: "PyQt4.QtGui.QWidget"
+
+   Widget for visual representation (and selection) of existing
+   saved_value files.
+
+   clear_file_selector()
+
+   delete_files()
+
+   files_selected
+
+   filter_file_list_selector()
+
+   get_save_files(save_dir, current_files)
+
+   handle_new_snapshot_instance(snapshot)
+
+   open_menu(point)
+
+   select_files()
+
+   start_file_list_update()
+
+   update_file_list_selector(modif_file_list)
+
+   update_file_metadata()
+
+class class src.gui.restore.SnapshotRestoreWidget(snapshot, common_settings, parent=None, **kw)
+
+   Bases: "PyQt4.QtGui.QWidget"
+
+   Restore widget is a widget that enables user to restore saved state
+   of PVs listed in request file from one of the saved files. Save
+   widget consists of:
+
+      * file selector (tree of all files)
+
+      * restore button
+
+      * searcher/filter
+
+   Data about current app state (such as request file) must be
+   provided as part of the structure "common_settings".
+
+   clear_update_files()
+
+   do_restore(filtered_only=False)
+
+   files_selected
+
+   files_updated
+
+   handle_new_snapshot_instance(snapshot)
+
+   handle_selected_files(selected_files)
+
+      Handle sub widgets and emits signal when files are selected.
+
+      Parameters:
+         **selected_files** -- list of selected file names
+
+      Returns:
+   restore_done(status, forced)
+
+   restore_done_callback(status, forced, **kw)
+
+   restored_callback
+
+   start_restore_all()
+
+   start_restore_filtered()
+
+   update_files()
+
+
+src.gui.save module
+===================
+
+class class src.gui.save.SnapshotAdvancedSaveSettings(text, common_settings, parent=None)
+
+   Bases: "PyQt4.QtGui.QGroupBox"
+
+   toggle()
+
+   update_labels()
+
+class class src.gui.save.SnapshotSaveWidget(snapshot, common_settings, parent=None, **kw)
+
+   Bases: "PyQt4.QtGui.QWidget"
+
+   Save widget is a widget that enables user to save current state of
+   PVs listed in request file. Widget includes: Save widget consists
+   of:
+
+      * input-fields:
+
+           * file extension (default YYMMDD_hhmm)
+
+           * comment
+
+           * labels
+
+      * read-back showing whole file name
+
+      * Save button
+
+   Data about current app state (such as request file) must be
+   provided as part of the structure "common_settings".
+
+   check_file_existance()
+
+   handle_new_snapshot_instance(snapshot)
+
+   save_done(status, forced)
+
+   saved
+
+   start_save()
+
+   update_labels()
+
+   update_name()
+
+
+src.gui.snapshot_gui module
+===========================
+
+class class src.gui.snapshot_gui.SnapshotGui(req_file_path: str=None, req_file_macros=None, save_dir: str=None, force: bool=False, default_labels: list=None, force_default_labels: bool=None, init_path: str=None, config_path: str=None, parent=None)
+
+   Bases: "PyQt4.QtGui.QMainWindow"
+
+   Main GUI class for Snapshot application. It needs separate working
+   thread where core of the application is running
+
+   change_req_file(req_file_path, macros)
+
+   close_gui()
+
+   handle_files_updated(updated_files)
+
+   handle_new_config(config)
+
+   handle_pvs_filtered(pvs=None)
+
+   handle_saved()
+
+   handle_selected_files(selected_files)
+
+   init_snapshot(req_file_path, req_macros=None)
+
+   open_new_req_file()
+
+   open_settings()
+
+   set_request_file(path: str, macros: dict)
+
+class class src.gui.snapshot_gui.SnapshotStatus(common_settings, parent=None)
+
+   Bases: "PyQt4.QtGui.QStatusBar"
+
+   clear_status()
+
+   set_status(text='Ready', duration=0, background='rgba(0, 0, 0, 30)')
+
+class class src.gui.snapshot_gui.SnapshotStatusLog(parent=None)
+
+   Bases: "PyQt4.QtGui.QWidget"
+
+   Command line like logger widget
+
+   log_msgs(msgs, msg_times)
+
+src.gui.snapshot_gui.start_gui(*args, **kwargs)
+
+
+src.gui.utils module
+====================
+
+class class src.gui.utils.DetailedMsgBox(msg='', details='', title='', parent=None, std_buttons=<PyQt4.QtGui.StandardButtons object>)
+
+   Bases: "PyQt4.QtGui.QMessageBox"
+
+   resizeEvent(e)
+
+class class src.gui.utils.SnapshotConfigureDialog(parent=None, init_path=None, init_macros=None, **kw)
+
+   Bases: "PyQt4.QtGui.QDialog"
+
+   Dialog window to select and apply file.
+
+   accepted
+
+   focusInEvent(event)
+
+class class src.gui.utils.SnapshotEditMetadataDialog(metadata, common_settings, parent=None)
+
+   Bases: "PyQt4.QtGui.QDialog"
+
+   apply_config()
+
+   handle_click(button)
+
+class class src.gui.utils.SnapshotFileSelector(parent=None, label_text='File:', button_text='...', label_width=None, init_path=None, show_files=True, **kw)
+
+   Bases: "PyQt4.QtGui.QWidget"
+
+   Widget to select file with dialog box.
+
+   change_file_path()
+
+   focusInEvent(event)
+
+   handle_selected(candidate_path)
+
+   open_selector()
+
+   path_changed
+
+   setText(text)
+
+   text()
+
+class class src.gui.utils.SnapshotKeywordSelectorInput(callback, parent=None)
+
+   Bases: "PyQt4.QtGui.QLineEdit"
+
+   Subclass of QLineEdit, which handles keyboard events in a keyword
+   selector specific way (defines keys for applying new keyword to
+   selected, and removing it from the list). Events that takes actions
+   on the main widget are passed to the specified function, other are
+   handled natively.
+
+   focusOutEvent(event)
+
+   keyPressEvent(event)
+
+class class src.gui.utils.SnapshotKeywordSelectorWidget(common_settings, defaults_only=False, parent=None)
+
+   Bases: "PyQt4.QtGui.QComboBox"
+
+   Widget for defining keywords (labels). Existing keywords are read
+   from the common_settings data structure and are suggested to the
+   user in drop down menu. Keywords that are selected are returned as
+   list.
+
+   add_to_selected(keyword, force=False)
+
+   clear_keywords()
+
+   focusInEvent(event)
+
+   focus_out(event)
+
+   get_keywords()
+
+   input_handler(event)
+
+   key_press_event(event)
+
+   keywords_changed
+
+   remove_keyword(keyword)
+
+   setPlaceholderText(text)
+
+   update_suggested_keywords()
+
+class class src.gui.utils.SnapshotKeywordWidget(text=None, parent=None)
+
+   Bases: "PyQt4.QtGui.QFrame"
+
+   Graphical representation of the selected widget. A Frame with
+   remove button.
+
+   delete
+
+   delete_pressed()
+
+class class src.gui.utils.SnapshotSettingsDialog(common_settings, parent=None)
+
+   Bases: "PyQt4.QtGui.QWidget"
+
+   apply_config()
+
+   handle_click(button)
+
+   monitor_changes()
+
+   new_config
+
+
+Module contents
+===============

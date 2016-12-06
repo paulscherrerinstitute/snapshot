@@ -1,0 +1,15 @@
+
+Welcome to snapshot's documentation!
+************************************
+
+Contents:
+
+
+Indices and tables
+******************
+
+* Index
+
+* Module Index
+
+* Search Page
