@@ -13,7 +13,7 @@ import numpy
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
 
-from ..ca_core.snapshot_ca import Snapshot, SnapshotPv, macros_substitution
+from ..ca_core.snapshot_ca import Snapshot, SnapshotPv
 
 
 class PvCompareFilter(Enum):
@@ -385,7 +385,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
 
         pvs_list_full_names = dict()  # PVS data mapped to real pvs names (no macros)
         for pv_name_raw, pv_data in file_data["pvs_list"].items():
-            pvs_list_full_names[macros_substitution(pv_name_raw, macros)] = pv_data  # snapshot_ca.py function
+            pvs_list_full_names[SnapshotPv.macros_substitution(pv_name_raw, macros)] = pv_data
 
         return pvs_list_full_names
 

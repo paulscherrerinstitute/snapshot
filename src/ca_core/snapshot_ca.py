@@ -20,6 +20,13 @@ from enum import Enum
 
 
 class PvStatus(Enum):
+    """
+    Returned by SnapshotPv on save_pv() and restore_pv() methods. Possible states:
+        access_err: Not connected or not read7write permission at the time of action.
+        ok: Action succeeded.
+        no_value: Returned if value (save_pv) or desired value (restore_pv) for action is not defined.
+        equal: Returned if restore value is equal to current PV value (no need to restore).
+    """
     access_err = 0
     ok = 1
     no_value = 2
@@ -27,20 +34,19 @@ class PvStatus(Enum):
 
 
 class ActionStatus(Enum):
+    """
+    Returned by Snapshot methods to indicate their stressfulness. Possible states:
+        busy: Returned by restore_pvs() if previous restore did not finished yet (non-blocking restore).
+        ok: Action succeeded.
+        no_data: Returned by restore_pvs() if no data was provided for restore.
+        no_conn: Returned if one of the PVs is not connected and not in force mode.
+        timeout: Returned by restore_pvs_blocking() when timeout occurs before all PVs are restored.
+    """
     busy = 0
     ok = 1
     no_data = 2
     no_conn = 3
     timeout = 4
-
-
-def macros_substitution(txt:str, macros):
-    for key, value in macros.items():
-        macro = "$(" + key + ")"
-        txt = txt.replace(macro, value)
-
-    return txt
-
 
 ##
 # Subclass PV to be to later add info if needed
@@ -67,8 +73,9 @@ class SnapshotPv(PV):
 
     def save_pv(self):
         """
-        None blocking get. Returns latest value (monitored). If not able to get value (no connection or access),
-        'None' is returned.
+        Non blocking CA get. Does not block if there is no connection or no read access. Returns latest value
+        (monitored) or None if not able to get value. It also returns status of the action (see PvStatus)
+        :return: (value, status)
         """
         if self.connected:
             # Must be after connection test. If checking access when not
@@ -94,8 +101,9 @@ class SnapshotPv(PV):
 
     def restore_pv(self, value, callback=None):
         """
-        Executes asyn pv.put if value is different to current value. Success of put is returned in callback.
-        :param value: value to be put to pv
+        Executes asynchronous CA put if value is different to current PV value. Success status of this action is
+        returned in callback.
+        :param value: Value to be put to PV.
         :param callback: callback function in which success of restoring is monitored
         :return:
         """
@@ -125,32 +133,55 @@ class SnapshotPv(PV):
             callback(pvname=self.pvname, status=PvStatus.access_err)
 
     def compare_to_curr(self, value):
+        """
+        Compare value to current PV value.
+        :param value: Value to be compared.
+        :return: Result of comparison.
+        """
         return SnapshotPv.compare(value, self.value, self.is_array)
 
     @staticmethod
     def compare(value1, value2, is_array=False):
+        """
+        Compare two values snapshot style (handling numpy arrays) for waveforms.
+        :param value1: Value to be compared to value2.
+        :param value2: Value to be compared to value1.
+        :param is_array: Are values to be compared arrays?
+        :return: Result of comparison.
+        """
         if is_array:
             return numpy.array_equal(value1, value2)
         else:
             return value1 == value2
 
     def add_conn_callback(self, callback):
+        """
+        Set connection callback.
+        :return:
+        """
         self.cnct_callbacks.append(callback)
 
     def remove_conn_callback(self):
+        """
+        Remove connection callback.
+        :return:
+        """
         self.cnct_callbacks.pop(callback)
 
     def _internal_cnct_callback(self, conn, **kw):
         """
-        Snapshot specific handling of connection status on connection callback.
+        Snapshot specific handling of connection status on pyepics connection_callback. Check if PV is array, then call
+        user callback if provided.
+        :param conn: True if connected, False if not connected.
+        :param kw:
+        :return:
         """
 
-        # PV layer of pyepics handles arrays strange. In case of having a
-        # waveform with NORD field "1" it will not interpret it as array.
-        # Instead of native "pv.count" (NORD) it should use "pv.nelm",
-        # but this also acts wrong. It simply does: if count == 1, then
-        # nelm = 1.) The true NELM info can be found with
-        # ca.element_count(self.chid).
+        # PV layer of pyepics handles arrays strange. In case of having a waveform with NORD field "1" it will not
+        # interpret it as array. Instead of native "pv.count" which is a NORD field of waveform record it should use
+        # number of may elements "pv.nelm" (NELM field). However this also acts wrong because it simply does following:
+        # if count == 1, then nelm = 1
+        # The true NELM info can be found with ca.element_count(self.chid).
         self.is_array = (ca.element_count(self.chid) > 1)
 
         # Before callbacks update self.connected (pyepics will do it after connection callback, but we
@@ -162,22 +193,28 @@ class SnapshotPv(PV):
             clb(conn=conn, **kw)
 
     @staticmethod
-    def macros_substitution(string, macros):
+    def macros_substitution(txt: str, macros: dict):
+        """
+        Returns string txt with substituted macros (defined as {macro: value}).
+        :param txt: String with macros.
+        :param macros: Dictionary with {macro: value} pairs.
+        :return: txt with replaced macros.
+        """
         for key in macros:
             macro = "$(" + key + ")"
-            string = string.replace(macro, macros[key])
-        return string
+            txt = txt.replace(macro, macros[key])
+        return txt
 
 
-class Snapshot:
-    def __init__(self, req_file_path, macros=None, **kw):
+class Snapshot(object):
+    def __init__(self, req_file_path, macros=None):
         """
         Main snapshot class. Provides methods to handle PVs from request or snapshot files and to create, delete, etc
         snap (saved) files
 
-        :param req_file_path: path to the request file
-        :param macros: macros to be substituted in request file (can be dict or str "A=B,C=D")
-        :param snap_file_dir: directory with snapshot files (if snap file is relative, it will be relative to this
+        :param req_file_path: Path to the request file.
+        :param macros: macros to be substituted in request file (can be dict {'A': 'B', 'C': 'D'} or str "A=B,C=D").
+        :param snap_file_dir: Directory with snapshot files (if snap file is relative, it will be relative to this dir).
         :return:
         """
 
@@ -205,9 +242,14 @@ class Snapshot:
         self.add_pvs(pvs)
 
     def add_pvs(self, pv_list):
-        # pyepics will handle PVs to have only one connection per PV.
-        # If pv not yet on list add it
+        """
+        Creates SnapshotPv objects for each PV in list.
+        :param pv_list: List of PV names.
+        :return:
+        """
 
+        # pyepics will handle PVs to have only one connection per PV.
+        # If pv not yet on list add it.
         for pvname_raw in pv_list:
             pv_ref = SnapshotPv(pvname_raw, self.macros, connection_callback=self.update_all_connected_status)
 
@@ -215,15 +257,25 @@ class Snapshot:
                 self.pvs[pv_ref.pvname] = pv_ref
 
     def remove_pvs(self, pv_list):
-        # disconnect pvs to avoid unneeded connections
-        # and remove from list of pvs
+        """
+        Remove all SnapshotPv objects for PVs in list.
+        :param pv_list: List of PV names.
+        :return:
+        """
 
+        # Disconnect pvs to avoid unneeded connections and remove from list of PVs.
         for pvname in pv_list:
             if self.pvs.get(pvname, None):
                 pv_ref = self.pvs.pop(pvname)
                 pv_ref.disconnect()
 
-    def change_macros(self, macros=None, **kw):
+    def change_macros(self, macros=None):
+        """
+        Check existing PVs if they have macros in their "raw name". If macros to be replaced remove existing PVs and
+        create new PVs.
+        :param macros: Dictionary of macros {'macro': 'value' }
+        :return:
+        """
         macros = macros or {}
         if self.macros != macros:
             self.macros = macros
@@ -240,6 +292,16 @@ class Snapshot:
             self.update_all_connected_status()
 
     def save_pvs(self, save_file_path, force=False, symlink_path=None, **kw):
+        """
+        Get current PV values and save them in file. can also create symlink to the file. If additional metadata should
+        be saved, it can be provided as keyword arguments.
+        :param save_file_path: Path to save file.
+        :param force: Save if not all PVs connected? Not connected PVs values will not be saved in such case.
+        :param symlink_path: Path to symlink. If symlink exists it will be replaced.
+        :param kw: Will be appended to metadata.
+        :return: (action_stats, dict_of_{'pvname': PvStatus})
+        """
+
         # get values of all PVs and save them to file
         # All other parameters (packed in kw) are appended to file as meta data
         pvs_status = dict()
@@ -266,12 +328,14 @@ class Snapshot:
 
     def restore_pvs(self, pvs_raw, force=False, callback=None, custom_macros=None):
         """
-
-        :param pvs_raw: can be a dict of pvs with saved values or a path to a .snap file
-        :param force: force restore if not all needed PVs are connected
-        :param callback: callback fnc
-        :param custom_macros: used only if there is no self.macros and not a .snap file
-        :return:
+        Restore PVs form snapshot file or dictionary. If restore is successfully started (ActionStatus.ok returned),
+        then restore stressfulness will be returned in callback as: status={'pvname': PvStatus}, forced=was_restore?
+        :param pvs_raw: Can be a dict of {'pvname': 'saved value'} or a path to a .snap file
+        :param force: Force restore if not all needed PVs are connected?
+        :param callback: Callback which will be called when all PVs are restored.
+        :param custom_macros: This macros are used only if there is no self.macros and not a .snap file.
+        :return: ActionStatus (ok: if restore was started, busy: previous not finished; no_data: nothing to restore;
+                               no_conn: some of PVs not connected)
         """
         # Check if busy
         if self._restore_started:
@@ -332,15 +396,27 @@ class Snapshot:
         return ActionStatus.ok
 
     def check_restore_complete(self, pvname, status, **kw):
+        # TODO should be "private"
         self.restored_pvs_list.append((pvname, status))
         if len(self.restored_pvs_list) == len(self.pvs) and self.restore_callback:
             self._restore_started = False
             self.restore_callback(status=dict(self.restored_pvs_list), forced=self._current_restore_forced)
             self.restore_callback = None
 
-    def restore_pvs_blocking(self, save_file_path=None, force=False, timeout=10):
+    def restore_pvs_blocking(self, pvs_raw=None, force=False, timeout=10, custom_macros=None):
+        """
+        Similar as restore_pvs, but block until restore finished or timeout.
+        :param pvs_raw: Can be a dict of {'pvname': 'saved value'} or a path to a .snap file
+        :param force: Force restore if not all needed PVs are connected?
+        :param callback: Callback which will be called when all PVs are restored.
+        :param custom_macros: This macros are used only if there is no self.macros and not a .snap file.
+        :param timeout: Timeout in seconds.
+        :return: ActionStatus (ok: if restore was started, busy: previous not finished; no_data: nothing to restore;
+                               no_conn: some of PVs not connected; timeout: timeout happened)
+        """
         self._restore_blocking_done = False
-        status = self.restore_pvs(save_file_path, force=force, callback=self.set_restore_blocking_done)
+        status = self.restore_pvs(pvs_raw, force=force, custom_macros=custom_macros,
+                                  callback=self.set_restore_blocking_done)
         if status == ActionStatus.ok:
             end_time = time.time() + timeout
             while not self._restore_blocking_done and time.time() < end_time:
@@ -354,6 +430,7 @@ class Snapshot:
             return status
 
     def set_restore_blocking_done(self, status, forced):
+        # TODO should be "private"
         # If this was called, then restore is done
         self._restore_blocking_done = True
 
@@ -386,10 +463,19 @@ class Snapshot:
         return True
 
     def get_pvs_names(self):
+        """
+        Get list of SnapshotPvs
+        :return: List of SnapshotPvs.
+        """
         # To access a list of all pvs that are under control of snapshot object
         return list(self.pvs.keys())
 
     def get_not_connected_pvs_names(self, selected=None):
+        """
+        Get list off all currently disconnected PVs from all snapshot PVs (default) or from list of "selected" PVs.
+        :param selected: List of PVs to check.
+        :return: List of not connected PV names.
+        """
         if selected is None:
             selected = list()
         if self.all_connected:
@@ -402,6 +488,12 @@ class Snapshot:
             return not_connected_list
 
     def replace_metadata(self, save_file_path, metadata):
+        """
+        Reopen save data and replace meta data.
+        :param save_file_path: Path to save file.
+        :param metadata: Dict with new metadata.
+        :return:
+        """
         # Will replace metadata in the save file with the provided one
 
         with open(save_file_path, 'r') as save_file:
@@ -417,10 +509,19 @@ class Snapshot:
     # Parser functions
 
     def parse_to_save_file(self, pvs, save_file_path, macros=None, symlink_path=None, **kw):
+        """
+        This function is called at each save of PV values. This is a parser which generates save file from pvs. All
+        parameters in **kw are packed as meta data
+        :param pvs:
+        :param save_file_path:
+        :param symlink_path:
+        :param kw:
+        :return:
+        """
         # This function is called at each save of PV values.
         # This is a parser which generates save file from pvs
         # All parameters in **kw are packed as meta data
-        # To support other format of file, override this method in subclass
+
         save_file_path = os.path.abspath(save_file_path)
         save_file = open(save_file_path, 'w')
 
@@ -451,11 +552,14 @@ class Snapshot:
 
     @staticmethod
     def parse_from_save_file(save_file_path):
-        # This function is called in compare function.
-        # This is a parser which has a desired value for each PV.
-        # To support other format of file, override this method in subclass
-        # Note: This function does not detect if we have a valid save file,
-        # or just something that was successfuly parsed
+        """
+        Parses save file to dict {'pvname': {'data': {'value': <value>, 'raw_name': <name_with_macros>}}}
+        :param save_file_path: Path to save file.
+        :return: (saved_pvs, meta_data, err)
+                     saved_pvs: in format {'pvname': {'data': {'value': <value>, 'raw_name': <name_with_macros>}}}
+                     meta_data: as dictionary
+                     err: list of strings (each entry one error)
+        """
 
         saved_pvs = dict()
         meta_data = dict()  # If macros were used they will be saved in meta_data
@@ -507,12 +611,13 @@ class Snapshot:
 class SnapshotReqFile(object):
     def __init__(self, path: str, parent=None, macros:dict = None, changeable_macros:list = None):
         '''
-
-        :param path: file path
-        :param parent: SnapshotReqFile from which current file was called
-        :param macros: dict of macros (keys) and values
-        :param changeable_macros: list of "global" macros which can stay unreplaced and will be handled by
-                                  Shanpshot object. This macros will be ignored in error handling.
+        Class providing parsing methods for request files.
+        :param path: Request file path.
+        :param parent: SnapshotReqFile from which current file was called.
+        :param macros: Dict of macros {macro: value}
+        :param changeable_macros: List of "global" macros which can stay unreplaced and will be handled by
+                                  Shanpshot object (enables user to change macros on the fly). This macros will be
+                                  ignored in error handling.
         :return:
         '''
         if macros is None:
@@ -536,6 +641,15 @@ class SnapshotReqFile(object):
         self._err = list()
 
     def read(self):
+        """
+        Parse request file and return list of pv names where changeable_macros are not replaced. ("raw" pv names).
+        In case of problems raises exceptions.
+                ReqParseError
+                    ReqFileFormatError
+                    ReqFileInfLoopError
+
+        :return: List of PV names.
+        """
         f = open(self._path)
 
         pvs = list()
@@ -549,7 +663,7 @@ class SnapshotReqFile(object):
             # skip comments and empty lines
             if not self._curr_line.startswith(('#', "data{", "}", "!")) and self._curr_line.strip():
                     # First replace macros, then check if any unreplaced macros which are not "global"
-                    pvname = macros_substitution((self._curr_line.rstrip().split(',', maxsplit=1)[0]), self._macros)
+                    pvname = SnapshotPv.macros_substitution((self._curr_line.rstrip().split(',', maxsplit=1)[0]), self._macros)
 
                     try:
                         # Check if any unreplaced macros
@@ -578,7 +692,7 @@ class SnapshotReqFile(object):
                         raise ReqFileFormatError(self._format_err((self._curr_line_n, self._curr_line),
                                                                   'Syntax error. Macros argument must be quoted.'))
 
-                    macro_txt = macros_substitution(macro_txt[1:-1], self._macros)
+                    macro_txt = SnapshotPv.macros_substitution(macro_txt[1:-1], self._macros)
                     try:
                         self._validate_macros_in_txt(macro_txt) # Check if any unreplaced macros
                         macros = parse_macros(macro_txt)
