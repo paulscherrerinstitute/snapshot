@@ -57,7 +57,9 @@ class SnapshotPv(PV):
         if macros:
             pvname = SnapshotPv.macros_substitution(pvname, macros)
 
-        self.cnct_callback = connection_callback
+        self.cnct_callbacks = list()
+        if connection_callback:
+            self.cnct_callbacks.append(connection_callback)
         self.is_array = False
 
         super().__init__(pvname, connection_callback=self._internal_cnct_callback, auto_monitor=True,
@@ -133,10 +135,10 @@ class SnapshotPv(PV):
             return value1 == value2
 
     def add_conn_callback(self, callback):
-        self.cnct_callback = callback
+        self.cnct_callbacks.append(callback)
 
     def remove_conn_callback(self):
-        self.cnct_callback = None
+        self.cnct_callbacks.pop(callback)
 
     def _internal_cnct_callback(self, conn, **kw):
         """
@@ -151,9 +153,13 @@ class SnapshotPv(PV):
         # ca.element_count(self.chid).
         self.is_array = (ca.element_count(self.chid) > 1)
 
+        # Before callbacks update self.connected (pyepics will do it after connection callback, but we
+        #need it before)
+        self.connected = conn
+
         # If user specifies his own connection callback, call it here.
-        if self.cnct_callback:
-            self.cnct_callback(conn=conn, **kw)
+        for clb in self.cnct_callbacks:
+            clb(conn=conn, **kw)
 
     @staticmethod
     def macros_substitution(string, macros):
@@ -351,12 +357,11 @@ class Snapshot:
         # If this was called, then restore is done
         self._restore_blocking_done = True
 
-    def update_all_connected_status(self, pvname=None, **kw):
+    def update_all_connected_status(self, pvname=None, conn=None, **kw):
         check_all = False
-        pv_ref = self.pvs.get(pvname, None)
 
-        if pv_ref is not None:
-            if not pv_ref.connected:
+        if pvname and pvname in self.pvs:
+            if not conn:
                 self.all_connected = False
             elif not self.all_connected:
                 # One of the PVs was reconnected, check if all are connected now.
