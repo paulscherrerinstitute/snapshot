@@ -101,10 +101,12 @@ class SnapshotGui(QtGui.QMainWindow):
             except MacroError:
                 macros_ok = False
 
-        if not req_file_path or not macros_ok:
-            if req_file_path is None:
+        if req_file_path is None:
                 req_file_path = ''
+        if init_path is None:
+                init_path = ''
 
+        if not req_file_path or not macros_ok:
             configure_dialog = SnapshotConfigureDialog(self, init_path=os.path.join(init_path, req_file_path),
                                                        init_macros=req_file_macros)
             configure_dialog.accepted.connect(self.set_request_file)
