@@ -119,8 +119,6 @@ class SnapshotGui(QtGui.QMainWindow):
             self.common_settings["req_file_path"] = os.path.abspath(os.path.join(init_path,req_file_path))
             self.common_settings["req_file_macros"] = req_file_macros
 
-        self.common_settings["pvs_to_restore"] = list()
-
         # Before creating GUI, snapshot must be initialized.
         self.init_snapshot(self.common_settings["req_file_path"],
                            self.common_settings["req_file_macros"])
@@ -278,8 +276,6 @@ class SnapshotGui(QtGui.QMainWindow):
             if configure_dialog.exec_() == QtGui.QDialog.Rejected:
                 self.close_gui()
 
-        self.common_settings["pvs_to_restore"] = self.snapshot.get_pvs_names()
-
     def handle_files_updated(self, updated_files):
         # When new save file is added, or old one has changed, this method
         # should handle things like updating label widgets and compare widget.
@@ -301,7 +297,6 @@ class SnapshotGui(QtGui.QMainWindow):
         for config_name, config_value in config.items():
             if config_name == "macros":
                 self.snapshot.change_macros(config_value)
-                self.common_settings["pvs_to_restore"] = self.snapshot.get_pvs_names()
                 self.common_settings["req_file_macros"] = config_value
                 # For compare widget this is same as new snapshot
                 self.compare_widget.handle_new_snapshot_instance(self.snapshot)
