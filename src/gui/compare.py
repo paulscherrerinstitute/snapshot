@@ -233,6 +233,8 @@ class SnapshotPvTableView(QtGui.QTableView):
         self.model().sourceModel().columnsInserted.connect(self.set_snap_visualization)
         self.model().sourceModel().columnsRemoved.connect(self.set_snap_visualization)
         self.set_default_visualization()
+        self.sortByColumn(0, Qt.AscendingOrder)  # default sorting
+        print('model_set')
 
     def dataChanged(self, mode_idx, mode_idx1):
         """
@@ -432,7 +434,14 @@ class SnapshotPvTableLine(QtCore.QObject):
                      {'data': 'PV disconnected', 'icon': self._WARN_ICON},  # current value
                      {'icon': None}]  # Compare result
 
-        # If connected take current value
+        self._conn_clb_id = pv_ref.add_conn_callback(self._conn_callback)
+        self._clb_id = pv_ref.add_callback(self._callback)
+
+        # Internal signal
+        self._pv_conn_changed.connect(self._handle_conn_callback)
+        self._pv_changed.connect(self._handle_callback)
+
+        # If connected take current value (might missed first callbacks)
         if pv_ref.connected:
             self.conn = pv_ref.connected
             self.data[1]['data'] = pv_ref.value_as_str()
@@ -440,13 +449,6 @@ class SnapshotPvTableLine(QtCore.QObject):
 
         else:
             self.conn = False
-
-        self._conn_clb_id = pv_ref.add_conn_callback(self._conn_callback)
-        self._clb_id = pv_ref.add_callback(self._callback)
-
-        # Internal signal
-        self._pv_conn_changed.connect(self._handle_conn_callback)
-        self._pv_changed.connect(self._handle_callback)
 
     def disconnect_callbacks(self):
         '''
