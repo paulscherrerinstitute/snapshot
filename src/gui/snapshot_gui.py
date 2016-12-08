@@ -102,7 +102,7 @@ class SnapshotGui(QtGui.QMainWindow):
                 self.close_gui()
 
         else:
-            self.common_settings["req_file_path"] = os.path.abspath(req_file_path)
+            self.common_settings["req_file_path"] = os.path.abspath(os.path.join(init_path,req_file_path))
             self.common_settings["req_file_macros"] = req_file_macros
 
         self.common_settings["pvs_to_restore"] = list()
