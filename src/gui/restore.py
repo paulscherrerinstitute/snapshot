@@ -109,7 +109,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
             if file_data:
                 pvs_in_file = file_data.get("pvs_list", None)  # is actually a dict
                 pvs_to_restore = copy.copy(file_data.get("pvs_list", None))  # is actually a dict
-                macros = file_data['meta_data'].get("macros", dict())
+                macros = self.snapshot.macros
 
                 if filtered is not None:
                     for pvname in pvs_in_file.keys():

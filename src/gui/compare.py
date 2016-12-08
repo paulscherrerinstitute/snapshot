@@ -234,7 +234,6 @@ class SnapshotPvTableView(QtGui.QTableView):
         self.model().sourceModel().columnsRemoved.connect(self.set_snap_visualization)
         self.set_default_visualization()
         self.sortByColumn(0, Qt.AscendingOrder)  # default sorting
-        print('model_set')
 
     def dataChanged(self, mode_idx, mode_idx1):
         """

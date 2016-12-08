@@ -40,7 +40,7 @@ class SnapshotConfigureDialog(QtGui.QDialog):
         elif isinstance(init_macros, dict):
             self.macros_input.setText(parse_dict_macros_to_text(init_macros))
 
-        else: # string
+        else:  # string
             self.macros_input.setText(init_macros)
 
         self.setMinimumSize(600, 50)
@@ -194,8 +194,8 @@ class SnapshotSettingsDialog(QtGui.QWidget):
                 self.save_dir_input.setText(self.curr_save_dir)
 
         if parsed_macros != self.curr_macros:
-            config["macros"] = parse_macros(self.macro_input.text())
-            self.curr_macros = parse_macros(self.macro_input.text())
+            config["macros"] = parsed_macros
+            self.curr_macros = parsed_macros
 
         if self.force_input.isChecked() != self.curr_forced:
             config["force"] = self.force_input.isChecked()

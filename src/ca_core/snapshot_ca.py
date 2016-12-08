@@ -201,6 +201,13 @@ class SnapshotPv(PV):
         self.conn_callbacks[idx] = callback
         return idx
 
+    def clear_callbacks(self):
+        """
+        Removes all user callbacks and connection callbacks.
+        """
+        self.conn_callbacks = {}
+        super().clear_callbacks()
+
     def remove_conn_callback(self, idx):
         """
         Remove connection callback.
@@ -299,11 +306,11 @@ class Snapshot(object):
         :return:
         """
 
-        # Disconnect pvs to avoid unneeded connections and remove from list of PVs.
+        # Disconnect pvs from clients and remove from list of PVs.
         for pvname in pv_list:
             if self.pvs.get(pvname, None):
                 pv_ref = self.pvs.pop(pvname)
-                pv_ref.disconnect()
+                pv_ref.clear_callbacks()
 
     def change_macros(self, macros=None):
         """

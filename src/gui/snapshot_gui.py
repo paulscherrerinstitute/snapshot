@@ -12,7 +12,7 @@ import sys
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
 
-from ..ca_core import Snapshot, SnapshotError, ReqParseError
+from ..ca_core import Snapshot, SnapshotError, ReqParseError, parse_macros, MacroError
 from .compare import SnapshotCompareWidget
 from .restore import SnapshotRestoreWidget
 from .save import SnapshotSaveWidget
@@ -90,11 +90,23 @@ class SnapshotGui(QtGui.QMainWindow):
         # Predefined filters
         self.common_settings["predefined_filters"] = config.get('filters', dict())
 
+        macros_ok = True
         if req_file_macros is None:
             req_file_macros = dict()
+        elif isinstance(req_file_macros, str):
+            # Try to parse macros. If problem, just pass to configure window which will force user to do it
+            # right way.
+            try:
+                req_file_macros = parse_macros(req_file_macros)
+            except MacroError:
+                macros_ok = False
 
-        if not req_file_path:
-            configure_dialog = SnapshotConfigureDialog(self, init_path=init_path, init_macros=req_file_macros)
+        if not req_file_path or not macros_ok:
+            if req_file_path is None:
+                req_file_path = ''
+
+            configure_dialog = SnapshotConfigureDialog(self, init_path=os.path.join(init_path, req_file_path),
+                                                       init_macros=req_file_macros)
             configure_dialog.accepted.connect(self.set_request_file)
 
             self.hide()
