@@ -230,7 +230,6 @@ class Snapshot(object):
         self.macros = macros
 
         # Other important states
-        self.all_connected = False
         self._restore_started = False
         self._restore_blocking_done = False
         self._restore_callback = None
@@ -251,7 +250,7 @@ class Snapshot(object):
         # pyepics will handle PVs to have only one connection per PV.
         # If pv not yet on list add it.
         for pvname_raw in pv_list:
-            pv_ref = SnapshotPv(pvname_raw, self.macros, connection_callback=self.update_all_connected_status)
+            pv_ref = SnapshotPv(pvname_raw, self.macros)
 
             if not self.pvs.get(pv_ref.pvname):
                 self.pvs[pv_ref.pvname] = pv_ref
@@ -289,8 +288,6 @@ class Snapshot(object):
             self.remove_pvs(pvs_to_remove)
             self.add_pvs(pvs_to_change)
 
-            self.update_all_connected_status()
-
     def save_pvs(self, save_file_path, force=False, symlink_path=None, **kw):
         """
         Get current PV values and save them in file. can also create symlink to the file. If additional metadata should
@@ -305,7 +302,7 @@ class Snapshot(object):
         # get values of all PVs and save them to file
         # All other parameters (packed in kw) are appended to file as meta data
         pvs_status = dict()
-        if not force and not self.all_connected:
+        if not force and self.get_not_connected_pvs_names():
             return ActionStatus.no_conn, pvs_status
 
         # Update metadata
@@ -434,21 +431,6 @@ class Snapshot(object):
         # If this was called, then restore is done
         self._restore_blocking_done = True
 
-    def update_all_connected_status(self, pvname=None, conn=None, **kw):
-        check_all = False
-
-        if pvname and pvname in self.pvs:
-            if not conn:
-                self.all_connected = False
-            elif not self.all_connected:
-                # One of the PVs was reconnected, check if all are connected now.
-                check_all = True
-        else:
-            check_all = True
-
-        if check_all:
-            self.all_connected = self.check_pvs_connected_status()
-
     def check_pvs_connected_status(self, pvs=None):
         # If not specific list of pvs is given, then check all
         if pvs is None:
@@ -478,14 +460,12 @@ class Snapshot(object):
         """
         if selected is None:
             selected = list()
-        if self.all_connected:
-            return list()
-        else:
-            not_connected_list = list()
-            for pvname, pv_ref in self.pvs.items():
-                if not pv_ref.connected and ((pvname in selected) or not selected):
-                    not_connected_list.append(pvname)  # Need to check only subset (selected) of pvs?
-            return not_connected_list
+
+        not_connected_list = list()
+        for pvname, pv_ref in self.pvs.items():
+            if not pv_ref.connected and ((pvname in selected) or not selected):
+                not_connected_list.append(pvname)  # Need to check only subset (selected) of pvs?
+        return not_connected_list
 
     def replace_metadata(self, save_file_path, metadata):
         """
