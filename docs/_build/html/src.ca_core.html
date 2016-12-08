@@ -94,7 +94,7 @@ timeout: Returned by restore_pvs_blocking() when timeout occurs before all PVs a
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">enum.Enum</span></code></p>
 <dl class="docutils">
 <dt>Returned by SnapshotPv on save_pv() and restore_pv() methods. Possible states:</dt>
-<dd>access_err: Not connected or not read7write permission at the time of action.
+<dd>access_err: Not connected or not read/write permission at the time of action.
 ok: Action succeeded.
 no_value: Returned if value (save_pv) or desired value (restore_pv) for action is not defined.
 equal: Returned if restore value is equal to current PV value (no need to restore).</dd>
@@ -271,11 +271,6 @@ be saved, it can be provided as keyword arguments.
 <code class="descname">set_restore_blocking_done</code><span class="sig-paren">(</span><em>status</em>, <em>forced</em><span class="sig-paren">)</span><a class="headerlink" href="#src.ca_core.snapshot_ca.Snapshot.set_restore_blocking_done" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
-<dt id="src.ca_core.snapshot_ca.Snapshot.update_all_connected_status">
-<code class="descname">update_all_connected_status</code><span class="sig-paren">(</span><em>pvname=None</em>, <em>**kw</em><span class="sig-paren">)</span><a class="headerlink" href="#src.ca_core.snapshot_ca.Snapshot.update_all_connected_status" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
 </dd></dl>
 
 <dl class="exception">
@@ -376,15 +371,6 @@ ReqFileInfLoopError</dd>
 </table>
 </dd></dl>
 
-</dd></dl>
-
-<dl class="function">
-<dt id="src.ca_core.snapshot_ca.macros_substitution">
-<code class="descclassname">src.ca_core.snapshot_ca.</code><code class="descname">macros_substitution</code><span class="sig-paren">(</span><em>txt: str</em>, <em>macros: dict</em><span class="sig-paren">)</span><a class="headerlink" href="#src.ca_core.snapshot_ca.macros_substitution" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns string txt with substituted macros (defined as {macro: value}).
-:param txt: String with macros.
-:param macros: Dictionary with {macro: value} pairs.
-:return: txt with replaced macros.</p>
 </dd></dl>
 
 <dl class="function">
