@@ -132,6 +132,22 @@ class SnapshotPv(PV):
         elif callback:
             callback(pvname=self.pvname, status=PvStatus.access_err)
 
+    def value_as_str(self):
+        if self.connected and self.value is not None:
+            return(SnapshotPv.value_to_str(self.value, self.is_array))
+
+    @staticmethod
+    def value_to_str(value: str, is_array: bool):
+        if is_array:
+            if numpy.size(value) == 0:
+                # Empty array is equal to "None" scalar value
+                return(None)
+            elif numpy.size(value) == 1:
+                # make scalars as arrays
+                return(json.dumps(numpy.asarray([value]).tolist()))
+        else:
+            return(json.dumps(value))
+
     def compare_to_curr(self, value):
         """
         Compare value to current PV value.
@@ -149,8 +165,26 @@ class SnapshotPv(PV):
         :param is_array: Are values to be compared arrays?
         :return: Result of comparison.
         """
+        #if type(value1) is not type(value2):
+         #   return False
         if is_array:
+            # Because of how pyepics works, array value can also be sent as scalar (nord=1) and
+            # numpy.size() will return 1 
+            # or as (type: epics.dbr.c_double_Array_0) if array is empty --> numpy.size() will
+            # return 0 
+
+            if value1 is not None and not isinstance(value1, numpy.ndarray) and numpy.size(value1) == 1:
+                value1 = numpy.array([value1])
+            elif numpy.size(value1) == 0:
+                value1 = None
+
+            if value2 is not None and not isinstance(value2, numpy.ndarray) and numpy.size(value2) == 1:
+                value2 = numpy.array([value2])
+            elif numpy.size(value2) == 0:
+                value2 = None
+
             return numpy.array_equal(value1, value2)
+            
         else:
             return value1 == value2
 
@@ -190,10 +224,6 @@ class SnapshotPv(PV):
         # if count == 1, then nelm = 1
         # The true NELM info can be found with ca.element_count(self.chid).
         self.is_array = (ca.element_count(self.chid) > 1)
-
-        # Before callbacks update self.connected (pyepics will do it after connection callback, but we
-        #need it before)
-        self.connected = conn
 
         # If user specifies his own connection callback, call it here.
         for clb in self.conn_callbacks.values():

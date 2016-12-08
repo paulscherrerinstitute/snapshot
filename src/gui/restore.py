@@ -12,7 +12,7 @@ import time
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
 
-from ..ca_core import PvStatus, ActionStatus
+from ..ca_core import PvStatus, ActionStatus, SnapshotPv
 from .utils import SnapshotKeywordSelectorWidget, SnapshotEditMetadataDialog, DetailedMsgBox
 
 
@@ -109,10 +109,11 @@ class SnapshotRestoreWidget(QtGui.QWidget):
             if file_data:
                 pvs_in_file = file_data.get("pvs_list", None)  # is actually a dict
                 pvs_to_restore = copy.copy(file_data.get("pvs_list", None))  # is actually a dict
+                macros = file_data['meta_data'].get("macros", dict())
 
                 if filtered is not None:
                     for pvname in pvs_in_file.keys():
-                        if pvname not in filtered:
+                        if SnapshotPv.macros_substitution(pvname, macros) not in filtered:
                             pvs_to_restore.pop(pvname, None)  # remove unfiltered pvs
 
             # Check if all pvs connected or in force mode)
@@ -146,7 +147,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                 if status == ActionStatus.no_data:
                     # Because of checking "restore_values_loaded" before
                     # starting a restore, this case should not happen.
-                    self.sts_log.log_msgs("ERROR: Nothing to restore.", time.time)
+                    self.sts_log.log_msgs("ERROR: Nothing to restore.", time.time())
                     self.sts_info.set_status("Restore rejected", 3000, "#F06464")
                     self.restore_all_button.setEnabled(True)
                     self.restore_button.setEnabled(True)

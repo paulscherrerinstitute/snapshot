@@ -435,7 +435,7 @@ class SnapshotPvTableLine(QtCore.QObject):
         # If connected take current value
         if pv_ref.connected:
             self.conn = pv_ref.connected
-            self.data[1]['data'] = SnapshotPvTableLine.string_repr(pv_ref.value)
+            self.data[1]['data'] = pv_ref.value_as_str()
             self.data[1]['icon'] = None
 
         else:
@@ -459,7 +459,7 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     def append_snap_value(self, value):
         if value is not None:
-            self.data.append({'data': SnapshotPvTableLine.string_repr(value), 'raw_value': value})
+            self.data.append({'data': SnapshotPvTableLine.string_repr_snap_value(value), 'raw_value': value})
         else:
             self.data.append({'data': '', 'raw_value': None})
 
@@ -468,7 +468,7 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     def change_snap_value(self, idx, value):
         if value is not None:
-            self.data[idx]['data'] = SnapshotPvTableLine.string_repr(value)
+            self.data[idx]['data'] = SnapshotPvTableLine.string_repr_snap_value(value)
             self.data[idx]['raw_value'] = value
         else:
             self.data[idx]['data'] = ''
@@ -515,7 +515,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             self.data[2]['icon'] = None
 
     @staticmethod
-    def string_repr(value):
+    def string_repr_snap_value(value):
         if isinstance(value, numpy.ndarray):
             # Handle arrays
             return json.dumps(value.tolist())
@@ -531,7 +531,7 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     def _handle_callback(self, data):
         pv_value = data.get('value', '')
-        self.data[1]['data'] = SnapshotPvTableLine.string_repr(pv_value)
+        self.data[1]['data'] = SnapshotPv.value_to_str(pv_value, self._pv_ref.is_array)
         self._compare(pv_value)
         self.data_changed.emit(self)
 
