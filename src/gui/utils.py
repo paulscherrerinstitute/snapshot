@@ -7,7 +7,7 @@ import os
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
 
-from ..ca_core.snapshot_ca import parse_macros, parse_dict_macros_to_text, MacroError
+from ..ca_core import parse_macros, parse_dict_macros_to_text, MacroError
 
 
 class SnapshotConfigureDialog(QtGui.QDialog):

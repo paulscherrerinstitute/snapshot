@@ -13,7 +13,7 @@ import numpy
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
 
-from ..ca_core.snapshot_ca import Snapshot, SnapshotPv
+from ..ca_core import Snapshot, SnapshotPv
 
 
 class PvCompareFilter(Enum):

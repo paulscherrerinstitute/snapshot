@@ -1,4 +1,4 @@
-from snapshot.ca_core.snapshot_ca import Snapshot, SnapshotError, SnapshotReqFile
+from snapshot.ca_core import Snapshot, SnapshotError, SnapshotReqFile
 
 def restore_done(status, forced):
     print('Restore finished [forced mode: {}]'.format(status, forced))

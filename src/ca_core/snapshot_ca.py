@@ -22,7 +22,7 @@ from enum import Enum
 class PvStatus(Enum):
     """
     Returned by SnapshotPv on save_pv() and restore_pv() methods. Possible states:
-        access_err: Not connected or not read7write permission at the time of action.
+        access_err: Not connected or not read/write permission at the time of action.
         ok: Action succeeded.
         no_value: Returned if value (save_pv) or desired value (restore_pv) for action is not defined.
         equal: Returned if restore value is equal to current PV value (no need to restore).

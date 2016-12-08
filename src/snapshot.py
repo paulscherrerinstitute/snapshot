@@ -2,7 +2,7 @@ import argparse
 import re
 import sys
 
-from .ca_core.snapshot_ca import parse_macros, MacroError
+from .ca_core import parse_macros, MacroError
 # close with ctrl+C
 import signal
 
@@ -27,17 +27,17 @@ def _support_old_args(args_replacements):
 
 
 def save(args):
-    from .cmd.snapshot_cmd import save
+    from .cmd import save
     save(args.FILE, args.out, args.macro, args.force, args.timeout)
 
 
 def restore(args):
-    from .cmd.snapshot_cmd import restore
+    from .cmd import restore
     restore(args.FILE, args.force, args.timeout)
 
 
 def gui(args):
-    from .gui.snapshot_gui import start_gui
+    from .gui import start_gui
     start_gui(args.FILE, args.macro, save_dir=args.dir, force=args.force, default_labels=args.labels,
               force_default_labels=args.force_labels, init_path=args.base, config_path=args.config)
 

@@ -4,7 +4,7 @@ import os
 import sys
 import time
 
-from ..ca_core.snapshot_ca import PvStatus, ActionStatus, Snapshot, SnapshotError
+from ..ca_core import PvStatus, ActionStatus, Snapshot, SnapshotError
 
 
 def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10):
