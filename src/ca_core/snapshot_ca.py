@@ -63,9 +63,9 @@ class SnapshotPv(PV):
         if macros:
             pvname = SnapshotPv.macros_substitution(pvname, macros)
 
-        self.cnct_callbacks = list()
+        self.conn_callbacks = dict()  # dict {idx: callback}
         if connection_callback:
-            self.cnct_callbacks.append(connection_callback)
+            self.add_conn_callback(connection_callback)
         self.is_array = False
 
         super().__init__(pvname, connection_callback=self._internal_cnct_callback, auto_monitor=True,
@@ -157,16 +157,23 @@ class SnapshotPv(PV):
     def add_conn_callback(self, callback):
         """
         Set connection callback.
-        :return:
+        :return: Connection callback index
         """
-        self.cnct_callbacks.append(callback)
+        if self.conn_callbacks:
+            idx = 1 + max(self.conn_callbacks.keys())
+        else:
+            idx = 0
+        
+        self.conn_callbacks[idx] = callback
+        return idx
 
-    def remove_conn_callback(self):
+    def remove_conn_callback(self, idx):
         """
         Remove connection callback.
         :return:
         """
-        self.cnct_callbacks.pop(callback)
+        if idx in self.conn_callbacks:
+            self.conn_callbacks.pop(idx)
 
     def _internal_cnct_callback(self, conn, **kw):
         """
@@ -189,7 +196,7 @@ class SnapshotPv(PV):
         self.connected = conn
 
         # If user specifies his own connection callback, call it here.
-        for clb in self.cnct_callbacks:
+        for clb in self.conn_callbacks.values():
             clb(conn=conn, **kw)
 
     @staticmethod
@@ -302,7 +309,7 @@ class Snapshot(object):
         # get values of all PVs and save them to file
         # All other parameters (packed in kw) are appended to file as meta data
         pvs_status = dict()
-        if not force and self.get_not_connected_pvs_names():
+        if not force and self.get_disconnected_pvs_names():
             return ActionStatus.no_conn, pvs_status
 
         # Update metadata
@@ -375,7 +382,7 @@ class Snapshot(object):
         # If only few PVs are selected, check if needed PVs are connected
         # Default is to abort restore if one is missing
 
-        if not force and (not self.check_pvs_connected_status(pvs)):
+        if not force and self.get_disconnected_pvs_names(pvs):
             self._restore_started = False
             return ActionStatus.no_conn
 
@@ -385,15 +392,14 @@ class Snapshot(object):
         for pvname, pv_ref in self.pvs.items():
             save_data = pvs.get(pvname)  # Check if this pv is to be restored
             if save_data:
-                pv_ref.restore_pv(save_data.get('value', None), callback=self.check_restore_complete)
+                pv_ref.restore_pv(save_data.get('value', None), callback=self._check_restore_complete)
             else:
                 # pv is not in subset in the "selected only" mode
                 # checking algorithm should think this one was successfully restored
-                self.check_restore_complete(pvname, PvStatus.ok)
+                self._check_restore_complete(pvname, PvStatus.ok)
         return ActionStatus.ok
 
-    def check_restore_complete(self, pvname, status, **kw):
-        # TODO should be "private"
+    def _check_restore_complete(self, pvname, status, **kw):
         self.restored_pvs_list.append((pvname, status))
         if len(self.restored_pvs_list) == len(self.pvs) and self.restore_callback:
             self._restore_started = False
@@ -413,7 +419,7 @@ class Snapshot(object):
         """
         self._restore_blocking_done = False
         status = self.restore_pvs(pvs_raw, force=force, custom_macros=custom_macros,
-                                  callback=self.set_restore_blocking_done)
+                                  callback=self._set_restore_blocking_done)
         if status == ActionStatus.ok:
             end_time = time.time() + timeout
             while not self._restore_blocking_done and time.time() < end_time:
@@ -426,23 +432,9 @@ class Snapshot(object):
         else:
             return status
 
-    def set_restore_blocking_done(self, status, forced):
-        # TODO should be "private"
+    def _set_restore_blocking_done(self, status, forced):
         # If this was called, then restore is done
         self._restore_blocking_done = True
-
-    def check_pvs_connected_status(self, pvs=None):
-        # If not specific list of pvs is given, then check all
-        if pvs is None:
-            pvs = self.pvs.keys()
-
-        for pv in pvs:
-            pv_ref = self.pvs.get(pv)
-            if not pv_ref.connected:
-                return False
-
-        # If here then all connected
-        return True
 
     def get_pvs_names(self):
         """
@@ -452,7 +444,7 @@ class Snapshot(object):
         # To access a list of all pvs that are under control of snapshot object
         return list(self.pvs.keys())
 
-    def get_not_connected_pvs_names(self, selected=None):
+    def get_disconnected_pvs_names(self, selected=None):
         """
         Get list off all currently disconnected PVs from all snapshot PVs (default) or from list of "selected" PVs.
         :param selected: List of PVs to check.

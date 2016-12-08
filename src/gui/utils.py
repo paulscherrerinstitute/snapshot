@@ -155,7 +155,11 @@ class SnapshotSettingsDialog(QtGui.QWidget):
             self.close()
 
     def monitor_changes(self):
-        parsed_macros = parse_macros(self.macro_input.text())
+        try:
+            parsed_macros = parse_macros(self.macro_input.text())
+        except MacroError:
+            # Ignore exception since this does not apply settings
+            parsed_macros = dict()
 
         if (parsed_macros != self.curr_macros) or (self.save_dir_input.text() != self.curr_save_dir) or \
                 (self.force_input.isChecked() != self.curr_forced):
@@ -168,7 +172,14 @@ class SnapshotSettingsDialog(QtGui.QWidget):
     def apply_config(self):
         # Return only changed settings
         config = dict()
-        parsed_macros = parse_macros(self.macro_input.text())
+        try:
+            parsed_macros = parse_macros(self.macro_input.text())
+        except MacroError as e:
+            # Show error message and finish with applying config
+            QtGui.QMessageBox.warning(self, "Warning", str(e),
+                                      QtGui.QMessageBox.Ok,
+                                      QtGui.QMessageBox.NoButton)
+            return
 
         if self.save_dir_input.text() != self.curr_save_dir:
             if os.path.isdir(self.save_dir_input.text()):

@@ -441,8 +441,8 @@ class SnapshotPvTableLine(QtCore.QObject):
         else:
             self.conn = False
 
-        pv_ref.add_conn_callback(self._conn_callback)
-        self.clbk_id = pv_ref.add_callback(self._callback)
+        self._conn_clb_id = pv_ref.add_conn_callback(self._conn_callback)
+        self._clb_id = pv_ref.add_callback(self._callback)
 
         # Internal signal
         self._pv_conn_changed.connect(self._handle_conn_callback)
@@ -453,8 +453,8 @@ class SnapshotPvTableLine(QtCore.QObject):
         Disconnect from SnapshotPv object. Should be called before removing line from model.
         :return:
         '''
-        self._pv_ref.remove_conn_callback()
-        self._pv_ref.remove_callback(self.clbk_id)
+        self._pv_ref.remove_conn_callback(self._conn_clb_id)
+        self._pv_ref.remove_callback(self._clb_id)
 
 
     def append_snap_value(self, value):

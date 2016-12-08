@@ -289,7 +289,8 @@ class SnapshotGui(QtGui.QMainWindow):
                 self.snapshot.change_macros(config_value)
                 self.common_settings["pvs_to_restore"] = self.snapshot.get_pvs_names()
                 self.common_settings["req_file_macros"] = config_value
-                self.compare_widget.populate_compare_list()
+                # For compare widget this is same as new snapshot
+                self.compare_widget.handle_new_snapshot_instance(self.snapshot)
                 self.restore_widget.handle_selected_files(self.restore_widget.file_selector.selected_files)
             elif config_name == "force":
                 self.common_settings["force"] = config_value

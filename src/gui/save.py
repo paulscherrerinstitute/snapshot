@@ -112,7 +112,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
     def start_save(self):
         # Check if save can be done (all pvs connected or in force mode)
         force = self.common_settings["force"]
-        not_connected_pvs = self.snapshot.get_not_connected_pvs_names()
+        not_connected_pvs = self.snapshot.get_disconnected_pvs_names()
         do_save = True
         if not force and not_connected_pvs:
             # If file exists, user must decide whether to overwrite it or not

@@ -117,7 +117,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
             # Check if all pvs connected or in force mode)
             force = self.common_settings["force"]
-            not_connected_pvs = self.snapshot.get_not_connected_pvs_names(filtered)
+            not_connected_pvs = self.snapshot.get_disconnected_pvs_names(filtered)
             do_restore = True
             if not force and not_connected_pvs:
                 msg = "Some PVs are not connected (see details). Do you want to restore anyway?\n"
