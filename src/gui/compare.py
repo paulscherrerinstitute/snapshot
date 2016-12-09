@@ -405,14 +405,11 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             return self._data[index.row()].data[index.column()].get('icon', None)
 
     def handle_pv_change(self, pv_line):
-        try:
+        # This can happen during changing snapshot instance, when lines were already changed but there
+        # are still some signals for the old PV lines in the queue. Check if line still exists.
+        if pv_line in self._data:
             self.dataChanged.emit(self.createIndex(self._data.index(pv_line), 0),
                                   self.createIndex(self._data.index(pv_line), len(pv_line.data)))
-        except ValueError:
-            # This can happen during changing snapshot instance, when lines were already changed but there
-            # are still some signals for the old PV lines in the queue
-            pass
-
     def headerData(self, section, orientation, role):
         if role == QtCore.Qt.DisplayRole:
             return self._headers[section]
