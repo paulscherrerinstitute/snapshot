@@ -165,8 +165,7 @@ class SnapshotPv(PV):
         :param is_array: Are values to be compared arrays?
         :return: Result of comparison.
         """
-        #if type(value1) is not type(value2):
-         #   return False
+
         if is_array:
             # Because of how pyepics works, array value can also be sent as scalar (nord=1) and
             # numpy.size() will return 1 
@@ -311,6 +310,9 @@ class Snapshot(object):
             if self.pvs.get(pvname, None):
                 pv_ref = self.pvs.pop(pvname)
                 pv_ref.clear_callbacks()
+
+    def clear_pvs(self):
+        self.remove_pvs(list(self.pvs.keys()))
 
     def change_macros(self, macros=None):
         """

@@ -35,10 +35,10 @@ class SnapshotCompareWidget(QtGui.QWidget):
         # PV table consist of:
         #     self.model: holding the data, values, being updated by PV callbacks, etc
         #     self._proxy: a proxy model implementing the filter functionality
-        #     view: visual representation of the PV table
+        #     self.view: visual representation of the PV table
 
-        view = SnapshotPvTableView(self)
-        view.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        self.view = SnapshotPvTableView(self)
+        self.view.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
 
         self.model = SnapshotPvTableModel(snapshot, self)
         self._proxy = SnapshotPvFilterProxyModel(self)
@@ -47,7 +47,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
 
         # Build model and set default visualization on view (column widths, etc)
         self.model.add_pvs(snapshot.pvs.values())
-        view.setModel(self._proxy)
+        self.view.setModel(self._proxy)
 
         # ---------- Filter control elements ---------------
         # - text input to filter by name
@@ -135,7 +135,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         layout.setMargin(10)
         layout.setSpacing(10)
         layout.addLayout(filter_layout)
-        layout.addWidget(view)
+        layout.addWidget(self.view)
         self.setLayout(layout)
 
     def _handle_filtered(self, pvs_names_list):
@@ -177,6 +177,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         self.snapshot = snapshot
         self.model.clear_pvs()
         self.model.add_pvs(snapshot.pvs.values())
+        self.view.sortByColumn(0, Qt.AscendingOrder)  # default sorting
 
     def _predefined_filter_selected(self, idx):
         txt = self.pv_filter_inp.text()
@@ -404,8 +405,13 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             return self._data[index.row()].data[index.column()].get('icon', None)
 
     def handle_pv_change(self, pv_line):
-        self.dataChanged.emit(self.createIndex(self._data.index(pv_line), 0),
-                              self.createIndex(self._data.index(pv_line), len(pv_line.data)))
+        try:
+            self.dataChanged.emit(self.createIndex(self._data.index(pv_line), 0),
+                                  self.createIndex(self._data.index(pv_line), len(pv_line.data)))
+        except ValueError:
+            # This can happen during changing snapshot instance, when lines were already changed but there
+            # are still some signals for the old PV lines in the queue
+            pass
 
     def headerData(self, section, orientation, role):
         if role == QtCore.Qt.DisplayRole:
