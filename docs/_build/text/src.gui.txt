@@ -90,7 +90,7 @@ class class src.gui.compare.SnapshotPvTableLine(pv_ref, parent=None)
 
    is_snap_eq_to_pv(idx)
 
-   static string_repr(value)
+   static string_repr_snap_value(value)
 
 class class src.gui.compare.SnapshotPvTableModel(snapshot: src.ca_core.snapshot_ca.Snapshot, parent=None)
 
@@ -238,7 +238,7 @@ class class src.gui.restore.SnapshotRestoreWidget(snapshot, common_settings, par
 
       * restore button
 
-      * searcher/filter
+      * search/filter
 
    Data about current app state (such as request file) must be
    provided as part of the structure "common_settings".

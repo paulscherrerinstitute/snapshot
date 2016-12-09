@@ -20,12 +20,12 @@ class SnapshotSaveWidget(QtGui.QWidget):
     Save widget is a widget that enables user to save current state of PVs
     listed in request file. Widget includes:
     Save widget consists of:
-     - input-fields:
-        * file extension (default YYMMDD_hhmm)
-        * comment
-        * labels
-     - read-back showing whole file name
-     - Save button
+        - input-fields:
+            * file extension (default YYMMDD_hhmm)
+            * comment
+            * labels
+        - read-back showing whole file name
+        - Save button
 
     Data about current app state (such as request file) must be provided as
     part of the structure "common_settings".

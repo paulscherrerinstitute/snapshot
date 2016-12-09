@@ -21,9 +21,9 @@ class SnapshotRestoreWidget(QtGui.QWidget):
     Restore widget is a widget that enables user to restore saved state of PVs
     listed in request file from one of the saved files.
     Save widget consists of:
-     - file selector (tree of all files)
-     - restore button
-     - searcher/filter
+        - file selector (tree of all files)
+        - restore button
+        - search/filter
 
     Data about current app state (such as request file) must be provided as
     part of the structure "common_settings".

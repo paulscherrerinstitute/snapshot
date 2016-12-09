@@ -44,7 +44,7 @@ class class src.ca_core.snapshot_ca.PvStatus
 
    Returned by SnapshotPv on save_pv() and restore_pv() methods.
    Possible states:
-      access_err: Not connected or not read7write permission at the
+      access_err: Not connected or not read/write permission at the
       time of action. ok: Action succeeded. no_value: Returned if
       value (save_pv) or desired value (restore_pv) for action is not
       defined. equal: Returned if restore value is equal to current PV
@@ -85,11 +85,9 @@ class class src.ca_core.snapshot_ca.Snapshot(req_file_path, macros=None)
       macros to be replaced remove existing PVs and create new PVs.
       :param macros: Dictionary of macros {'macro': 'value' } :return:
 
-   check_pvs_connected_status(pvs=None)
+   clear_pvs()
 
-   check_restore_complete(pvname, status, **kw)
-
-   get_not_connected_pvs_names(selected=None)
+   get_disconnected_pvs_names(selected=None)
 
       Get list off all currently disconnected PVs from all snapshot
       PVs (default) or from list of "selected" PVs. :param selected:
@@ -169,10 +167,6 @@ class class src.ca_core.snapshot_ca.Snapshot(req_file_path, macros=None)
       replaced. :param kw: Will be appended to metadata. :return:
       (action_stats, dict_of_{'pvname': PvStatus})
 
-   set_restore_blocking_done(status, forced)
-
-   update_all_connected_status(pvname=None, **kw)
-
 exception exception src.ca_core.snapshot_ca.SnapshotError
 
    Bases: "Exception"
@@ -186,7 +180,11 @@ class class src.ca_core.snapshot_ca.SnapshotPv(pvname, macros=None, connection_c
 
    add_conn_callback(callback)
 
-      Set connection callback. :return:
+      Set connection callback. :return: Connection callback index
+
+   clear_callbacks()
+
+      Removes all user callbacks and connection callbacks.
 
    static compare(value1, value2, is_array=False)
 
@@ -207,7 +205,7 @@ class class src.ca_core.snapshot_ca.SnapshotPv(pvname, macros=None, connection_c
       Dictionary with {macro: value} pairs. :return: txt with replaced
       macros.
 
-   remove_conn_callback()
+   remove_conn_callback(idx)
 
       Remove connection callback. :return:
 
@@ -225,6 +223,10 @@ class class src.ca_core.snapshot_ca.SnapshotPv(pvname, macros=None, connection_c
       able to get value. It also returns status of the action (see
       PvStatus) :return: (value, status)
 
+   value_as_str()
+
+   static value_to_str(value: str, is_array: bool)
+
 class class src.ca_core.snapshot_ca.SnapshotReqFile(path: str, parent=None, macros: dict=None, changeable_macros: list=None)
 
    Bases: "object"
@@ -240,12 +242,6 @@ class class src.ca_core.snapshot_ca.SnapshotReqFile(path: str, parent=None, macr
 
       Returns:
          List of PV names.
-
-src.ca_core.snapshot_ca.macros_substitution(txt: str, macros: dict)
-
-   Returns string txt with substituted macros (defined as {macro:
-   value}). :param txt: String with macros. :param macros: Dictionary
-   with {macro: value} pairs. :return: txt with replaced macros.
 
 src.ca_core.snapshot_ca.parse_dict_macros_to_text(macros)
 
