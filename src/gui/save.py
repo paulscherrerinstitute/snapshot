@@ -110,30 +110,13 @@ class SnapshotSaveWidget(QtGui.QWidget):
         self.advanced.comment_input.setText('')
 
     def start_save(self):
-        # Check if save can be done (all pvs connected or in force mode)
-        force = self.common_settings["force"]
-        not_connected_pvs = self.snapshot.get_disconnected_pvs_names()
-        do_save = True
-        if not force and not_connected_pvs:
-            # If file exists, user must decide whether to overwrite it or not
-            msg = "Some PVs are not connected (see details). Do you want to save anyway?\n"
-
-            msg_window = DetailedMsgBox(msg, "\n".join(not_connected_pvs), "Warning", self)
-            reply = msg_window.exec_()
-
-            if reply == QtGui.QMessageBox.No:
-                force = False
-                do_save = False
-            else:
-                force = True
-
         # Update file name and chek if exists. Then disable button for the time
         # of saving. Will be unlocked when save is finished.
 
         #  Update name with latest timestamp and file prefix.
         self.update_name()
 
-        if do_save and self.check_file_existance():
+        if self.check_file_name_available():
             self.save_button.setEnabled(False)
             self.sts_log.log_msgs("Save started.", time.time())
             self.sts_info.set_status("Saving ...", 0, "orange")
@@ -146,7 +129,8 @@ class SnapshotSaveWidget(QtGui.QWidget):
                 labels = list()
                 comment = ""
 
-            # Start saving process and notify when finished
+            force = self.common_settings["force"]
+            # Start saving process with default "force" flag and notify when finished
             status, pvs_status = self.snapshot.save_pvs(self.file_path,
                                                         force=force,
                                                         labels=labels,
@@ -155,15 +139,40 @@ class SnapshotSaveWidget(QtGui.QWidget):
                                                             self.common_settings["save_dir"],
                                                             self.common_settings["save_file_prefix"] +
                                                             'latest' + self.save_file_sufix))
+
+
             if status == ActionStatus.no_conn:
-                self.sts_log.log_msgs("ERROR: Save rejected. One or more PVs not connected.", time.time())
-                self.sts_info.set_status("Cannot save", 3000, "#F06464")
-                self.save_button.setEnabled(True)
+                # Prompt user and ask if he wants to save in force mode
+                msg = "Some PVs are not connected (see details). Do you want to save anyway?\n"
+
+                msg_window = DetailedMsgBox(msg, "\n".join(list(pvs_status.keys())), "Warning", self)
+                reply = msg_window.exec_()
+
+                if reply != QtGui.QMessageBox.No:
+                    # Start saving process in forced mode and notify when finished
+                    status, pvs_status = self.snapshot.save_pvs(self.file_path,
+                                                                force=True,
+                                                                labels=labels,
+                                                                comment=comment,
+                                                                symlink_path=os.path.join(
+                                                                    self.common_settings["save_dir"],
+                                                                    self.common_settings["save_file_prefix"] +
+                                                                    'latest' + self.save_file_sufix))
+
+                    # finished in forced mode
+                    self.save_done(pvs_status, True)
+                else:
+                    # User rejected saving with unconnected PVs. Not an error state.
+                    self.sts_log.log_msgs("Save rejected by user.", time.time())
+                    self.sts_info.clear_status()
+                    self.save_button.setEnabled(True)
+
             else:
-                # If not no_conn, then .ok
+                # Save done in "default force mode"
                 self.save_done(pvs_status, force)
+
         else:
-            # User rejected saving with unconnected PVs or into existing file.
+            # User rejected saving into existing file.
             # Not an error state.
             self.sts_info.clear_status()
 
@@ -219,7 +228,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
         self.file_name_rb.setText(self.common_settings["save_file_prefix"] +
                                   name_extension_rb)
 
-    def check_file_existance(self):
+    def check_file_name_available(self):
         # If file exists, user must decide whether to overwrite it or not
         if os.path.exists(self.file_path):
             msg = "File already exists. Do you want to overwrite it?\n" + \

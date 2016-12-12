@@ -275,6 +275,7 @@ class Snapshot(object):
         # Other important states
         self._restore_started = False
         self._restore_blocking_done = False
+        self._blocking_restore_pvs_status = dict()
         self._restore_callback = None
         self._current_restore_forced = False
 
@@ -347,8 +348,15 @@ class Snapshot(object):
 
         # get values of all PVs and save them to file
         # All other parameters (packed in kw) are appended to file as meta data
+
         pvs_status = dict()
-        if not force and self.get_disconnected_pvs_names():
+        disconn_pvs = self.get_disconnected_pvs_names()
+        # At this point core can provide not connected status for PVs from self.get_disconnected_pvs_names()
+        for pvname in disconn_pvs:
+            pvs_status[pvname] = PvStatus.access_err
+
+        # Try to save
+        if not force and disconn_pvs:
             return ActionStatus.no_conn, pvs_status
 
         # Update metadata
@@ -357,7 +365,7 @@ class Snapshot(object):
 
         pvs_data = dict()
         for pvname, pv_ref in self.pvs.items():
-            # Get current value, status of operation
+            # Get current value, status of operation.
             value, pvs_status[pvname] = pv_ref.save_pv()
 
             # Make data structure with data to be saved
@@ -414,16 +422,21 @@ class Snapshot(object):
         if not pvs:
             # Nothing to restore
             self._restore_started = False
-            return ActionStatus.no_data
+            return ActionStatus.no_data, dict()
 
         # Standard restore (restore all)
         # If force=True, then do restore even if not all PVs are connected.
-        # If only few PVs are selected, check if needed PVs are connected
-        # Default is to abort restore if one is missing
 
-        if not force and self.get_disconnected_pvs_names(pvs):
+        disconn_pvs = self.get_disconnected_pvs_names(pvs)
+        # At this point core can provide not connected status for PVs from self.get_disconnected_pvs_names()
+        # Should be dict to follow the same format of error reporting ass save_pvs
+        pvs_status = dict()
+        for pvname in disconn_pvs:
+            pvs_status[pvname] = PvStatus.access_err
+
+        if not force and disconn_pvs:
             self._restore_started = False
-            return ActionStatus.no_conn
+            return ActionStatus.no_conn, pvs_status
 
         # Do a restore
         self.restored_pvs_list = list()
@@ -436,7 +449,10 @@ class Snapshot(object):
                 # pv is not in subset in the "selected only" mode
                 # checking algorithm should think this one was successfully restored
                 self._check_restore_complete(pvname, PvStatus.ok)
-        return ActionStatus.ok
+
+        # PVs status will be returned in callback
+        return ActionStatus.ok, dict()
+
 
     def _check_restore_complete(self, pvname, status, **kw):
         self.restored_pvs_list.append((pvname, status))
@@ -457,23 +473,25 @@ class Snapshot(object):
                                no_conn: some of PVs not connected; timeout: timeout happened)
         """
         self._restore_blocking_done = False
-        status = self.restore_pvs(pvs_raw, force=force, custom_macros=custom_macros,
-                                  callback=self._set_restore_blocking_done)
+        self._blocking_restore_pvs_status = dict()
+        status, pvs_status = self.restore_pvs(pvs_raw, force=force, custom_macros=custom_macros,
+                                              callback=self._set_restore_blocking_done)
         if status == ActionStatus.ok:
             end_time = time.time() + timeout
             while not self._restore_blocking_done and time.time() < end_time:
                 time.sleep(0.2)
 
             if self._restore_blocking_done:
-                return ActionStatus.ok
+                return ActionStatus.ok, self._blocking_restore_pvs_status
             else:
-                return ActionStatus.timeout
+                return ActionStatus.timeout, pvs_status
         else:
-            return status
+            return status, pvs_status
 
     def _set_restore_blocking_done(self, status, forced):
         # If this was called, then restore is done
         self._restore_blocking_done = True
+        self._blocking_restore_pvs_status = status
 
     def get_pvs_names(self):
         """

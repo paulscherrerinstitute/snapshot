@@ -116,22 +116,10 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                         if SnapshotPv.macros_substitution(pvname, macros) not in filtered:
                             pvs_to_restore.pop(pvname, None)  # remove unfiltered pvs
 
-            # Check if all pvs connected or in force mode)
-            force = self.common_settings["force"]
-            not_connected_pvs = self.snapshot.get_disconnected_pvs_names(filtered)
-            do_restore = True
-            if not force and not_connected_pvs:
-                msg = "Some PVs are not connected (see details). Do you want to restore anyway?\n"
-                msg_window = DetailedMsgBox(msg, "\n".join(not_connected_pvs), 'Warning', self)
-                reply = msg_window.exec_()
 
-                if reply == QtGui.QMessageBox.No:
-                    force = False
-                    do_restore = False
-                else:
-                    force = True
+                force = self.common_settings["force"]
 
-            if do_restore:
+                # Try to restore with default force mode.
                 # First disable restore button (will be enabled when finished)
                 # Then Use one of the preloaded saved files to restore
                 self.restore_all_button.setEnabled(False)
@@ -142,28 +130,59 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                 self.sts_log.log_msgs("Restore started.", time.time())
                 self.sts_info.set_status("Restoring ...", 0, "orange")
 
-                status = self.snapshot.restore_pvs(pvs_to_restore, callback=self.restore_done_callback,
+                status, pvs_status = self.snapshot.restore_pvs(pvs_to_restore, callback=self.restore_done_callback,
                                                    force=force)
-                if status == ActionStatus.no_data:
-                    # Because of checking "restore_values_loaded" before
-                    # starting a restore, this case should not happen.
+
+                if status == ActionStatus.no_conn:
+                    # Ask user if he wants to force restoring
+                    msg = "Some PVs are not connected (see details). Do you want to restore anyway?\n"
+                    msg_window = DetailedMsgBox(msg, "\n".join(list(pvs_status.keys())), 'Warning', self)
+                    reply = msg_window.exec_()
+
+                    if reply != QtGui.QMessageBox.No:
+                        # Force restore
+                        status, pvs_status = self.snapshot.restore_pvs(pvs_to_restore,
+                                                                       callback=self.restore_done_callback, force=True)
+
+                        # If here restore started successfully. Waiting for callbacks.
+
+                    else:
+                        # User rejected restoring with unconnected PVs. Not an error state.
+                        self.sts_log.log_msgs("Restore rejected by user.", time.time())
+                        self.sts_info.clear_status()
+                        self.restore_all_button.setEnabled(True)
+                        self.restore_button.setEnabled(True)
+
+                elif status == ActionStatus.no_data:
                     self.sts_log.log_msgs("ERROR: Nothing to restore.", time.time())
                     self.sts_info.set_status("Restore rejected", 3000, "#F06464")
                     self.restore_all_button.setEnabled(True)
                     self.restore_button.setEnabled(True)
-                elif status == ActionStatus.no_conn:
-                    self.sts_log.log_msgs("ERROR: Restore rejected. One or more PVs not connected.", time.time())
-                    self.sts_info.set_status("Restore rejected", 3000, "#F06464")
-                    self.restore_all_button.setEnabled(True)
-                    self.restore_button.setEnabled(True)
+
                 elif status == ActionStatus.busy:
                     self.sts_log.log_msgs("ERROR: Restore rejected. Previous restore not finished.", time.time())
+                    self.restore_all_button.setEnabled(True)
+                    self.restore_button.setEnabled(True)
+
+                # else: ActionStatus.ok  --> waiting for callbacks
+
+            else:
+                # Problem reading data from file
+                warn = "Cannot start a restore. Problem reading data from selected file."
+                QtGui.QMessageBox.warning(self, "Warning", warn,
+                                          QtGui.QMessageBox.Ok,
+                                          QtGui.QMessageBox.NoButton)
+                self.restore_all_button.setEnabled(True)
+                self.restore_button.setEnabled(True)
+
         else:
             # Don't start a restore if file not selected
             warn = "Cannot start a restore. File with saved values is not selected."
             QtGui.QMessageBox.warning(self, "Warning", warn,
                                       QtGui.QMessageBox.Ok,
                                       QtGui.QMessageBox.NoButton)
+            self.restore_all_button.setEnabled(True)
+            self.restore_button.setEnabled(True)
 
     def restore_done_callback(self, status, forced, **kw):
         # Raise callback to handle GUI specifics in GUI thread
