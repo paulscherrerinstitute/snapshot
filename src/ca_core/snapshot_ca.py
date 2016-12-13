@@ -75,7 +75,12 @@ class SnapshotPv(PV):
         """
         Non blocking CA get. Does not block if there is no connection or no read access. Returns latest value
         (monitored) or None if not able to get value. It also returns status of the action (see PvStatus)
+
         :return: (value, status)
+
+            value: PV value.
+
+            status: Status of save action as PvStatus type.
         """
         if self.connected:
             # Must be after connection test. If checking access when not
@@ -103,8 +108,10 @@ class SnapshotPv(PV):
         """
         Executes asynchronous CA put if value is different to current PV value. Success status of this action is
         returned in callback.
+
         :param value: Value to be put to PV.
         :param callback: callback function in which success of restoring is monitored
+
         :return:
         """
         if self.connected:
@@ -133,11 +140,24 @@ class SnapshotPv(PV):
             callback(pvname=self.pvname, status=PvStatus.access_err)
 
     def value_as_str(self):
+        """
+        Get current PV value as snapshot style string (handling of array same way as for restore)
+
+        :return: String representation of current PV value.
+        """
         if self.connected and self.value is not None:
             return(SnapshotPv.value_to_str(self.value, self.is_array))
 
     @staticmethod
     def value_to_str(value: str, is_array: bool):
+        """
+        Get snapshot style string representation of provided value.
+
+        :param value: Value to be represented as string.
+        :param is_array: Should be treated as an array.
+
+        :return: String representation of value
+        """
         if is_array:
             if numpy.size(value) == 0:
                 # Empty array is equal to "None" scalar value
@@ -151,7 +171,9 @@ class SnapshotPv(PV):
     def compare_to_curr(self, value):
         """
         Compare value to current PV value.
+
         :param value: Value to be compared.
+
         :return: Result of comparison.
         """
         return SnapshotPv.compare(value, self.value, self.is_array)
@@ -160,9 +182,11 @@ class SnapshotPv(PV):
     def compare(value1, value2, is_array=False):
         """
         Compare two values snapshot style (handling numpy arrays) for waveforms.
+
         :param value1: Value to be compared to value2.
         :param value2: Value to be compared to value1.
         :param is_array: Are values to be compared arrays?
+
         :return: Result of comparison.
         """
 
@@ -190,6 +214,7 @@ class SnapshotPv(PV):
     def add_conn_callback(self, callback):
         """
         Set connection callback.
+
         :return: Connection callback index
         """
         if self.conn_callbacks:
@@ -203,6 +228,8 @@ class SnapshotPv(PV):
     def clear_callbacks(self):
         """
         Removes all user callbacks and connection callbacks.
+
+        :return:
         """
         self.conn_callbacks = {}
         super().clear_callbacks()
@@ -219,8 +246,10 @@ class SnapshotPv(PV):
         """
         Snapshot specific handling of connection status on pyepics connection_callback. Check if PV is array, then call
         user callback if provided.
+
         :param conn: True if connected, False if not connected.
         :param kw:
+
         :return:
         """
 
@@ -239,8 +268,10 @@ class SnapshotPv(PV):
     def macros_substitution(txt: str, macros: dict):
         """
         Returns string txt with substituted macros (defined as {macro: value}).
+
         :param txt: String with macros.
         :param macros: Dictionary with {macro: value} pairs.
+
         :return: txt with replaced macros.
         """
         for key in macros:
@@ -258,6 +289,7 @@ class Snapshot(object):
         :param req_file_path: Path to the request file.
         :param macros: macros to be substituted in request file (can be dict {'A': 'B', 'C': 'D'} or str "A=B,C=D").
         :param snap_file_dir: Directory with snapshot files (if snap file is relative, it will be relative to this dir).
+
         :return:
         """
 
@@ -287,7 +319,9 @@ class Snapshot(object):
     def add_pvs(self, pv_list):
         """
         Creates SnapshotPv objects for each PV in list.
+
         :param pv_list: List of PV names.
+
         :return:
         """
 
@@ -302,7 +336,9 @@ class Snapshot(object):
     def remove_pvs(self, pv_list):
         """
         Remove all SnapshotPv objects for PVs in list.
+
         :param pv_list: List of PV names.
+
         :return:
         """
 
@@ -319,7 +355,9 @@ class Snapshot(object):
         """
         Check existing PVs if they have macros in their "raw name". If macros to be replaced remove existing PVs and
         create new PVs.
+
         :param macros: Dictionary of macros {'macro': 'value' }
+
         :return:
         """
         macros = macros or {}
@@ -339,11 +377,17 @@ class Snapshot(object):
         """
         Get current PV values and save them in file. can also create symlink to the file. If additional metadata should
         be saved, it can be provided as keyword arguments.
+
         :param save_file_path: Path to save file.
         :param force: Save if not all PVs connected? Not connected PVs values will not be saved in such case.
         :param symlink_path: Path to symlink. If symlink exists it will be replaced.
         :param kw: Will be appended to metadata.
-        :return: (action_stats, dict_of_{'pvname': PvStatus})
+
+        :return: (action_status, pvs_status)
+
+            action_status: Status of action as ActionStatus type.
+
+            pvs_status:
         """
 
         # get values of all PVs and save them to file
@@ -381,12 +425,18 @@ class Snapshot(object):
         """
         Restore PVs form snapshot file or dictionary. If restore is successfully started (ActionStatus.ok returned),
         then restore stressfulness will be returned in callback as: status={'pvname': PvStatus}, forced=was_restore?
+
         :param pvs_raw: Can be a dict of {'pvname': 'saved value'} or a path to a .snap file
         :param force: Force restore if not all needed PVs are connected?
         :param callback: Callback which will be called when all PVs are restored.
         :param custom_macros: This macros are used only if there is no self.macros and not a .snap file.
-        :return: ActionStatus (ok: if restore was started, busy: previous not finished; no_data: nothing to restore;
-                               no_conn: some of PVs not connected)
+
+        :return: (action_status, pvs_status)
+
+            action_status: Status of action as ActionStatus type.
+
+            pvs_status: Dict of {'pvname': PvStatus}. Has meaningful content only in case of action_status == no_conn.
+                        In other cases, pvs_status is returned in callback.
         """
         # Check if busy
         if self._restore_started:
@@ -464,13 +514,19 @@ class Snapshot(object):
     def restore_pvs_blocking(self, pvs_raw=None, force=False, timeout=10, custom_macros=None):
         """
         Similar as restore_pvs, but block until restore finished or timeout.
+
         :param pvs_raw: Can be a dict of {'pvname': 'saved value'} or a path to a .snap file
         :param force: Force restore if not all needed PVs are connected?
         :param callback: Callback which will be called when all PVs are restored.
         :param custom_macros: This macros are used only if there is no self.macros and not a .snap file.
         :param timeout: Timeout in seconds.
-        :return: ActionStatus (ok: if restore was started, busy: previous not finished; no_data: nothing to restore;
-                               no_conn: some of PVs not connected; timeout: timeout happened)
+
+        :return: (action_status, pvs_status)
+
+            action_status: Status of action as ActionStatus type.
+
+            pvs_status: Dict of {'pvname': PvStatus}.
+
         """
         self._restore_blocking_done = False
         self._blocking_restore_pvs_status = dict()
@@ -496,6 +552,7 @@ class Snapshot(object):
     def get_pvs_names(self):
         """
         Get list of SnapshotPvs
+
         :return: List of SnapshotPvs.
         """
         # To access a list of all pvs that are under control of snapshot object
@@ -504,7 +561,9 @@ class Snapshot(object):
     def get_disconnected_pvs_names(self, selected=None):
         """
         Get list off all currently disconnected PVs from all snapshot PVs (default) or from list of "selected" PVs.
+
         :param selected: List of PVs to check.
+
         :return: List of not connected PV names.
         """
         if selected is None:
@@ -519,8 +578,10 @@ class Snapshot(object):
     def replace_metadata(self, save_file_path, metadata):
         """
         Reopen save data and replace meta data.
+
         :param save_file_path: Path to save file.
         :param metadata: Dict with new metadata.
+
         :return:
         """
         # Will replace metadata in the save file with the provided one
@@ -541,10 +602,12 @@ class Snapshot(object):
         """
         This function is called at each save of PV values. This is a parser which generates save file from pvs. All
         parameters in **kw are packed as meta data
-        :param pvs:
-        :param save_file_path:
-        :param symlink_path:
-        :param kw:
+
+        :param pvs: Dict with pvs data to be saved. pvs = {pvname: {'value': value}}
+        :param save_file_path: Path of the saved file.
+        :param symlink_path: Optional path to the symlink to be created.
+        :param kw: Additional meta data.
+
         :return:
         """
         # This function is called at each save of PV values.
@@ -583,11 +646,16 @@ class Snapshot(object):
     def parse_from_save_file(save_file_path):
         """
         Parses save file to dict {'pvname': {'data': {'value': <value>, 'raw_name': <name_with_macros>}}}
+
         :param save_file_path: Path to save file.
+
         :return: (saved_pvs, meta_data, err)
-                     saved_pvs: in format {'pvname': {'data': {'value': <value>, 'raw_name': <name_with_macros>}}}
-                     meta_data: as dictionary
-                     err: list of strings (each entry one error)
+
+            saved_pvs: in format {'pvname': {'data': {'value': <value>, 'raw_name': <name_with_macros>}}}
+
+            meta_data: as dictionary
+
+            err: list of strings (each entry one error)
         """
 
         saved_pvs = dict()
@@ -641,12 +709,14 @@ class SnapshotReqFile(object):
     def __init__(self, path: str, parent=None, macros:dict = None, changeable_macros:list = None):
         '''
         Class providing parsing methods for request files.
+
         :param path: Request file path.
         :param parent: SnapshotReqFile from which current file was called.
         :param macros: Dict of macros {macro: value}
         :param changeable_macros: List of "global" macros which can stay unreplaced and will be handled by
                                   Shanpshot object (enables user to change macros on the fly). This macros will be
                                   ignored in error handling.
+
         :return:
         '''
         if macros is None:
@@ -788,6 +858,7 @@ def parse_macros(macros_str):
     Converting comma separated macros string to dictionary.
 
     :param macros_str: string of macros in style SYS=TST,D=A
+
     :return: dict of macros
     """
 
@@ -808,6 +879,7 @@ def parse_dict_macros_to_text(macros):
     Converting dict() separated macros string to comma separated.
 
     :param macros: dict of macros, substitutions
+
     :return: macro string
     """
 
@@ -824,16 +896,31 @@ def parse_dict_macros_to_text(macros):
 
 # Exceptions
 class SnapshotError(Exception):
+    """
+    Parent exception class of all snapshot exceptions.
+    """
     pass
 
 class MacroError(SnapshotError):
+    """
+    Problems parsing macros (wrong syntax).
+    """
     pass
 
 class ReqParseError(SnapshotError):
+    """
+    Parent exception class for exceptions that can happen while parsing a request file.
+    """
     pass
 
 class ReqFileFormatError(ReqParseError):
+    """
+    Syntax error in request file.
+    """
     pass
 
 class ReqFileInfLoopError(ReqParseError):
+    """
+    If request file is calling one of its ancestors.
+    """
     pass
