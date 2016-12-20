@@ -22,5 +22,5 @@ build:
     - snapshot = snapshot.snapshot:main
 
 about:
-    home: https://github.com/channelaccess/snapshot
+    home: https://github.com/paulscherrerinstitute/snapshot
     summary: "Tool to save and restore EPICS channels."

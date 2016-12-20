@@ -95,13 +95,10 @@ examplePv:test-4,[5.0, 6.0, 7.0, 8.0, 9.0, 0.0, 1.0, 2.0, 3.0, 4.0]
 ```
 
 ## Advanced usage of snapshot
-Snapshot can also be used as a module inside other python applications. Find simple example bellow. For more details and more advanced usage consult:
-
-- detailed documentation of the snapshot core API in [docs/_build/html/src.ca_core.html](./docs/_build/html/src.ca_core.html).
-- example [example/example.py](./example/example.py).
+Snapshot can also be used as a module inside other python applications. Find simple example bellow. For more details have a look at [example/example.py](./example/example.py).
 
 
-```
+```Python
 from snapshot.ca_core import Snapshot
 
 snapshot = Snapshot('path/to/my/request/file.req')
@@ -109,11 +106,3 @@ snapshot.save_pvs('path/to/desired/save/file.snap')
 snapshot.restore_pvs('path/to/desired/save/file.snap', callback=my_restore_done_callback)
 snapshot.restore_pvs_blocking('path/to/desired/save/file.snap')
 ```
-
-# Development
-## Dependencies
-_Snapshot_ has following dependencies:
- - Python 3
- - pyepics
- - pyqt
- - numpy
