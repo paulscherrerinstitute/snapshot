@@ -11,7 +11,7 @@ import time
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
 
-from ..ca_core.snapshot_ca import PvStatus, ActionStatus
+from ..ca_core import PvStatus, ActionStatus
 from .utils import SnapshotKeywordSelectorWidget, DetailedMsgBox
 
 
@@ -20,12 +20,12 @@ class SnapshotSaveWidget(QtGui.QWidget):
     Save widget is a widget that enables user to save current state of PVs
     listed in request file. Widget includes:
     Save widget consists of:
-     - input-fields:
-        * file extension (default YYMMDD_hhmm)
-        * comment
-        * labels
-     - read-back showing whole file name
-     - Save button
+        - input-fields:
+            * file extension (default YYMMDD_hhmm)
+            * comment
+            * labels
+        - read-back showing whole file name
+        - Save button
 
     Data about current app state (such as request file) must be provided as
     part of the structure "common_settings".
@@ -112,7 +112,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
     def start_save(self):
         # Check if save can be done (all pvs connected or in force mode)
         force = self.common_settings["force"]
-        not_connected_pvs = self.snapshot.get_not_connected_pvs_names()
+        not_connected_pvs = self.snapshot.get_disconnected_pvs_names()
         do_save = True
         if not force and not_connected_pvs:
             # If file exists, user must decide whether to overwrite it or not

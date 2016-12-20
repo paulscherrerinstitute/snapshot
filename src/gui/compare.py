@@ -13,7 +13,7 @@ import numpy
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
 
-from ..ca_core.snapshot_ca import Snapshot, SnapshotPv, macros_substitution
+from ..ca_core import Snapshot, SnapshotPv
 
 
 class PvCompareFilter(Enum):
@@ -35,10 +35,10 @@ class SnapshotCompareWidget(QtGui.QWidget):
         # PV table consist of:
         #     self.model: holding the data, values, being updated by PV callbacks, etc
         #     self._proxy: a proxy model implementing the filter functionality
-        #     view: visual representation of the PV table
+        #     self.view: visual representation of the PV table
 
-        view = SnapshotPvTableView(self)
-        view.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        self.view = SnapshotPvTableView(self)
+        self.view.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
 
         self.model = SnapshotPvTableModel(snapshot, self)
         self._proxy = SnapshotPvFilterProxyModel(self)
@@ -47,7 +47,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
 
         # Build model and set default visualization on view (column widths, etc)
         self.model.add_pvs(snapshot.pvs.values())
-        view.setModel(self._proxy)
+        self.view.setModel(self._proxy)
 
         # ---------- Filter control elements ---------------
         # - text input to filter by name
@@ -135,7 +135,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         layout.setMargin(10)
         layout.setSpacing(10)
         layout.addLayout(filter_layout)
-        layout.addWidget(view)
+        layout.addWidget(self.view)
         self.setLayout(layout)
 
     def _handle_filtered(self, pvs_names_list):
@@ -177,6 +177,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         self.snapshot = snapshot
         self.model.clear_pvs()
         self.model.add_pvs(snapshot.pvs.values())
+        self.view.sortByColumn(0, Qt.AscendingOrder)  # default sorting
 
     def _predefined_filter_selected(self, idx):
         txt = self.pv_filter_inp.text()
@@ -233,6 +234,7 @@ class SnapshotPvTableView(QtGui.QTableView):
         self.model().sourceModel().columnsInserted.connect(self.set_snap_visualization)
         self.model().sourceModel().columnsRemoved.connect(self.set_snap_visualization)
         self.set_default_visualization()
+        self.sortByColumn(0, Qt.AscendingOrder)  # default sorting
 
     def dataChanged(self, mode_idx, mode_idx1):
         """
@@ -385,7 +387,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
 
         pvs_list_full_names = dict()  # PVS data mapped to real pvs names (no macros)
         for pv_name_raw, pv_data in file_data["pvs_list"].items():
-            pvs_list_full_names[macros_substitution(pv_name_raw, macros)] = pv_data  # snapshot_ca.py function
+            pvs_list_full_names[SnapshotPv.macros_substitution(pv_name_raw, macros)] = pv_data
 
         return pvs_list_full_names
 
@@ -403,9 +405,11 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             return self._data[index.row()].data[index.column()].get('icon', None)
 
     def handle_pv_change(self, pv_line):
-        self.dataChanged.emit(self.createIndex(self._data.index(pv_line), 0),
-                              self.createIndex(self._data.index(pv_line), len(pv_line.data)))
-
+        # This can happen during changing snapshot instance, when lines were already changed but there
+        # are still some signals for the old PV lines in the queue. Check if line still exists.
+        if pv_line in self._data:
+            self.dataChanged.emit(self.createIndex(self._data.index(pv_line), 0),
+                                  self.createIndex(self._data.index(pv_line), len(pv_line.data)))
     def headerData(self, section, orientation, role):
         if role == QtCore.Qt.DisplayRole:
             return self._headers[section]
@@ -432,34 +436,34 @@ class SnapshotPvTableLine(QtCore.QObject):
                      {'data': 'PV disconnected', 'icon': self._WARN_ICON},  # current value
                      {'icon': None}]  # Compare result
 
-        # If connected take current value
-        if pv_ref.connected:
-            self.conn = pv_ref.connected
-            self.data[1]['data'] = SnapshotPvTableLine.string_repr(pv_ref.value)
-            self.data[1]['icon'] = None
-
-        else:
-            self.conn = False
-
-        pv_ref.add_conn_callback(self._conn_callback)
-        self.clbk_id = pv_ref.add_callback(self._callback)
+        self._conn_clb_id = pv_ref.add_conn_callback(self._conn_callback)
+        self._clb_id = pv_ref.add_callback(self._callback)
 
         # Internal signal
         self._pv_conn_changed.connect(self._handle_conn_callback)
         self._pv_changed.connect(self._handle_callback)
+
+        # If connected take current value (might missed first callbacks)
+        if pv_ref.connected:
+            self.conn = pv_ref.connected
+            self.data[1]['data'] = pv_ref.value_as_str()
+            self.data[1]['icon'] = None
+
+        else:
+            self.conn = False
 
     def disconnect_callbacks(self):
         '''
         Disconnect from SnapshotPv object. Should be called before removing line from model.
         :return:
         '''
-        self._pv_ref.remove_conn_callback()
-        self._pv_ref.remove_callback(self.clbk_id)
+        self._pv_ref.remove_conn_callback(self._conn_clb_id)
+        self._pv_ref.remove_callback(self._clb_id)
 
 
     def append_snap_value(self, value):
         if value is not None:
-            self.data.append({'data': SnapshotPvTableLine.string_repr(value), 'raw_value': value})
+            self.data.append({'data': SnapshotPvTableLine.string_repr_snap_value(value), 'raw_value': value})
         else:
             self.data.append({'data': '', 'raw_value': None})
 
@@ -468,7 +472,7 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     def change_snap_value(self, idx, value):
         if value is not None:
-            self.data[idx]['data'] = SnapshotPvTableLine.string_repr(value)
+            self.data[idx]['data'] = SnapshotPvTableLine.string_repr_snap_value(value)
             self.data[idx]['raw_value'] = value
         else:
             self.data[idx]['data'] = ''
@@ -515,7 +519,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             self.data[2]['icon'] = None
 
     @staticmethod
-    def string_repr(value):
+    def string_repr_snap_value(value):
         if isinstance(value, numpy.ndarray):
             # Handle arrays
             return json.dumps(value.tolist())
@@ -531,7 +535,7 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     def _handle_callback(self, data):
         pv_value = data.get('value', '')
-        self.data[1]['data'] = SnapshotPvTableLine.string_repr(pv_value)
+        self.data[1]['data'] = SnapshotPv.value_to_str(pv_value, self._pv_ref.is_array)
         self._compare(pv_value)
         self.data_changed.emit(self)
 

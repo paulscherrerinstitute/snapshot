@@ -12,7 +12,7 @@ import sys
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
 
-from ..ca_core.snapshot_ca import Snapshot, SnapshotError, ReqParseError
+from ..ca_core import Snapshot, SnapshotError, ReqParseError, parse_macros, MacroError
 from .compare import SnapshotCompareWidget
 from .restore import SnapshotRestoreWidget
 from .save import SnapshotSaveWidget
@@ -90,11 +90,25 @@ class SnapshotGui(QtGui.QMainWindow):
         # Predefined filters
         self.common_settings["predefined_filters"] = config.get('filters', dict())
 
+        macros_ok = True
         if req_file_macros is None:
             req_file_macros = dict()
+        elif isinstance(req_file_macros, str):
+            # Try to parse macros. If problem, just pass to configure window which will force user to do it
+            # right way.
+            try:
+                req_file_macros = parse_macros(req_file_macros)
+            except MacroError:
+                macros_ok = False
 
-        if not req_file_path:
-            configure_dialog = SnapshotConfigureDialog(self, init_path=init_path, init_macros=req_file_macros)
+        if req_file_path is None:
+                req_file_path = ''
+        if init_path is None:
+                init_path = ''
+
+        if not req_file_path or not macros_ok:
+            configure_dialog = SnapshotConfigureDialog(self, init_path=os.path.join(init_path, req_file_path),
+                                                       init_macros=req_file_macros)
             configure_dialog.accepted.connect(self.set_request_file)
 
             self.hide()
@@ -102,12 +116,11 @@ class SnapshotGui(QtGui.QMainWindow):
                 self.close_gui()
 
         else:
-            self.common_settings["req_file_path"] = os.path.abspath(req_file_path)
+            self.common_settings["req_file_path"] = os.path.abspath(os.path.join(init_path,req_file_path))
             self.common_settings["req_file_macros"] = req_file_macros
 
-        self.common_settings["pvs_to_restore"] = list()
-
         # Before creating GUI, snapshot must be initialized.
+        self.snapshot = None
         self.init_snapshot(self.common_settings["req_file_path"],
                            self.common_settings["req_file_macros"])
 
@@ -237,6 +250,10 @@ class SnapshotGui(QtGui.QMainWindow):
         self.common_settings["req_file_macros"] = macros
 
     def init_snapshot(self, req_file_path, req_macros=None):
+        if self.snapshot:
+            # Remove callbacks from existing snapshot
+            self.snapshot.clear_pvs()
+
         req_macros = req_macros or {}
         reopen_config = False
         try:
@@ -264,8 +281,6 @@ class SnapshotGui(QtGui.QMainWindow):
             if configure_dialog.exec_() == QtGui.QDialog.Rejected:
                 self.close_gui()
 
-        self.common_settings["pvs_to_restore"] = self.snapshot.get_pvs_names()
-
     def handle_files_updated(self, updated_files):
         # When new save file is added, or old one has changed, this method
         # should handle things like updating label widgets and compare widget.
@@ -287,9 +302,9 @@ class SnapshotGui(QtGui.QMainWindow):
         for config_name, config_value in config.items():
             if config_name == "macros":
                 self.snapshot.change_macros(config_value)
-                self.common_settings["pvs_to_restore"] = self.snapshot.get_pvs_names()
                 self.common_settings["req_file_macros"] = config_value
-                self.compare_widget.populate_compare_list()
+                # For compare widget this is same as new snapshot
+                self.compare_widget.handle_new_snapshot_instance(self.snapshot)
                 self.restore_widget.handle_selected_files(self.restore_widget.file_selector.selected_files)
             elif config_name == "force":
                 self.common_settings["force"] = config_value

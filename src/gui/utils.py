@@ -7,7 +7,7 @@ import os
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
 
-from ..ca_core.snapshot_ca import parse_macros, parse_dict_macros_to_text, MacroError
+from ..ca_core import parse_macros, parse_dict_macros_to_text, MacroError
 
 
 class SnapshotConfigureDialog(QtGui.QDialog):
@@ -40,7 +40,7 @@ class SnapshotConfigureDialog(QtGui.QDialog):
         elif isinstance(init_macros, dict):
             self.macros_input.setText(parse_dict_macros_to_text(init_macros))
 
-        else: # string
+        else:  # string
             self.macros_input.setText(init_macros)
 
         self.setMinimumSize(600, 50)
@@ -155,7 +155,11 @@ class SnapshotSettingsDialog(QtGui.QWidget):
             self.close()
 
     def monitor_changes(self):
-        parsed_macros = parse_macros(self.macro_input.text())
+        try:
+            parsed_macros = parse_macros(self.macro_input.text())
+        except MacroError:
+            # Ignore exception since this does not apply settings
+            parsed_macros = dict()
 
         if (parsed_macros != self.curr_macros) or (self.save_dir_input.text() != self.curr_save_dir) or \
                 (self.force_input.isChecked() != self.curr_forced):
@@ -168,7 +172,14 @@ class SnapshotSettingsDialog(QtGui.QWidget):
     def apply_config(self):
         # Return only changed settings
         config = dict()
-        parsed_macros = parse_macros(self.macro_input.text())
+        try:
+            parsed_macros = parse_macros(self.macro_input.text())
+        except MacroError as e:
+            # Show error message and finish with applying config
+            QtGui.QMessageBox.warning(self, "Warning", str(e),
+                                      QtGui.QMessageBox.Ok,
+                                      QtGui.QMessageBox.NoButton)
+            return
 
         if self.save_dir_input.text() != self.curr_save_dir:
             if os.path.isdir(self.save_dir_input.text()):
@@ -183,8 +194,8 @@ class SnapshotSettingsDialog(QtGui.QWidget):
                 self.save_dir_input.setText(self.curr_save_dir)
 
         if parsed_macros != self.curr_macros:
-            config["macros"] = parse_macros(self.macro_input.text())
-            self.curr_macros = parse_macros(self.macro_input.text())
+            config["macros"] = parsed_macros
+            self.curr_macros = parsed_macros
 
         if self.force_input.isChecked() != self.curr_forced:
             config["force"] = self.force_input.isChecked()

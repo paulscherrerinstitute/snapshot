@@ -12,7 +12,7 @@ import time
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
 
-from ..ca_core.snapshot_ca import PvStatus, ActionStatus
+from ..ca_core import PvStatus, ActionStatus, SnapshotPv
 from .utils import SnapshotKeywordSelectorWidget, SnapshotEditMetadataDialog, DetailedMsgBox
 
 
@@ -21,9 +21,9 @@ class SnapshotRestoreWidget(QtGui.QWidget):
     Restore widget is a widget that enables user to restore saved state of PVs
     listed in request file from one of the saved files.
     Save widget consists of:
-     - file selector (tree of all files)
-     - restore button
-     - searcher/filter
+        - file selector (tree of all files)
+        - restore button
+        - search/filter
 
     Data about current app state (such as request file) must be provided as
     part of the structure "common_settings".
@@ -109,15 +109,16 @@ class SnapshotRestoreWidget(QtGui.QWidget):
             if file_data:
                 pvs_in_file = file_data.get("pvs_list", None)  # is actually a dict
                 pvs_to_restore = copy.copy(file_data.get("pvs_list", None))  # is actually a dict
+                macros = self.snapshot.macros
 
                 if filtered is not None:
                     for pvname in pvs_in_file.keys():
-                        if pvname not in filtered:
+                        if SnapshotPv.macros_substitution(pvname, macros) not in filtered:
                             pvs_to_restore.pop(pvname, None)  # remove unfiltered pvs
 
             # Check if all pvs connected or in force mode)
             force = self.common_settings["force"]
-            not_connected_pvs = self.snapshot.get_not_connected_pvs_names(filtered)
+            not_connected_pvs = self.snapshot.get_disconnected_pvs_names(filtered)
             do_restore = True
             if not force and not_connected_pvs:
                 msg = "Some PVs are not connected (see details). Do you want to restore anyway?\n"
@@ -146,7 +147,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                 if status == ActionStatus.no_data:
                     # Because of checking "restore_values_loaded" before
                     # starting a restore, this case should not happen.
-                    self.sts_log.log_msgs("ERROR: Nothing to restore.", time.time)
+                    self.sts_log.log_msgs("ERROR: Nothing to restore.", time.time())
                     self.sts_info.set_status("Restore rejected", 3000, "#F06464")
                     self.restore_all_button.setEnabled(True)
                     self.restore_button.setEnabled(True)
