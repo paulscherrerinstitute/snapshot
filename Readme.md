@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/paulscherrerinstitute/snapshot.svg?branch=master)](https://travis-ci.org/paulscherrerinstitute/snapshot)
+
 # Overview
 Snapshot is Python based tool with a graphical user interface which is able to store (and later restore) values of Channel Access process variables (PVs).
 
