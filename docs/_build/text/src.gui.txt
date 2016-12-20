@@ -308,7 +308,7 @@ class class src.gui.save.SnapshotSaveWidget(snapshot, common_settings, parent=No
    Data about current app state (such as request file) must be
    provided as part of the structure "common_settings".
 
-   check_file_existance()
+   check_file_name_available()
 
    handle_new_snapshot_instance(snapshot)
 

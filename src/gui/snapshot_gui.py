@@ -362,6 +362,9 @@ class SnapshotStatus(QtGui.QStatusBar):
         self.set_status()
 
     def set_status(self, text="Ready", duration=0, background="rgba(0, 0, 0, 30)"):
+        # Stop any existing timers
+        self.timer.stop()
+
         if self.common_settings["force"]:
             text = "[force mode] " + text
         self.status_txt.setText(text)

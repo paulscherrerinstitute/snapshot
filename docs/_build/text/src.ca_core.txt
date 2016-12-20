@@ -136,10 +136,16 @@ class class src.ca_core.snapshot_ca.Snapshot(req_file_path, macros=None)
       callback: Callback which will be called when all PVs are
       restored. :param custom_macros: This macros are used only if
       there is no self.macros and not a .snap file. :return:
-      ActionStatus (ok: if restore was started, busy: previous not
-      finished; no_data: nothing to restore;
+      (action_status, pvs_status)
 
-         no_conn: some of PVs not connected)
+         * ActionStatus (ok: if restore was started, busy: previous
+           not finished; no_data: nothing to restore; no_conn: some of
+           PVs not connected)
+
+         * pvs_status: Is dict of {'pvname': PvStatus}. Has
+           meaningful content only in case of action_status ==
+           ActionStatus.no_conn. In other cases, pvs_status is
+           returned in callback.
 
    restore_pvs_blocking(pvs_raw=None, force=False, timeout=10, custom_macros=None)
 
@@ -150,11 +156,13 @@ class class src.ca_core.snapshot_ca.Snapshot(req_file_path, macros=None)
       which will be called when all PVs are restored. :param
       custom_macros: This macros are used only if there is no
       self.macros and not a .snap file. :param timeout: Timeout in
-      seconds. :return: ActionStatus (ok: if restore was started,
-      busy: previous not finished; no_data: nothing to restore;
+      seconds. :return: (action_status, pvs_status)
 
-         no_conn: some of PVs not connected; timeout: timeout
-         happened)
+         * ActionStatus (ok: if restore was started, busy: previous
+           not finished; no_data: nothing to restore; no_conn: some of
+           PVs not connected)
+
+         * pvs_status: Is dict of {'pvname': PvStatus}
 
    save_pvs(save_file_path, force=False, symlink_path=None, **kw)
 
@@ -165,7 +173,7 @@ class class src.ca_core.snapshot_ca.Snapshot(req_file_path, macros=None)
       Not connected PVs values will not be saved in such case. :param
       symlink_path: Path to symlink. If symlink exists it will be
       replaced. :param kw: Will be appended to metadata. :return:
-      (action_stats, dict_of_{'pvname': PvStatus})
+      (action_status, dict_of_{'pvname': PvStatus})
 
 exception exception src.ca_core.snapshot_ca.SnapshotError
 

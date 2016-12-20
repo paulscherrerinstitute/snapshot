@@ -31,13 +31,15 @@ def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10
     status, pv_status = snapshot.save_pvs(save_file_path, force)
 
     if status != ActionStatus.ok:
-        for pv_name in snapshot.get_disconnected_pvs_names():
-            logging.error('\"{}\" cannot be accessed.'.format(pv_name))
-        logging.info('Snapshot file was not saved.')
+        for pv_name, status in pv_status.items():
+            if status == PvStatus.access_err:
+                logging.error('\"{}\": No connection or no read access.'.format(pv_name))
+        logging.error('Snapshot file was not saved.')
+
     else:
         for pv_name, status in pv_status.items():
             if status == PvStatus.access_err:
-                logging.warning('\"{}\": Not saved. No connection or no read access.'.format(pv_name))
+                logging.warning('\"{}\": Value not saved. No connection or no read access.'.format(pv_name))
         logging.info('Snapshot file was saved.')
 
 
@@ -55,29 +57,39 @@ def restore(saved_file_path, force=False, timeout=10):
             logging.warning('While loading file following problems were detected:\n * ' + '\n * '.join(err))
         # Use saved file as request file here
         snapshot = Snapshot(saved_file_path, macros=meta_data.get('macros', dict()))
+
     except (IOError, SnapshotError) as e:
         logging.error('Snapshot cannot be loaded due to a following error: {}'.format(e))
         sys.exit(1)
 
     logging.info('Waiting for PVs connections (timeout: {} s) ...'.format(timeout))
     end_time = time.time() + timeout
+
     while snapshot.get_disconnected_pvs_names() and time.time() < end_time:
         time.sleep(0.2)
 
     # Timeout should be used for complete command. Pass the remaining of the time.
-    status = snapshot.restore_pvs_blocking(saved_file_path, force, end_time - time.time())
+    status, pvs_status = snapshot.restore_pvs_blocking(saved_file_path, force, end_time - time.time())
+
     if status == ActionStatus.ok:
-        for pv_name in snapshot.get_disconnected_pvs_names():
-            logging.info('\"{}\": Not restored. No connection or no read access.'.format(pv_name))
+        for pv_name, pv_status in pvs_status.items():
+            if pv_status == PvStatus.access_err:
+                logging.warning('\"{}\": Not restored. No connection or no read access.'.format(pv_name))
+
         logging.info('Snapshot file was restored.')
 
     elif status == ActionStatus.timeout:
         # In case when no response from some PVs after values were pushed.
-        # Currently no mechanism to determine which did not respond
+        for pv_name, pv_status in pvs_status.items():
+            if pv_status == PvStatus.access_err:
+                logging.warning('\"{}\": Not restored. No connection or no read access.'.format(pv_name))
+
         logging.error('Not finished in timeout: {} s. Some PVs may not be restored. Try to increase'
                       ' timeout.'.format(timeout))
 
     else:
-        for pv_name in snapshot.get_disconnected_pvs_names():
-            logging.error('\"{}\" cannot be accessed.'.format(pv_name))
-        logging.info('Snapshot file was not restored.')
+        for pv_name, pv_status in pvs_status.items():
+            if pv_status == PvStatus.access_err:
+                logging.error('\"{}\": No connection or no read access.'.format(pv_name))
+
+        logging.error('Snapshot file was not restored.')
