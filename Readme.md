@@ -98,7 +98,7 @@ examplePv:test-4,[5.0, 6.0, 7.0, 8.0, 9.0, 0.0, 1.0, 2.0, 3.0, 4.0]
 Snapshot can also be used as a module inside other python applications. Find simple example bellow. For more details have a look at [example/example.py](./example/example.py).
 
 
-```Python
+```python
 from snapshot.ca_core import Snapshot
 
 snapshot = Snapshot('path/to/my/request/file.req')

@@ -5,18 +5,19 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+import numpy
+import json
+import re
+import os
+from enum import Enum
+
 from epics import *
 
 ca.AUTO_CLEANUP = True  # For pyepics versions older than 3.2.4, this was set to True only for
 # python 2 but not for python 3, which resulted in errors when closing
 # the application. If true, ca.finalize_libca() is called when app is
 # closed
-import numpy
-import json
-import re
-import time
-import os
-from enum import Enum
+
 
 
 class PvStatus(Enum):
@@ -48,7 +49,7 @@ class ActionStatus(Enum):
     no_conn = 3
     timeout = 4
 
-##
+
 # Subclass PV to be to later add info if needed
 class SnapshotPv(PV):
     """
@@ -146,7 +147,7 @@ class SnapshotPv(PV):
         :return: String representation of current PV value.
         """
         if self.connected and self.value is not None:
-            return(SnapshotPv.value_to_str(self.value, self.is_array))
+            return SnapshotPv.value_to_str(self.value, self.is_array)
 
     @staticmethod
     def value_to_str(value: str, is_array: bool):
@@ -161,12 +162,12 @@ class SnapshotPv(PV):
         if is_array:
             if numpy.size(value) == 0:
                 # Empty array is equal to "None" scalar value
-                return(None)
+                return None
             elif numpy.size(value) == 1:
                 # make scalars as arrays
-                return(json.dumps(numpy.asarray([value]).tolist()))
+                return json.dumps(numpy.asarray([value]).tolist())
         else:
-            return(json.dumps(value))
+            return json.dumps(value)
 
     def compare_to_curr(self, value):
         """
@@ -294,7 +295,7 @@ class Snapshot(object):
         """
 
         if isinstance(macros, str):
-            macros = parse_macros(macros) # Raises MacroError in case of problems
+            macros = parse_macros(macros)  # Raises MacroError in case of problems
         elif macros is None:
             macros = dict()
 
@@ -311,8 +312,11 @@ class Snapshot(object):
         self._restore_callback = None
         self._current_restore_forced = False
 
+        self.restored_pvs_list = list()
+        self.restore_callback = None
+
         req_f = SnapshotReqFile(self.req_file_path, changeable_macros=macros.keys())
-        pvs =  req_f.read()
+        pvs = req_f.read()
 
         self.add_pvs(pvs)
 
@@ -503,7 +507,6 @@ class Snapshot(object):
         # PVs status will be returned in callback
         return ActionStatus.ok, dict()
 
-
     def _check_restore_complete(self, pvname, status, **kw):
         self.restored_pvs_list.append((pvname, status))
         if len(self.restored_pvs_list) == len(self.pvs) and self.restore_callback:
@@ -517,7 +520,6 @@ class Snapshot(object):
 
         :param pvs_raw: Can be a dict of {'pvname': 'saved value'} or a path to a .snap file
         :param force: Force restore if not all needed PVs are connected?
-        :param callback: Callback which will be called when all PVs are restored.
         :param custom_macros: This macros are used only if there is no self.macros and not a .snap file.
         :param timeout: Timeout in seconds.
 
@@ -605,6 +607,7 @@ class Snapshot(object):
 
         :param pvs: Dict with pvs data to be saved. pvs = {pvname: {'value': value}}
         :param save_file_path: Path of the saved file.
+        :param macros: Macros
         :param symlink_path: Optional path to the symlink to be created.
         :param kw: Additional meta data.
 
@@ -706,8 +709,8 @@ class Snapshot(object):
 
 
 class SnapshotReqFile(object):
-    def __init__(self, path: str, parent=None, macros:dict = None, changeable_macros:list = None):
-        '''
+    def __init__(self, path: str, parent=None, macros: dict = None, changeable_macros: list = None):
+        """
         Class providing parsing methods for request files.
 
         :param path: Request file path.
@@ -718,7 +721,7 @@ class SnapshotReqFile(object):
                                   ignored in error handling.
 
         :return:
-        '''
+        """
         if macros is None:
             macros = dict()
         if changeable_macros is None:
@@ -735,6 +738,7 @@ class SnapshotReqFile(object):
         else:
             self._trace = self._path
 
+        self._curr_line = None
         self._curr_line_n = 0
         self._curr_line_txt = ''
         self._err = list()
@@ -762,7 +766,8 @@ class SnapshotReqFile(object):
             # skip comments and empty lines
             if not self._curr_line.startswith(('#', "data{", "}", "!")) and self._curr_line.strip():
                     # First replace macros, then check if any unreplaced macros which are not "global"
-                    pvname = SnapshotPv.macros_substitution((self._curr_line.rstrip().split(',', maxsplit=1)[0]), self._macros)
+                    pvname = SnapshotPv.macros_substitution((self._curr_line.rstrip().split(',', maxsplit=1)[0]),
+                                                            self._macros)
 
                     try:
                         # Check if any unreplaced macros
@@ -793,7 +798,7 @@ class SnapshotReqFile(object):
 
                     macro_txt = SnapshotPv.macros_substitution(macro_txt[1:-1], self._macros)
                     try:
-                        self._validate_macros_in_txt(macro_txt) # Check if any unreplaced macros
+                        self._validate_macros_in_txt(macro_txt)  # Check if any unreplaced macros
                         macros = parse_macros(macro_txt)
 
                     except MacroError as e:
@@ -821,7 +826,7 @@ class SnapshotReqFile(object):
         return pvs
 
     def _format_err(self, line: tuple, msg: str):
-        return('{} [line {}: {}]: {}'.format(self._trace, line[0], line[1], msg))
+        return '{} [line {}: {}]: {}'.format(self._trace, line[0], line[1], msg)
 
     def _validate_macros_in_txt(self, txt: str):
         invalid_macros = list()
@@ -829,7 +834,7 @@ class SnapshotReqFile(object):
         raw_macros = macro_rgx.findall(txt)
         for raw_macro in raw_macros:
             if raw_macro not in self._macros.values() and raw_macro[2:-1] not in self._c_macros:
-                #There are unknown macros which were not substituted
+                # There are unknown macros which were not substituted
                 invalid_macros.append(raw_macro)
 
         if invalid_macros:
@@ -847,7 +852,7 @@ class SnapshotReqFile(object):
                 else:
                     msg = 'Infinity loop detected. File {} was already loaded as root request file.'.format(path)
 
-                return(msg)
+                return msg
             else:
                 ancestor = ancestor._parent
 
@@ -901,11 +906,13 @@ class SnapshotError(Exception):
     """
     pass
 
+
 class MacroError(SnapshotError):
     """
     Problems parsing macros (wrong syntax).
     """
     pass
+
 
 class ReqParseError(SnapshotError):
     """
@@ -913,11 +920,13 @@ class ReqParseError(SnapshotError):
     """
     pass
 
+
 class ReqFileFormatError(ReqParseError):
     """
     Syntax error in request file.
     """
     pass
+
 
 class ReqFileInfLoopError(ReqParseError):
     """

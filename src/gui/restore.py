@@ -116,7 +116,6 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                         if SnapshotPv.macros_substitution(pvname, macros) not in filtered:
                             pvs_to_restore.pop(pvname, None)  # remove unfiltered pvs
 
-
                 force = self.common_settings["force"]
 
                 # Try to restore with default force mode.
@@ -131,7 +130,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                 self.sts_info.set_status("Restoring ...", 0, "orange")
 
                 status, pvs_status = self.snapshot.restore_pvs(pvs_to_restore, callback=self.restore_done_callback,
-                                                   force=force)
+                                                               force=force)
 
                 if status == ActionStatus.no_conn:
                     # Ask user if he wants to force restoring
@@ -141,8 +140,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
                     if reply != QtGui.QMessageBox.No:
                         # Force restore
-                        status, pvs_status = self.snapshot.restore_pvs(pvs_to_restore,
-                                                                       callback=self.restore_done_callback, force=True)
+                        self.snapshot.restore_pvs(pvs_to_restore, callback=self.restore_done_callback, force=True)
 
                         # If here restore started successfully. Waiting for callbacks.
 
@@ -198,7 +196,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         status_background = ""
         for pvname, sts in status.items():
             if sts == PvStatus.access_err:
-                error = not forced  #if here and not in force mode, then this is error state
+                error = not forced  # if here and not in force mode, then this is error state
                 msgs.append("WARNING: {}: Not restored (no connection or no read access)".format(pvname))
                 msg_times.append(time.time())
                 status_txt = "Restore error"

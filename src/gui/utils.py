@@ -13,6 +13,7 @@ from ..ca_core import parse_macros, parse_dict_macros_to_text, MacroError
 class SnapshotConfigureDialog(QtGui.QDialog):
     """ Dialog window to select and apply file. """
     accepted = QtCore.pyqtSignal(str, dict)
+
     def __init__(self, parent=None, init_path=None, init_macros=None,  **kw):
         QtGui.QDialog.__init__(self, parent, **kw)
         layout = QtGui.QVBoxLayout()
@@ -52,7 +53,6 @@ class SnapshotConfigureDialog(QtGui.QDialog):
             QtGui.QDialogButtonBox.Ok | QtGui.QDialogButtonBox.Cancel)
         layout.addWidget(button_box)
 
-
         button_box.accepted.connect(self._config_accepted)
         button_box.rejected.connect(self._config_rejected)
 
@@ -69,8 +69,8 @@ class SnapshotConfigureDialog(QtGui.QDialog):
                 self.done(QtGui.QDialog.Accepted)
             except MacroError as e:
                 QtGui.QMessageBox.warning(self, "Warning", str(e),
-                                      QtGui.QMessageBox.Ok,
-                                      QtGui.QMessageBox.NoButton)
+                                          QtGui.QMessageBox.Ok,
+                                          QtGui.QMessageBox.NoButton)
 
         else:
             warn = "File {} does not exist!".format(file_path)
@@ -559,7 +559,7 @@ class DetailedMsgBox(QtGui.QMessageBox):
         self.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
 
         textEdit = self.findChild(QtGui.QTextEdit)
-        if textEdit != None :
+        if textEdit is not None:
             textEdit.setMinimumHeight(0)
             textEdit.setMaximumHeight(16777215)
             textEdit.setMinimumWidth(0)

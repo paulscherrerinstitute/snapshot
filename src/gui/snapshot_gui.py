@@ -25,11 +25,10 @@ class SnapshotGui(QtGui.QMainWindow):
     thread where core of the application is running
     """
 
-    def __init__(self, req_file_path: str = None, req_file_macros = None, save_dir: str = None, force: bool =False,
+    def __init__(self, req_file_path: str = None, req_file_macros=None, save_dir: str = None, force: bool =False,
                  default_labels: list = None, force_default_labels: bool = None, init_path: str = None,
                  config_path: str = None, parent=None):
-        '''
-
+        """
         :param req_file_path: path to request file
         :param req_file_macros: macros can be as dict (key, value pairs) or a string in format A=B,C=D
         :param save_dir: path to the default save directory
@@ -40,7 +39,7 @@ class SnapshotGui(QtGui.QMainWindow):
         :param config_path: path to configuration file
         :param parent: Parent QtObject
         :return:
-        '''
+        """
         QtGui.QMainWindow.__init__(self, parent)
 
         if config_path:
@@ -85,7 +84,7 @@ class SnapshotGui(QtGui.QMainWindow):
                                                           (config.get('labels', dict()).get('labels', list()))))
 
         self.common_settings["force_default_labels"] = config.get('labels', dict()).get('force-labels', False) or \
-                                                       force_default_labels
+                                                                  force_default_labels
 
         # Predefined filters
         self.common_settings["predefined_filters"] = config.get('filters', dict())
@@ -116,7 +115,7 @@ class SnapshotGui(QtGui.QMainWindow):
                 self.close_gui()
 
         else:
-            self.common_settings["req_file_path"] = os.path.abspath(os.path.join(init_path,req_file_path))
+            self.common_settings["req_file_path"] = os.path.abspath(os.path.join(init_path, req_file_path))
             self.common_settings["req_file_macros"] = req_file_macros
 
         # Before creating GUI, snapshot must be initialized.
@@ -245,7 +244,7 @@ class SnapshotGui(QtGui.QMainWindow):
         # Update restore widget (new file in directory)
         self.restore_widget.update_files()
 
-    def set_request_file(self, path:str, macros: dict):
+    def set_request_file(self, path: str, macros: dict):
         self.common_settings["req_file_path"] = path
         self.common_settings["req_file_macros"] = macros
 
@@ -390,6 +389,6 @@ def start_gui(*args, **kwargs):
     default_style_path = os.path.join(default_style_path, "qss/default.qss")
     app.setStyleSheet("file:///" + default_style_path)
 
-    gui = SnapshotGui(*args, **kwargs)
+    SnapshotGui(*args, **kwargs)
 
     sys.exit(app.exec_())

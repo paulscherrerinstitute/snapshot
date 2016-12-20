@@ -38,6 +38,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
 
         self.common_settings = common_settings
         self.snapshot = snapshot
+        self.file_path = None
 
         # Default saved file name: If req file name is PREFIX.req, then saved
         # file name is: PREFIX_YYMMDD_hhmmss (holds time info)
@@ -140,7 +141,6 @@ class SnapshotSaveWidget(QtGui.QWidget):
                                                             self.common_settings["save_file_prefix"] +
                                                             'latest' + self.save_file_sufix))
 
-
             if status == ActionStatus.no_conn:
                 # Prompt user and ask if he wants to save in force mode
                 msg = "Some PVs are not connected (see details). Do you want to save anyway?\n"
@@ -185,7 +185,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
         status_background = ""
         for pvname, sts in status.items():
             if sts == PvStatus.access_err:
-                error = not forced  #if here and not in force mode, then this is error state
+                error = not forced  # if here and not in force mode, then this is error state
                 msgs.append("WARNING: {}: Not saved (no connection or no read access)".format(pvname))
                 msg_times.append(time.time())
                 status_txt = "Save error"

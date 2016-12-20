@@ -1,5 +1,6 @@
 from snapshot.ca_core import Snapshot, ActionStatus, SnapshotReqFile
 
+
 def restore_done(status, forced):
     print('Restore finished [forced mode: {}]'.format(status, forced))
     for pvname, sts in status.items():
@@ -30,8 +31,6 @@ if sts == ActionStatus.no_conn:
     # Since we are in force mode, this case will not happen and is there only for demonstration.
     for pvname, pv_sts in pvs_sts.items():
         print('{}  -> {}'.format(pvname, pv_sts.name))
-
-
 
 print("------- Blocking restore -------")
 

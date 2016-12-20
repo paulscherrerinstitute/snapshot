@@ -54,7 +54,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         # - drop down to filter by compare status
         # - check box to select if showing pvs with incomplete data
 
-        ##### PV name filter
+        # #### PV name filter
         pv_filter_label = QtGui.QLabel("Filter:", self)
         pv_filter_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
 
@@ -98,24 +98,24 @@ class SnapshotCompareWidget(QtGui.QWidget):
         pv_filter_layout.addWidget(pv_filter_label)
         pv_filter_layout.addWidget(self.pv_filter_sel)
 
-        ##### Regex selector
+        # #### Regex selector
         self.regex = QtGui.QCheckBox("Regex", self)
         self.regex.stateChanged.connect(self._handle_regex_change)
 
-        ##### Selector for comparison filter
+        # #### Selector for comparison filter
         self.compare_filter_inp = QtGui.QComboBox(self)
         self.compare_filter_inp.addItems(["Show all", "Different only", "Equal only"])
 
         self.compare_filter_inp.currentIndexChanged.connect(self._proxy.set_eq_filter)
         self.compare_filter_inp.setMaximumWidth(200)
 
-        #### Show disconnected selector
+        # ### Show disconnected selector
         self.show_disconn_inp = QtGui.QCheckBox("Show disconnected PVs.", self)
         self.show_disconn_inp.setChecked(True)
         self.show_disconn_inp.stateChanged.connect(self._proxy.set_disconn_filter)
         self.show_disconn_inp.setMaximumWidth(500)
 
-        #### Put all filter selectors in one layout
+        # ### Put all filter selectors in one layout
         filter_layout = QtGui.QHBoxLayout()
         filter_layout.addLayout(pv_filter_layout)
         filter_layout.addWidget(self.regex)
@@ -302,6 +302,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self.snapshot = snapshot
         self._pvs_lines = dict()
         self._data = list()
+        self.file_compare_struct = dict()
         self._headers = ['PV', 'Current value', '']
 
     def get_pvname(self, idx: QtCore.QModelIndex):
@@ -410,6 +411,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         if pv_line in self._data:
             self.dataChanged.emit(self.createIndex(self._data.index(pv_line), 0),
                                   self.createIndex(self._data.index(pv_line), len(pv_line.data)))
+
     def headerData(self, section, orientation, role):
         if role == QtCore.Qt.DisplayRole:
             return self._headers[section]
@@ -453,13 +455,12 @@ class SnapshotPvTableLine(QtCore.QObject):
             self.conn = False
 
     def disconnect_callbacks(self):
-        '''
+        """
         Disconnect from SnapshotPv object. Should be called before removing line from model.
         :return:
-        '''
+        """
         self._pv_ref.remove_conn_callback(self._conn_clb_id)
         self._pv_ref.remove_callback(self._clb_id)
-
 
     def append_snap_value(self, value):
         if value is not None:
