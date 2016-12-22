@@ -140,7 +140,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
                     if reply != QtGui.QMessageBox.No:
                         # Force restore
-                        self.snapshot.restore_pvs(pvs_to_restore, callback=self.restore_done_callback, force=True)
+                        status, pvs_status = self.snapshot.restore_pvs(pvs_to_restore, callback=self.restore_done_callback, force=True)
 
                         # If here restore started successfully. Waiting for callbacks.
 
