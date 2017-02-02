@@ -240,11 +240,12 @@ class SnapshotPvTableView(QtGui.QTableView):
         """
         Force update of the view on any data change in the model. If self.viewport().update() is not called here
         the view is not updated if application window is not in focus.
-
+ 
         :param mode_idx:
         :param mode_idx1:
         :return:
         """
+        # consider if both lines are needed
         super().dataChanged(mode_idx, mode_idx1)
         self.viewport().update()
 
@@ -304,6 +305,11 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self._data = list()
         self.file_compare_struct = dict()
         self._headers = ['PV', 'Current value', '']
+        self._some_data_changed = False
+
+        self._timer = QtCore.QTimer()
+        self._timer.timeout.connect(self._push_data_to_view)
+        self._timer.start(200)
 
     def get_pvname(self, idx: QtCore.QModelIndex):
         return self.data(idx, QtCore.Qt.DisplayRole)
@@ -406,11 +412,19 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             return self._data[index.row()].data[index.column()].get('icon', None)
 
     def handle_pv_change(self, pv_line):
-        # This can happen during changing snapshot instance, when lines were already changed but there
-        # are still some signals for the old PV lines in the queue. Check if line still exists.
-        if pv_line in self._data:
-            self.dataChanged.emit(self.createIndex(self._data.index(pv_line), 0),
-                                  self.createIndex(self._data.index(pv_line), len(pv_line.data)))
+        # Indicate if some 
+        self._some_data_changed = True
+
+    def _push_data_to_view(self):
+        """
+        This function is called periodically by self._timer. It emits dataChanged() signal
+        which forces views to update the whole PV table.
+        """
+        if self._some_data_changed:
+            # Something changed. Update view.
+            self._some_data_changed = False
+            self.dataChanged.emit(self.createIndex(0, 0), self.createIndex(len(self._data)-1,
+                                  len(self._data[-1].data)-1))
 
     def headerData(self, section, orientation, role):
         if role == QtCore.Qt.DisplayRole:
