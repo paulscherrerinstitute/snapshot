@@ -25,7 +25,7 @@ class SnapshotGui(QtGui.QMainWindow):
     thread where core of the application is running
     """
 
-    def __init__(self, req_file_path: str = None, req_file_macros=None, save_dir: str = None, force: bool =False,
+    def __init__(self, req_file_path: str = None, req_file_macros=None, save_dir: str = None, force: bool = False,
                  default_labels: list = None, force_default_labels: bool = None, init_path: str = None,
                  config_path: str = None, parent=None):
         """
@@ -83,8 +83,8 @@ class SnapshotGui(QtGui.QMainWindow):
         self.common_settings["default_labels"] = list(set(default_labels +
                                                           (config.get('labels', dict()).get('labels', list()))))
 
-        self.common_settings["force_default_labels"] = config.get('labels', dict()).get('force-labels', False) or \
-                                                                  force_default_labels
+        self.common_settings["force_default_labels"] = config.get('labels', dict()).get('force-labels', False) \
+                                                       or force_default_labels
 
         # Predefined filters
         self.common_settings["predefined_filters"] = config.get('filters', dict())
@@ -101,9 +101,9 @@ class SnapshotGui(QtGui.QMainWindow):
                 macros_ok = False
 
         if req_file_path is None:
-                req_file_path = ''
+            req_file_path = ''
         if init_path is None:
-                init_path = ''
+            init_path = ''
 
         if not req_file_path or not macros_ok:
             configure_dialog = SnapshotConfigureDialog(self, init_path=os.path.join(init_path, req_file_path),

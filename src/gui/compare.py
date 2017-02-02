@@ -153,18 +153,18 @@ class SnapshotCompareWidget(QtGui.QWidget):
     def _create_name_filter(self, txt):
         if self.regex.isChecked():
             try:
-                filter = re.compile(txt)
+                srch_filter = re.compile(txt)
                 self.pv_filter_inp.setPalette(self._inp_palette_ok)
             except:
                 # Syntax error (happens a lot during typing an expression). In such cases make compiler which will
                 # not match any pv name
-                filter = re.compile("")
+                srch_filter = re.compile("")
                 self.pv_filter_inp.setPalette(self._inp_palette_err)
         else:
-            filter = txt
+            srch_filter = txt
             self.pv_filter_inp.setPalette(self._inp_palette_ok)
 
-        self._proxy.set_name_filter(filter)
+        self._proxy.set_name_filter(srch_filter)
 
     def new_selected_files(self, selected_files):
         self.model.clear_snap_files()
@@ -245,7 +245,7 @@ class SnapshotPvTableView(QtGui.QTableView):
         :param mode_idx1:
         :return:
         """
-        # consider if both lines are needed
+        
         super().dataChanged(mode_idx, mode_idx1)
         self.viewport().update()
 
@@ -254,6 +254,7 @@ class SnapshotPvTableView(QtGui.QTableView):
         self.set_snap_visualization()
 
     def set_default_visualization(self):
+        i=0
         for i in range(self.model().columnCount()):
             self.setColumnWidth(i, 200)
             self.horizontalHeader().setResizeMode(i, QtGui.QHeaderView.Interactive)
@@ -269,6 +270,7 @@ class SnapshotPvTableView(QtGui.QTableView):
         :return:
         """
         n_columns = self.model().columnCount()
+        i=0
         if n_columns > 3:
             self.setColumnWidth(2, 30)
             self.horizontalHeader().setResizeMode(2, QtGui.QHeaderView.Interactive)
@@ -295,7 +297,8 @@ class SnapshotPvTableView(QtGui.QTableView):
 class SnapshotPvTableModel(QtCore.QAbstractTableModel):
     """
     Model of the PV table. Handles adding and removing PVs (rows) and snapshot files (columns).
-    Each row (PV) is represented with SnapshotPvTableLine object.
+    Each row (PV) is represented with SnapshotPvTableLine object. It doesnt emmit dataChange() on each
+    PV change, but rather 5 times per second if some PVs have changed in this time. This increases performance.
     """
 
     def __init__(self, snapshot: Snapshot, parent=None):
@@ -332,7 +335,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             self._data[-1].data_changed.connect(self.handle_pv_change)
         self.endResetModel()
 
-    def add_snap_files(self, files: list):
+    def add_snap_files(self, files: dict):
         """
         Add 1 column for each file in the list
 
@@ -423,8 +426,8 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         if self._some_data_changed:
             # Something changed. Update view.
             self._some_data_changed = False
-            self.dataChanged.emit(self.createIndex(0, 0), self.createIndex(len(self._data)-1,
-                                  len(self._data[-1].data)-1))
+            self.dataChanged.emit(self.createIndex(0, 0), self.createIndex(len(self._data) - 1,
+                                  len(self._data[-1].data) - 1))
 
     def headerData(self, section, orientation, role):
         if role == QtCore.Qt.DisplayRole:
@@ -582,8 +585,8 @@ class SnapshotPvFilterProxyModel(QtGui.QSortFilterProxyModel):
         self._eq_filter = PvCompareFilter.show_all
         self._filtered_pvs = list()
 
-    def set_name_filter(self, filter):
-        self._name_filter = filter
+    def set_name_filter(self, srch_filter):
+        self._name_filter = srch_filter
         self.apply_filter()
 
     def set_eq_filter(self, mode):
