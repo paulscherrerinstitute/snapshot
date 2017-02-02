@@ -245,7 +245,7 @@ class SnapshotPvTableView(QtGui.QTableView):
         :param mode_idx1:
         :return:
         """
-        
+
         super().dataChanged(mode_idx, mode_idx1)
         self.viewport().update()
 
