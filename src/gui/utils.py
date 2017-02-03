@@ -14,7 +14,7 @@ class SnapshotConfigureDialog(QtGui.QDialog):
     """ Dialog window to select and apply file. """
     accepted = QtCore.pyqtSignal(str, dict)
 
-    def __init__(self, parent=None, init_path=None, init_macros=None,  **kw):
+    def __init__(self, parent=None, init_path=None, init_macros=None, **kw):
         QtGui.QDialog.__init__(self, parent, **kw)
         layout = QtGui.QVBoxLayout()
         layout.setMargin(10)
@@ -364,8 +364,8 @@ class SnapshotKeywordSelectorWidget(QtGui.QComboBox):
         keyword = keyword.strip()
 
         # Skip if already selected or not in predefined labels if defaults_only (force=True overrides defaults_only)
-        if keyword and (keyword not in self.selectedKeywords) and (not self.defaults_only or force or self.defaults_only
-        and keyword in default_labels):
+        if keyword and (keyword not in self.selectedKeywords) and (
+                not self.defaults_only or force or self.defaults_only and keyword in default_labels):
             key_widget = SnapshotKeywordWidget(keyword, self)
             key_widget.delete.connect(self.remove_keyword)
             self.keywordWidgets[keyword] = key_widget

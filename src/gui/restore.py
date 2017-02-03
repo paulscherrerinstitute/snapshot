@@ -140,7 +140,8 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
                     if reply != QtGui.QMessageBox.No:
                         # Force restore
-                        status, pvs_status = self.snapshot.restore_pvs(pvs_to_restore, callback=self.restore_done_callback, force=True)
+                        status, pvs_status = self.snapshot.restore_pvs(pvs_to_restore,
+                                                                       callback=self.restore_done_callback, force=True)
 
                         # If here restore started successfully. Waiting for callbacks.
 
@@ -162,7 +163,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                     self.restore_all_button.setEnabled(True)
                     self.restore_button.setEnabled(True)
 
-                # else: ActionStatus.ok  --> waiting for callbacks
+                    # else: ActionStatus.ok  --> waiting for callbacks
 
             else:
                 # Problem reading data from file
@@ -400,12 +401,12 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
             meta_data = modified_data["meta_data"]
             labels = meta_data.get("labels", list())
             comment = meta_data.get("comment", "")
-            time = datetime.datetime.fromtimestamp(modified_data.get("modif_time", 0)).strftime('%Y/%m/%d %H:%M:%S')
+            time_ = datetime.datetime.fromtimestamp(modified_data.get("modif_time", 0)).strftime('%Y/%m/%d %H:%M:%S')
 
             # check if already on list (was just modified) and modify file
             # selector
             if modified_file not in self.file_list:
-                selector_item = QtGui.QTreeWidgetItem([time, modified_file, comment, " ".join(labels)])
+                selector_item = QtGui.QTreeWidgetItem([time_, modified_file, comment, " ".join(labels)])
                 self.file_selector.addTopLevelItem(selector_item)
                 self.file_list[modified_file] = modified_data
                 self.file_list[modified_file]["file_selector"] = selector_item
@@ -450,7 +451,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
 
                 # Modify visual representation
                 item_to_modify = modified_file_ref["file_selector"]
-                item_to_modify.setText(0, time)
+                item_to_modify.setText(0, time_)
                 item_to_modify.setText(2, comment)
                 item_to_modify.setText(3, " ".join(labels))
         self.filter_input.update_labels()

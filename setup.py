@@ -7,7 +7,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 README = open(os.path.join(here, 'Readme.md')).read()
 
 setup(name='snapshot',
-      version='1.5.5',
+      version='1.5.6',
       description="Tool for saving and restoring snapshots of EPICS channels",
       long_description=README,
       author='Paul Scherrer Institute',

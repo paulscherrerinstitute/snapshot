@@ -14,10 +14,11 @@ from enum import Enum
 from epics import *
 
 ca.AUTO_CLEANUP = True  # For pyepics versions older than 3.2.4, this was set to True only for
+
+
 # python 2 but not for python 3, which resulted in errors when closing
 # the application. If true, ca.finalize_libca() is called when app is
 # closed
-
 
 
 class PvStatus(Enum):
@@ -208,7 +209,7 @@ class SnapshotPv(PV):
                 value2 = None
 
             return numpy.array_equal(value1, value2)
-            
+
         else:
             return value1 == value2
 
@@ -216,13 +217,14 @@ class SnapshotPv(PV):
         """
         Set connection callback.
 
+        :param callback:
         :return: Connection callback index
         """
         if self.conn_callbacks:
             idx = 1 + max(self.conn_callbacks.keys())
         else:
             idx = 0
-        
+
         self.conn_callbacks[idx] = callback
         return idx
 
@@ -238,6 +240,7 @@ class SnapshotPv(PV):
     def remove_conn_callback(self, idx):
         """
         Remove connection callback.
+        :param idx: callback index
         :return:
         """
         if idx in self.conn_callbacks:
@@ -289,7 +292,6 @@ class Snapshot(object):
 
         :param req_file_path: Path to the request file.
         :param macros: macros to be substituted in request file (can be dict {'A': 'B', 'C': 'D'} or str "A=B,C=D").
-        :param snap_file_dir: Directory with snapshot files (if snap file is relative, it will be relative to this dir).
 
         :return:
         """
@@ -315,7 +317,7 @@ class Snapshot(object):
         self.restored_pvs_list = list()
         self.restore_callback = None
 
-        req_f = SnapshotReqFile(self.req_file_path, changeable_macros=macros.keys())
+        req_f = SnapshotReqFile(self.req_file_path, changeable_macros=list(macros.keys()))
         pvs = req_f.read()
 
         self.add_pvs(pvs)
@@ -673,7 +675,7 @@ class Snapshot(object):
                 line = line[1:]
                 try:
                     meta_data = json.loads(line)
-                except json.decoder.JSONDecodeError:
+                except json.JSONDecodeError:
                     # Problem reading metadata
                     err.append('Meta data could not be decoded. Must be in JSON format.')
                 meta_loaded = True
@@ -687,7 +689,7 @@ class Snapshot(object):
                     # of proper type
                     try:
                         pv_value = json.loads(pv_value_str)
-                    except json.decoder.JSONDecodeError:
+                    except json.JSONDecodeError:
                         pv_value = None
                         err.append('Value of \'{}\' cannot be decoded. Will be ignored.'.format(pvname))
 
@@ -765,18 +767,18 @@ class SnapshotReqFile(object):
 
             # skip comments and empty lines
             if not self._curr_line.startswith(('#', "data{", "}", "!")) and self._curr_line.strip():
-                    # First replace macros, then check if any unreplaced macros which are not "global"
-                    pvname = SnapshotPv.macros_substitution((self._curr_line.rstrip().split(',', maxsplit=1)[0]),
-                                                            self._macros)
+                # First replace macros, then check if any unreplaced macros which are not "global"
+                pvname = SnapshotPv.macros_substitution((self._curr_line.rstrip().split(',', maxsplit=1)[0]),
+                                                        self._macros)
 
-                    try:
-                        # Check if any unreplaced macros
-                        self._validate_macros_in_txt(pvname)
-                    except MacroError as e:
-                        f.close()
-                        raise ReqParseError(self._format_err((self._curr_line_n, self._curr_line), e))
+                try:
+                    # Check if any unreplaced macros
+                    self._validate_macros_in_txt(pvname)
+                except MacroError as e:
+                    f.close()
+                    raise ReqParseError(self._format_err((self._curr_line_n, self._curr_line), e))
 
-                    pvs.append(pvname)
+                pvs.append(pvname)
 
             elif self._curr_line.startswith('!'):
                 # Calling another req file
