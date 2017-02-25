@@ -58,10 +58,12 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.restore_button = QtGui.QPushButton("Restore Filtered", self)
         self.restore_button.clicked.connect(self.start_restore_filtered)
         self.restore_button.setToolTip("Restores only currently filtered PVs from the selected .snap file.")
+        self.restore_button.setEnabled(False)
 
         self.restore_all_button = QtGui.QPushButton("Restore All", self)
         self.restore_all_button.clicked.connect(self.start_restore_all)
         self.restore_all_button.setToolTip("Restores all PVs from the selected .snap file.")
+        self.restore_all_button.setEnabled(False)
 
         btn_layout = QtGui.QHBoxLayout()
         btn_layout.addWidget(self.restore_all_button)
@@ -91,16 +93,10 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         if filtered_n == len(self.snapshot.pvs):  # all pvs selected
             self.do_restore()  # This way functions below skip unnecessary checks
         elif filtered_n:
-            self.do_restore(filtered_only=True)
+            self.do_restore(self.filtered_pvs)
             # Do not start a restore if nothing to restore
 
-    def do_restore(self, filtered_only=False):
-        # Check if restore can be done (values loaded to snapshot).
-        if filtered_only:
-            filtered = self.filtered_pvs
-        else:
-            filtered = None
-
+    def do_restore(self, pvs_list=None):
         # Restore can be done only if specific file is selected
         if len(self.file_selector.selected_files) == 1:
             file_data = self.file_selector.file_list.get(self.file_selector.selected_files[0])
@@ -111,9 +107,9 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                 pvs_to_restore = copy.copy(file_data.get("pvs_list", None))  # is actually a dict
                 macros = self.snapshot.macros
 
-                if filtered is not None:
+                if pvs_list is not None:
                     for pvname in pvs_in_file.keys():
-                        if SnapshotPv.macros_substitution(pvname, macros) not in filtered:
+                        if SnapshotPv.macros_substitution(pvname, macros) not in pvs_list:
                             pvs_to_restore.pop(pvname, None)  # remove unfiltered pvs
 
                 force = self.common_settings["force"]
@@ -223,9 +219,13 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         :param selected_files: list of selected file names
         :return:
         """
+        if len(selected_files) == 1:
+            self.restore_all_button.setEnabled(True)
+            self.restore_button.setEnabled(True)
+        else:
+            self.restore_all_button.setEnabled(False)
+            self.restore_button.setEnabled(False)
 
-        # Prepare for restore if one specific file is selected, or clear
-        # restore data if none specific file is selected.
         selected_data = dict()
         for file_name in selected_files:
             file_data = self.file_selector.file_list.get(file_name, None)
@@ -516,9 +516,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
     def delete_files(self):
         if self.selected_files:
             msg = "Do you want to delete selected files?"
-            reply = QtGui.QMessageBox.question(self, 'Message', msg,
-                                               QtGui.QMessageBox.Yes,
-                                               QtGui.QMessageBox.No)
+            reply = QtGui.QMessageBox.question(self, 'Message', msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
             if reply == QtGui.QMessageBox.Yes:
                 for selected_file in self.selected_files:
                     try:
