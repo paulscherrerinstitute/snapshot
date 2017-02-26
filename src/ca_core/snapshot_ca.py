@@ -167,6 +167,10 @@ class SnapshotPv(PV):
             elif numpy.size(value) == 1:
                 # make scalars as arrays
                 return json.dumps(numpy.asarray([value]).tolist())
+
+            elif not isinstance(value, list):
+                return json.dumps(value.tolist())
+
         else:
             return json.dumps(value)
 
