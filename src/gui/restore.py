@@ -319,11 +319,6 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         layout.addWidget(self.filter_input)
         layout.addWidget(self.file_selector)
 
-        # Context menu
-        self.menu = QtGui.QMenu(self)
-        self.menu.addAction("Delete selected files", self.delete_files)
-        self.menu.addAction("Edit file meta-data", self.update_file_metadata)
-
     def handle_new_snapshot_instance(self, snapshot):
         self.clear_file_selector()
         self.filter_input.clear()
@@ -507,10 +502,11 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                     not (name_status and keys_status and comment_status))
 
     def open_menu(self, point):
-        self.menu.show()
-        pos = self.file_selector.mapToGlobal(point)
-        pos += QtCore.QPoint(0, self.menu.sizeHint().height())
-        self.menu.move(pos)
+                # Context menu
+        menu = QtGui.QMenu(self)
+        menu.addAction("Delete selected files", self.delete_files)
+        menu.addAction("Edit file meta-data", self.update_file_metadata)
+        menu.exec(QtGui.QCursor.pos())
 
     def select_files(self):
         # Pre-process selected items, to a list of files
