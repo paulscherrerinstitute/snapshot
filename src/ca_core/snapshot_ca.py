@@ -11,15 +11,137 @@ import re
 import os
 from enum import Enum
 
-from epics import *
+from epics import PV, ca, dbr
 
 ca.AUTO_CLEANUP = True  # For pyepics versions older than 3.2.4, this was set to True only for
+                        # python 2 but not for python 3, which resulted in errors when closing
+                        # the application. If true, ca.finalize_libca() is called when app is
+                        # closed
 
 
-# python 2 but not for python 3, which resulted in errors when closing
-# the application. If true, ca.finalize_libca() is called when app is
-# closed
 
+
+# Following code is copy/paste of original ca.put function (version 3.2.4) with some bug fixes needed for
+# handling waveform of strings.
+import time
+from epics.utils import NULLCHAR, is_string, ascii_string
+
+def ca_put(chid, value, wait=False, timeout=30, callback=None,
+        callback_data=None):
+    """sets the Channel to a value, with options to either wait
+    (block) for the processing to complete, or to execute a
+    supplied callback function when the process has completed.
+
+
+    Parameters
+    ----------
+    chid :  ctypes.c_long
+        Channel ID
+    wait : bool
+        whether to wait for processing to complete (or time-out)
+        before returning.
+    timeout : float
+        maximum time to wait for processing to complete before returning anyway.
+    callback : ``None`` of callable
+        user-supplied function to run when processing has completed.
+    callback_data :  object
+        extra data to pass on to a user-supplied callback function.
+
+    Returns
+    -------
+    status : int
+         1  for success, -1 on time-out
+
+    Notes
+    -----
+    1. Specifying a callback will override setting `wait=True`.
+
+    2. A put-callback function will be called with keyword arguments
+        pvname=pvname, data=callback_data
+
+    """
+    ftype = ca.field_type(chid)
+    count = nativecount = ca.element_count(chid)
+    if count > 1:
+        # check that data for array PVS is a list, array, or string
+        try:
+            count = min(len(value), count)
+            if count == 0:
+                count = nativecount
+        except TypeError:
+            ca.write('''PyEpics Warning:
+     value put() to array PV must be an array or sequence''')
+    if ftype == dbr.CHAR and isinstance(value, str):
+        count += 1
+
+    if is_string(value):
+        if value == '': value = '\x00'
+        value = ascii_string(value)
+
+    data  = (count*dbr.Map[ftype])()
+    if ftype == dbr.STRING:
+        if count == 1 and nativecount == 1: # This has ben modified. String record only if nativecount is also 1
+            data[0].value = value
+        else:
+            for elem in range(min(count, len(value))):
+                data[elem].value = value[elem]
+    elif nativecount == 1:
+        if ftype == dbr.CHAR:
+            if isinstance(value, str):
+                value = [ord(i) for i in ("%s%s" % (value, NULLCHAR))]
+            else:
+                data[0] = value
+        else:
+            try:
+                data[0] = value
+            except TypeError:
+                data[0] = type(data[0])(value)
+            except:
+                errmsg = "cannot put value '%s' to PV of type '%s'"
+                tname  = dbr.Name(ftype).lower()
+                raise ca.ChannelAccessException(errmsg % (repr(value), tname))
+
+    else:
+        if ftype == dbr.CHAR and isinstance(value, str):
+            value = [ord(i) for i in ("%s%s" % (value, NULLCHAR))]
+        try:
+            ndata, nuser = len(data), len(value)
+            if nuser > ndata:
+                value = value[:ndata]
+            data[:nuser] = list(value)
+
+        except (ValueError, IndexError):
+            errmsg = "cannot put array data to PV of type '%s'"
+            raise ca.ChannelAccessException(errmsg % (repr(value)))
+
+    # simple put, without wait or callback
+    if not (wait or hasattr(callback, '__call__')):
+        ret =  ca.libca.ca_array_put(ftype, count, chid, data)
+        ca.PySEVCHK('put', ret)
+        ca.poll()
+        return ret
+    # wait with callback (or put_complete)
+    pvname = ca.name(chid)
+    ca._put_done[pvname] = (False, callback, callback_data)
+    start_time = time.time()
+
+    ret = ca.libca.ca_array_put_callback(ftype, count, chid,
+                                      data, ca._CB_PUTWAIT, 0)
+    ca.PySEVCHK('put', ret)
+    ca.poll(evt=1.e-4, iot=0.05)
+    if wait:
+        while not (ca._put_done[pvname][0] or
+                   (time.time()-start_time) > timeout):
+            ca.poll()
+        if not ca._put_done[pvname][0]:
+            ret = -ret
+    return ret
+
+
+ca.put = ca_put
+
+
+## Real code starts here
 
 class PvStatus(Enum):
     """
@@ -28,11 +150,13 @@ class PvStatus(Enum):
         ok: Action succeeded.
         no_value: Returned if value (save_pv) or desired value (restore_pv) for action is not defined.
         equal: Returned if restore value is equal to current PV value (no need to restore).
+        type_err: Returned if type of restore value is wrong
     """
     access_err = 0
     ok = 1
     no_value = 2
     equal = 3
+    type_err = 4
 
 
 class ActionStatus(Enum):
@@ -128,9 +252,20 @@ class SnapshotPv(PV):
                         # pyepics needs value as bytes not as string
                         value = str.encode(value)
 
-                    self.put(value, wait=False,
-                             callback=callback,
-                             callback_data={"status": PvStatus.ok})
+                    elif len(value) and isinstance(value[0], str):
+                        # Waveform of stirngs. Bytes expected to be put.
+                        n_value = list()
+                        for item in value:
+                            n_value.append(item.encode())
+
+                        value = n_value
+
+                    try:
+                        self.put(value, wait=False, callback=callback, callback_data={"status": PvStatus.ok})
+
+                    except TypeError as e:
+                        callback(pvname=self.pvname, status=PvStatus.type_err)
+
                 elif callback:
                     # No need to be restored.
                     callback(pvname=self.pvname, status=PvStatus.equal)
@@ -171,6 +306,10 @@ class SnapshotPv(PV):
             elif not isinstance(value, list):
                 return json.dumps(value.tolist())
 
+            else:
+                # Is list of string. This is returned by pyepics when using waveform of string
+                return json.dumps(value)
+
         else:
             return json.dumps(value)
 
@@ -198,9 +337,9 @@ class SnapshotPv(PV):
 
         if is_array:
             # Because of how pyepics works, array value can also be sent as scalar (nord=1) and
-            # numpy.size() will return 1 
+            # numpy.size() will return 1
             # or as (type: epics.dbr.c_double_Array_0) if array is empty --> numpy.size() will
-            # return 0 
+            # return 0
 
             if value1 is not None and not isinstance(value1, numpy.ndarray) and numpy.size(value1) == 1:
                 value1 = numpy.array([value1])
