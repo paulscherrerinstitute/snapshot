@@ -18,6 +18,19 @@ ca.AUTO_CLEANUP = True  # For pyepics versions older than 3.2.4, this was set to
                         # the application. If true, ca.finalize_libca() is called when app is
                         # closed
 
+
+class _bytesSnap(bytes):
+    """
+    Because of bug in pyepics, ca.put() doesn't work when a single element is put to waveform of stings.
+    Bug is due to a ca.put() function uses len(value) to determine weather it is an array or a single value, but
+    len(bytes) gives you a number of characters len(b'abc') --> 3.
+    To work properly with pyepics len should return 1 indicating there is only one element.
+    """
+
+    def __len__(self):
+        return 1
+
+
 class PvStatus(Enum):
     """
     Returned by SnapshotPv on save_pv() and restore_pv() methods. Possible states:
@@ -127,13 +140,18 @@ class SnapshotPv(PV):
                         # pyepics needs value as bytes not as string
                         value = str.encode(value)
 
-                    elif len(value) and isinstance(value[0], str):
-                        # Waveform of stirngs. Bytes expected to be put.
+                    elif self.is_array and len(value) and isinstance(value[0], str):
+                        # Waveform of strings. Bytes expected to be put.
                         n_value = list()
                         for item in value:
                             n_value.append(item.encode())
 
-                        value = n_value
+                        if len(n_value) == 1:
+                            # Special case to overcome the pypeics bug. Use _bytesSnap instead of bytes, since
+                            # len(_bytesSnap('abcd')) is always 1.
+                            value = _bytesSnap(n_value[0])
+                        else:
+                            value = n_value
 
                     try:
                         self.put(value, wait=False, callback=callback, callback_data={"status": PvStatus.ok})
