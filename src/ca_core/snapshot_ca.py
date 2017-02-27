@@ -307,9 +307,12 @@ class SnapshotPv(PV):
                 return json.dumps(value.tolist())
 
             else:
-                # Is list of string. This is returned by pyepics when using waveform of string
+                # Is list of strings. This is returned by pyepics when using waveform of string
                 return json.dumps(value)
 
+        elif isinstance(value, str):
+            # visualize without ""
+            return value
         else:
             return json.dumps(value)
 
