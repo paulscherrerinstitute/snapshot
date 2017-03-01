@@ -24,12 +24,12 @@ class PvCompareFilter(Enum):
 
 class SnapshotCompareWidget(QtGui.QWidget):
     pvs_filtered = QtCore.pyqtSignal(list)
+    restore_requested = QtCore.pyqtSignal(list)
 
     def __init__(self, snapshot, common_settings, parent=None, **kw):
         super().__init__(parent, **kw)
         self.snapshot = snapshot
         self.common_settings = common_settings
-        self.file_compare_struct = dict()
 
         # ----------- PV Table -------------
         # PV table consist of:
@@ -39,6 +39,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
 
         self.view = SnapshotPvTableView(self)
         self.view.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        self.view.restore_requested.connect(self._handle_restore_request)
 
         self.model = SnapshotPvTableModel(snapshot, self)
         self._proxy = SnapshotPvFilterProxyModel(self)
@@ -175,9 +176,13 @@ class SnapshotCompareWidget(QtGui.QWidget):
 
     def handle_new_snapshot_instance(self, snapshot):
         self.snapshot = snapshot
+        self.model.snapshot = snapshot
         self.model.clear_pvs()
         self.model.add_pvs(snapshot.pvs.values())
         self.view.sortByColumn(0, Qt.AscendingOrder)  # default sorting
+
+    def _handle_restore_request(self, pvs_list):
+        self.restore_requested.emit(pvs_list)
 
     def _predefined_filter_selected(self, idx):
         txt = self.pv_filter_inp.text()
@@ -204,6 +209,8 @@ class SnapshotPvTableView(QtGui.QTableView):
     Default visualization of the PV model.
     """
 
+    restore_requested = QtCore.pyqtSignal(list)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         # -------- Visualization ----------
@@ -216,13 +223,13 @@ class SnapshotPvTableView(QtGui.QTableView):
         self.horizontalHeader().setDefaultSectionSize(200)
 
         self.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows)
-        self.setSelectionMode(QtGui.QAbstractItemView.SingleSelection)
 
         # ---------- Context menu --------
         self.customContextMenuRequested.connect(self._open_menu)
-        self.menu = QtGui.QMenu(self)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.menu.addAction("Copy PV name", self._copy_pv_name)
+
+        # ------------------------------
+        self._menu_click_pos = None
 
     def setModel(self, model):
         """
@@ -253,8 +260,19 @@ class SnapshotPvTableView(QtGui.QTableView):
         super().reset()
         self.set_snap_visualization()
 
+    def _apply_selection_to_full_row(self):
+        rows = list()
+        selection = QtGui.QItemSelection()
+        for idx in self.selectedIndexes():
+            if idx.row() not in rows:
+                rows.append(idx.row())
+                selection.append(QtGui.QItemSelectionRange(idx))
+
+        self.selectionModel().select(selection,
+                                     QtGui.QItemSelectionModel.Rows | QtGui.QItemSelectionModel.ClearAndSelect)
+
     def set_default_visualization(self):
-        i=0
+        i = 0
         for i in range(self.model().columnCount()):
             self.setColumnWidth(i, 200)
             self.horizontalHeader().setResizeMode(i, QtGui.QHeaderView.Interactive)
@@ -264,13 +282,15 @@ class SnapshotPvTableView(QtGui.QTableView):
         self.setColumnWidth(1, 200)
         self.setColumnWidth(2, 30)
 
+        self._apply_selection_to_full_row()
+
     def set_snap_visualization(self):
         """
         Whenever the view is updated with new columns with snap values to 200, and extend last one
         :return:
         """
         n_columns = self.model().columnCount()
-        i=0
+        i = 0
         if n_columns > 3:
             self.setColumnWidth(2, 30)
             self.horizontalHeader().setResizeMode(2, QtGui.QHeaderView.Interactive)
@@ -282,16 +302,46 @@ class SnapshotPvTableView(QtGui.QTableView):
 
         self.horizontalHeader().setResizeMode(i, QtGui.QHeaderView.Stretch)
 
+        self._apply_selection_to_full_row()
+
     def _open_menu(self, point):
-        self.menu.show()
-        pos = self.mapToGlobal(point)
-        pos += QtCore.QPoint(0, self.menu.sizeHint().height())
-        self.menu.move(pos)
+        selected_rows = self.selectionModel().selectedRows()
+        menu = QtGui.QMenu(self)
+
+        if selected_rows:
+            menu.addAction("Copy PV name", self._copy_pv_name)
+            if len(selected_rows) == 1 and len(self.model().sourceModel().get_snap_file_names()) == 1:
+                    menu.addAction("Restore selected PV", self._restore_selected_pvs)
+
+            elif len(self.model().sourceModel().get_snap_file_names()) == 1:
+                menu.addAction("Restore selected PVs", self._restore_selected_pvs)
+
+        self._menu_click_pos = point
+        menu.exec(QtGui.QCursor.pos())
+
+    def _restore_selected_pvs(self):
+        pvs = list()
+        for idx in self.selectedIndexes():
+            pvname = self._get_pvname_with_selection_model_idx(idx)
+
+            if pvname not in pvs:
+                pvs.append(pvname)
+
+        # Pass restore request to main widget (window). It will use an existing mechanism in restore widget.
+        # This way all buttons, statuses etc are handled same way as with "normal" restore.
+        self.restore_requested.emit(pvs)
 
     def _copy_pv_name(self):
         cb = QtGui.QApplication.clipboard()
         cb.clear(mode=cb.Clipboard)
-        cb.setText(self.model().sourceModel().get_pvname(self.selectedIndexes()[0]), mode=cb.Clipboard)
+        idx = self.indexAt(self._menu_click_pos)
+        cb.setText(self._get_pvname_with_selection_model_idx(idx), mode=cb.Clipboard)
+
+    def _get_pvname_with_selection_model_idx(self, idx: QtCore.QModelIndex):
+        # Map index from selection model to original model
+        # Access original model through proxy model and get pv name.
+        # Doing it this way is safer than just reading row content, since in future visualization can change.
+        return self.model().sourceModel().get_pvname(self.selectionModel().model().mapToSource(idx).row())
 
 
 class SnapshotPvTableModel(QtCore.QAbstractTableModel):
@@ -306,19 +356,22 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self.snapshot = snapshot
         self._pvs_lines = dict()
         self._data = list()
-        self.file_compare_struct = dict()
         self._headers = ['PV', 'Current value', '']
         self._some_data_changed = False
 
         self._timer = QtCore.QTimer()
         self._timer.timeout.connect(self._push_data_to_view)
         self._timer.start(200)
+        self._file_names = list()
 
-    def get_pvname(self, idx: QtCore.QModelIndex):
-        return self.data(idx, QtCore.Qt.DisplayRole)
+    def get_snap_file_names(self):
+        return self._file_names
+
+    def get_pvname(self, line: int):
+        return self.get_pv_line_model(line).pvname
 
     def get_pv_line_model(self, line: int):
-        return self._pvs_lines.get(self.get_pvname(self.createIndex(line, 0)), None)
+        return self._pvs_lines.get(self.data(self.createIndex(line, 0), QtCore.Qt.DisplayRole), None)
 
     def add_pvs(self, pvs: list):
         """
@@ -342,8 +395,8 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         :param files: dict of files with their data
         :return:
         """
+        self._file_names += list(files.keys())
         self.beginInsertColumns(QtCore.QModelIndex(), 3, len(files) + 2)
-        self.file_compare_struct = dict()
         for file_name, file_data in files.items():
             pvs_list_full_names = self._replace_macros_on_file_data(file_data)
 
@@ -357,6 +410,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self.insertColumns(1, 1, QtCore.QModelIndex())
 
     def clear_snap_files(self):
+        self._file_names = list()
         self.beginRemoveColumns(QtCore.QModelIndex(), 3, self.columnCount(self.createIndex(-1, -1)) - 1)
         # remove all snap files
         for pvname, pv_line in self._pvs_lines.items():  # Go through all existing pv lines
@@ -600,7 +654,7 @@ class SnapshotPvFilterProxyModel(QtGui.QSortFilterProxyModel):
     def apply_filter(self):
         # during invalidateFilter(), filterAcceptsRow() is called for each row
         self._filtered_pvs = list()
-        self.invalidateFilter()
+        self.invalidate()
         self.filtered.emit(self._filtered_pvs)
 
     def filterAcceptsRow(self, idx: int, source_parent: QtCore.QModelIndex):

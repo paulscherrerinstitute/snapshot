@@ -177,6 +177,7 @@ class SnapshotGui(QtGui.QMainWindow):
                                                     self.common_settings, self)
 
         self.compare_widget.pvs_filtered.connect(self.handle_pvs_filtered)
+        self.compare_widget.restore_requested.connect(self._handle_restore_request)
 
         self.save_widget = SnapshotSaveWidget(self.snapshot,
                                               self.common_settings, self)
@@ -290,6 +291,9 @@ class SnapshotGui(QtGui.QMainWindow):
         # selected_files is a dict() with file names as keywords and
         # dict() of pv data as value
         self.compare_widget.new_selected_files(selected_files)
+
+    def _handle_restore_request(self, pvs_list):
+        self.restore_widget.do_restore(pvs_list)
 
     def open_settings(self):
         settings_window = SnapshotSettingsDialog(self.common_settings, self)  # Destroyed when closed

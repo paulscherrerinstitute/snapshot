@@ -9,16 +9,27 @@ import numpy
 import json
 import re
 import os
+import time
 from enum import Enum
 
-from epics import *
+from epics import PV, ca, dbr
 
 ca.AUTO_CLEANUP = True  # For pyepics versions older than 3.2.4, this was set to True only for
+                        # python 2 but not for python 3, which resulted in errors when closing
+                        # the application. If true, ca.finalize_libca() is called when app is
+                        # closed
 
 
-# python 2 but not for python 3, which resulted in errors when closing
-# the application. If true, ca.finalize_libca() is called when app is
-# closed
+class _bytesSnap(bytes):
+    """
+    Because of bug in pyepics, ca.put() doesn't work when a single element is put to waveform of stings.
+    Bug is due to a ca.put() function uses len(value) to determine weather it is an array or a single value, but
+    len(bytes) gives you a number of characters len(b'abc') --> 3.
+    To work properly with pyepics len should return 1 indicating there is only one element.
+    """
+
+    def __len__(self):
+        return 1
 
 
 class PvStatus(Enum):
@@ -28,11 +39,13 @@ class PvStatus(Enum):
         ok: Action succeeded.
         no_value: Returned if value (save_pv) or desired value (restore_pv) for action is not defined.
         equal: Returned if restore value is equal to current PV value (no need to restore).
+        type_err: Returned if type of restore value is wrong
     """
     access_err = 0
     ok = 1
     no_value = 2
     equal = 3
+    type_err = 4
 
 
 class ActionStatus(Enum):
@@ -128,9 +141,25 @@ class SnapshotPv(PV):
                         # pyepics needs value as bytes not as string
                         value = str.encode(value)
 
-                    self.put(value, wait=False,
-                             callback=callback,
-                             callback_data={"status": PvStatus.ok})
+                    elif self.is_array and len(value) and isinstance(value[0], str):
+                        # Waveform of strings. Bytes expected to be put.
+                        n_value = list()
+                        for item in value:
+                            n_value.append(item.encode())
+
+                        if len(n_value) == 1:
+                            # Special case to overcome the pypeics bug. Use _bytesSnap instead of bytes, since
+                            # len(_bytesSnap('abcd')) is always 1.
+                            value = _bytesSnap(n_value[0])
+                        else:
+                            value = n_value
+
+                    try:
+                        self.put(value, wait=False, callback=callback, callback_data={"status": PvStatus.ok})
+
+                    except TypeError as e:
+                        callback(pvname=self.pvname, status=PvStatus.type_err)
+
                 elif callback:
                     # No need to be restored.
                     callback(pvname=self.pvname, status=PvStatus.equal)
@@ -167,6 +196,17 @@ class SnapshotPv(PV):
             elif numpy.size(value) == 1:
                 # make scalars as arrays
                 return json.dumps(numpy.asarray([value]).tolist())
+
+            elif not isinstance(value, list):
+                return json.dumps(value.tolist())
+
+            else:
+                # Is list of strings. This is returned by pyepics when using waveform of string
+                return json.dumps(value)
+
+        elif isinstance(value, str):
+            # visualize without ""
+            return value
         else:
             return json.dumps(value)
 
@@ -194,9 +234,9 @@ class SnapshotPv(PV):
 
         if is_array:
             # Because of how pyepics works, array value can also be sent as scalar (nord=1) and
-            # numpy.size() will return 1 
+            # numpy.size() will return 1
             # or as (type: epics.dbr.c_double_Array_0) if array is empty --> numpy.size() will
-            # return 0 
+            # return 0
 
             if value1 is not None and not isinstance(value1, numpy.ndarray) and numpy.size(value1) == 1:
                 value1 = numpy.array([value1])
