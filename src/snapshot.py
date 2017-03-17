@@ -28,7 +28,7 @@ def _support_old_args(args_replacements):
 
 def save(args):
     from .cmd import save
-    save(args.FILE, args.out, args.macro, args.force, args.timeout)
+    save(args.FILE, args.out, args.macro, args.force, args.timeout, args.labels, args.comment)
 
 
 def restore(args):
@@ -75,6 +75,9 @@ def main():
     save_pars.add_argument('-o', '--out', default='.', help="Output path/file.")
     save_pars.add_argument('-f', '--force',
                            help="force save in case of disconnected PVs after timeout", action='store_true')
+    save_pars.add_argument('--labels', default='',
+                            help="list of comma separated labels e.g.: \"label_1,label_2\"")
+    save_pars.add_argument('--comment', default='', help="Comment")
     save_pars.add_argument('--timeout', default=10, type=int, help='max time waiting for PVs to be connected')
 
     # Restore

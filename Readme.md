@@ -70,6 +70,8 @@ optional arguments:
                         macros for request file e.g.: "SYS=TEST,DEV=D1"
   -o OUT, --out OUT     Output path/file.
   -f, --force           force save in case of disconnected PVs after timeout
+  --labels LABELS       list of comma separated labels e.g.: "label_1,label_2"
+  --comment COMMENT     Comment
   --timeout TIMEOUT     max time waiting for PVs to be connected
 ```
 

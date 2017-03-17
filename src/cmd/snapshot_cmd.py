@@ -7,11 +7,19 @@ import time
 from ..ca_core import PvStatus, ActionStatus, Snapshot, SnapshotError
 
 
-def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10):
+def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10, labels_str=None, comment=None):
     if os.path.isdir(save_file_path):
         save_file_path += '/{}_{}.snap'.format(os.path.splitext(os.path.basename(req_file_path))[0],
                                                datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M%S'))
-
+    labels = list()
+    if labels_str.strip():
+        list_labels = labels_str.split(',')
+        for label in list_labels:
+            label = label.strip()
+            label = label.replace(' ', '_')
+            if label:
+                labels.append(label)
+    
     logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
     logging.info('Start saving the snapshot.')
     if force:
@@ -28,7 +36,7 @@ def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10
     while snapshot.get_disconnected_pvs_names() and time.time() < end_time:
         time.sleep(0.2)
 
-    status, pv_status = snapshot.save_pvs(save_file_path, force)
+    status, pv_status = snapshot.save_pvs(save_file_path, force=force, labels=labels, comment=comment)
 
     if status != ActionStatus.ok:
         for pv_name, status in pv_status.items():

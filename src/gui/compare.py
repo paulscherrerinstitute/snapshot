@@ -170,9 +170,11 @@ class SnapshotCompareWidget(QtGui.QWidget):
     def new_selected_files(self, selected_files):
         self.model.clear_snap_files()
         self.model.add_snap_files(selected_files)
+        self._proxy.apply_filter()
 
     def update_shown_files(self, updated_files):
         self.model.update_snap_files(updated_files)
+        self._proxy.apply_filter()
 
     def handle_new_snapshot_instance(self, snapshot):
         self.snapshot = snapshot
@@ -469,7 +471,6 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             return self._data[index.row()].data[index.column()].get('icon', None)
 
     def handle_pv_change(self, pv_line):
-        # Indicate if some 
         self._some_data_changed = True
 
     def _push_data_to_view(self):
@@ -638,6 +639,10 @@ class SnapshotPvFilterProxyModel(QtGui.QSortFilterProxyModel):
         self._name_filter = ''  # string or regex object
         self._eq_filter = PvCompareFilter.show_all
         self._filtered_pvs = list()
+    
+    def setSourceModel(self, model):
+        super().setSourceModel(model)
+        self.sourceModel().dataChanged.connect(self.apply_filter)
 
     def set_name_filter(self, srch_filter):
         self._name_filter = srch_filter
