@@ -471,7 +471,6 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             return self._data[index.row()].data[index.column()].get('icon', None)
 
     def handle_pv_change(self, pv_line):
-        # Indicate if some 
         self._some_data_changed = True
 
     def _push_data_to_view(self):
