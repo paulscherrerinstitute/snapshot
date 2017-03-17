@@ -72,12 +72,12 @@ def main():
     save_pars.add_argument('FILE', help='request file.')
     save_pars.add_argument('-m', '--macro',
                            help="macros for request file e.g.: \"SYS=TEST,DEV=D1\"")
-    save_pars.add_argument('--labels', default='',
-                            help="list of comma separated labels e.g.: \"label_1,label_2\"")
-    save_pars.add_argument('--comment', default='', help="Comment")
     save_pars.add_argument('-o', '--out', default='.', help="Output path/file.")
     save_pars.add_argument('-f', '--force',
                            help="force save in case of disconnected PVs after timeout", action='store_true')
+    save_pars.add_argument('--labels', default='',
+                            help="list of comma separated labels e.g.: \"label_1,label_2\"")
+    save_pars.add_argument('--comment', default='', help="Comment")
     save_pars.add_argument('--timeout', default=10, type=int, help='max time waiting for PVs to be connected')
 
     # Restore
