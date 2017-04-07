@@ -8,9 +8,12 @@ from ..ca_core import PvStatus, ActionStatus, Snapshot, SnapshotError
 
 
 def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10, labels_str=None, comment=None):
+    symlink_path = None
     if os.path.isdir(save_file_path):
+        symlink_path = save_file_path + '/{}_latest.snap'.format(os.path.splitext(os.path.basename(req_file_path))[0])
         save_file_path += '/{}_{}.snap'.format(os.path.splitext(os.path.basename(req_file_path))[0],
                                                datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M%S'))
+
     labels = list()
     if labels_str.strip():
         list_labels = labels_str.split(',')
@@ -36,7 +39,8 @@ def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10
     while snapshot.get_disconnected_pvs_names() and time.time() < end_time:
         time.sleep(0.2)
 
-    status, pv_status = snapshot.save_pvs(save_file_path, force=force, labels=labels, comment=comment)
+    status, pv_status = snapshot.save_pvs(save_file_path, force=force, labels=labels, comment=comment,
+                                          symlink_path=symlink_path)
 
     if status != ActionStatus.ok:
         for pv_name, status in pv_status.items():
