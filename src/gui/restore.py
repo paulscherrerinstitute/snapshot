@@ -358,13 +358,14 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
     def get_save_files(self, save_dir, current_files):
         # Parses all new or modified files. Parsed files are returned as a
         # dictionary.
+        import glob
         parsed_save_files = dict()
         err_to_report = list()
         req_file_name = os.path.basename(self.common_settings["req_file_path"])
         # Check if any file added or modified (time of modification)
-        for file_name in os.listdir(save_dir):
-            file_path = os.path.join(save_dir, file_name)
-            if os.path.isfile(file_path) and file_name.endswith(self.save_file_sufix):
+        for file_path in glob.glob(os.path.join(save_dir, os.path.splitext(req_file_name)[0])+'*'+self.save_file_sufix):
+            file_name=os.path.basename(file_path)
+            if os.path.isfile(file_path):
                 if (file_name not in current_files) or \
                         (current_files[file_name]["modif_time"] != os.path.getmtime(file_path)):
 
