@@ -18,10 +18,11 @@ class TestSnapshotReqFile(unittest.TestCase):
 
         print()
         # print(pvs)
-        # print(len(pvs))
+
         print(snapshot.get_disconnected_pvs_names())
         print("# disconnected: %d" % len(snapshot.get_disconnected_pvs_names()))
         print("# connected: %d" % (len(snapshot.pvs) - len(snapshot.get_disconnected_pvs_names())))
+        print(len(snapshot.pvs))
         print()
 
         snapshot.clear_pvs()

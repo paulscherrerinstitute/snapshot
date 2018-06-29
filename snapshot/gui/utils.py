@@ -7,8 +7,27 @@ import os
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
 
-from ..ca_core import parse_macros, parse_dict_macros_to_text
+from ..ca_core import parse_macros
 from snapshot.parser import MacroError
+
+def parse_dict_macros_to_text(macros):
+    """
+    Converting dict() separated macros string to comma separated.
+
+    :param macros: dict of macros, substitutions
+
+    :return: macro string
+    """
+
+    macros_str = ""
+    for macro, subs in macros.items():
+        macros_str += macro + "=" + subs + ","
+
+    if macros_str:
+        # Clear last comma
+        macros_str = macros_str[0:-1]
+
+    return macros_str
 
 
 class SnapshotConfigureDialog(QtGui.QDialog):

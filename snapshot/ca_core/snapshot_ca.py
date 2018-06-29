@@ -7,7 +7,6 @@
 
 import numpy
 import json
-import re
 import os
 import time
 from enum import Enum
@@ -21,6 +20,7 @@ ca.AUTO_CLEANUP = True  # For pyepics versions older than 3.2.4, this was set to
                         # python 2 but not for python 3, which resulted in errors when closing
                         # the application. If true, ca.finalize_libca() is called when app is
                         # closed
+
 
 class ActionStatus(Enum):
     """
@@ -88,9 +88,13 @@ class Snapshot(object):
         # pyepics will handle PVs to have only one connection per PV.
         # If pv not yet on list add it.
         for pvname_raw in pv_list:
-            pv_ref = SnapshotPv(pvname_raw, self.macros)
 
-            if not self.pvs.get(pv_ref.pvname):
+            p_name = SnapshotPv.macros_substitution(pvname_raw, self.macros)
+            if not self.pvs.get(p_name):
+
+                pv_ref = SnapshotPv(pvname_raw, self.macros)
+
+            # if not self.pvs.get(pv_ref.pvname):
                 self.pvs[pv_ref.pvname] = pv_ref
 
     def remove_pvs(self, pv_list):
@@ -463,25 +467,6 @@ class Snapshot(object):
         saved_file.close()
         return saved_pvs, meta_data, err
 
-
-def parse_dict_macros_to_text(macros):
-    """
-    Converting dict() separated macros string to comma separated.
-
-    :param macros: dict of macros, substitutions
-
-    :return: macro string
-    """
-
-    macros_str = ""
-    for macro, subs in macros.items():
-        macros_str += macro + "=" + subs + ","
-
-    if macros_str:
-        # Clear last comma
-        macros_str = macros_str[0:-1]
-
-    return macros_str
 
 
 

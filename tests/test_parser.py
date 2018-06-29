@@ -16,9 +16,15 @@ class TestSnapshotReqFile(unittest.TestCase):
         # request_file = SnapshotReqFile("testfiles/SF_timing.req")
         pvs = request_file.read()
 
+        pv_dict = dict()
+        for pv in pvs:
+            pv_dict[pv] = 1
+
         print()
         print(pvs)
         print(len(pvs))
+        print(len(pv_dict))
+        print(pv_dict)
         print()
 
         logging.info(len(pvs))
