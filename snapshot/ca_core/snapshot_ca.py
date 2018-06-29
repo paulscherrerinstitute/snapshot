@@ -92,7 +92,7 @@ class Snapshot(object):
             p_name = SnapshotPv.macros_substitution(pvname_raw, self.macros)
             if not self.pvs.get(p_name):
 
-                pv_ref = SnapshotPv(pvname_raw, self.macros)
+                pv_ref = SnapshotPv(p_name)
 
             # if not self.pvs.get(pv_ref.pvname):
                 self.pvs[pv_ref.pvname] = pv_ref

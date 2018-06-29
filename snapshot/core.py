@@ -42,13 +42,13 @@ class SnapshotPv(PV):
     Extended PV class with non-blocking methods to save and restore pvs.
     """
 
-    def __init__(self, pvname, macros=None, connection_callback=None, **kw):
+    def __init__(self, pvname, connection_callback=None, **kw):
         # Store the origin
-        self.pvname_raw = pvname
-        self.macros = macros
+        # self.pvname_raw = pvname
+        # self.macros = macros
 
-        if macros:
-            pvname = SnapshotPv.macros_substitution(pvname, macros)
+        # if macros:
+        #     pvname = SnapshotPv.macros_substitution(pvname, macros)
 
         self.conn_callbacks = dict()  # dict {idx: callback}
         if connection_callback:
