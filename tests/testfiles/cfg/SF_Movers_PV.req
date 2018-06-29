@@ -1,0 +1,5 @@
+$(SYS):X_SP
+$(SYS):Y_SP
+$(SYS):ROT_X_SP
+$(SYS):ROT_Y_SP
+$(SYS):ROT_Z_SP

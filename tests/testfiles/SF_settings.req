@@ -1,0 +1,43 @@
+# Loading RF request file
+!./cfg/SF_RF.req
+
+# Loading magnets request file
+!./cfg/SF_Mag.req
+
+# Loading gun laser request file
+!./cfg/SF_LaserGun.req
+
+# Loading laser heater request file
+!./cfg/SF_LaserHeater.req
+
+# Loading bunch compressor request file
+!./cfg/SF_BC.req
+
+# Loading collimators request file
+!./cfg/SF_DCOL.req
+
+# Loading undulators request file
+!./cfg/SF_UIND.req
+
+# Loading phase-shifter request file
+!./cfg/SF_UPHS.req
+
+# Loading undulators quad position request file
+!./cfg/SF_QFF.req
+
+# Loading SARUN BPM request file
+#!./cfg/SF_SARUN_BPM_OFFS.req
+
+# Loading BPM request file
+!./cfg/SF_BPM.req
+
+# Loading gun solenoid and X-band movers request file
+!./cfg/SF_Movers.req
+
+# Loading magnets request file
+!./cfg/SF_Optics.req
+
+# Loading feedbacks request file
+!./cfg/SF_FB.req
+
+

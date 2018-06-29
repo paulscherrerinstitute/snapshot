@@ -1,0 +1,6 @@
+$(SYS):X-OFFS
+$(SYS):Y-OFFS
+$(SYS):T1-OFFS
+$(SYS):T2-OFFS
+$(SYS):X-REF-FB
+$(SYS):Y-REF-FB
