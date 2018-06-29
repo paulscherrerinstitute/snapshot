@@ -16,12 +16,11 @@ class TestSnapshotReqFile(unittest.TestCase):
         # request_file = SnapshotReqFile("testfiles/SF_timing.req")
         # pvs = request_file.read()
 
-        snapshot.get_disconnected_pvs_names()
-
         print()
         # print(pvs)
         # print(len(pvs))
         print(snapshot.get_disconnected_pvs_names())
+        print(len(snapshot.pvs) - len(snapshot.get_disconnected_pvs_names()))
         print()
 
         # logging.info(len(pvs))
