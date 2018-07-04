@@ -619,7 +619,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             self._compare(pv_value)
             self.data_changed.emit(self)
 
-        self._last_update = new_time
+            self._last_update = new_time
 
     def _conn_callback(self, **kwargs):
         self._pv_conn_changed.emit(kwargs)
