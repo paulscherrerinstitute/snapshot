@@ -15,6 +15,8 @@ from PyQt4.QtCore import Qt
 
 from ..ca_core import Snapshot, SnapshotPv
 
+import time
+
 
 class PvCompareFilter(Enum):
     show_all = 0
@@ -526,6 +528,8 @@ class SnapshotPvTableLine(QtCore.QObject):
         else:
             self.conn = False
 
+        self._last_update = time.time()
+
     def disconnect_callbacks(self):
         """
         Disconnect from SnapshotPv object. Should be called before removing line from model.
@@ -607,10 +611,15 @@ class SnapshotPvTableLine(QtCore.QObject):
         self._pv_changed.emit(kwargs)
 
     def _handle_callback(self, data):
-        pv_value = data.get('value', '')
-        self.data[1]['data'] = SnapshotPv.value_to_str(pv_value, self._pv_ref.is_array)
-        self._compare(pv_value)
-        self.data_changed.emit(self)
+
+        new_time = time.time()
+        if (new_time - self._last_update) >= 1:  # Only update every second
+            pv_value = data.get('value', '')
+            self.data[1]['data'] = SnapshotPv.value_to_str(pv_value, self._pv_ref.is_array)
+            self._compare(pv_value)
+            self.data_changed.emit(self)
+
+        self._last_update = new_time
 
     def _conn_callback(self, **kwargs):
         self._pv_conn_changed.emit(kwargs)
