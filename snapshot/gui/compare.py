@@ -614,12 +614,11 @@ class SnapshotPvTableLine(QtCore.QObject):
 
         new_time = time.time()
         if (new_time - self._last_update) >= 1:  # Only update every second
+            self._last_update = new_time
             pv_value = data.get('value', '')
             self.data[1]['data'] = SnapshotPv.value_to_str(pv_value, self._pv_ref.is_array)
             self._compare(pv_value)
             self.data_changed.emit(self)
-
-            self._last_update = new_time
 
     def _conn_callback(self, **kwargs):
         self._pv_conn_changed.emit(kwargs)
