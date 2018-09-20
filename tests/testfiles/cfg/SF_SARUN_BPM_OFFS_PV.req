@@ -1,0 +1,4 @@
+$(SYS):OFFS-X
+$(SYS):OFFS-Y
+$(SYS):X-REF-FB
+$(SYS):Y-REF-FB

@@ -2,7 +2,7 @@ import argparse
 import re
 import sys
 
-from .ca_core import parse_macros, MacroError
+# from .ca_core import parse_macros, MacroError
 # close with ctrl+C
 import signal
 

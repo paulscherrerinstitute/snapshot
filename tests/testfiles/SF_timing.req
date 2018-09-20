@@ -1,0 +1,10 @@
+# Snapshot of timing setpoints. For reference only. Not to be restored.
+
+# Loading timing spp channels request file
+!./cfg/SF_timing_spp.req
+
+# Loading timing us channels request file
+!./cfg/SF_timing_us.req
+
+# Loading timing EVR pulse delay channels request file
+!./cfg/SF_timing_PulDel.req

@@ -1,6 +1,6 @@
 package:
     name: snapshot
-    version: 1.7.2
+    version: 2.0.0
 source:
 #    git_tag: 0.9.1
 #    git_url: https://github.com/channelaccess/snapshot.git
@@ -16,6 +16,7 @@ requirements:
         - pyqt
         - pyepics
         - numpy
+
 
 build:
   entry_points:

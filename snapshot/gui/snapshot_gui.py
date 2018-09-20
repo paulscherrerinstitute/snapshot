@@ -12,7 +12,9 @@ import sys
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
 
-from ..ca_core import Snapshot, SnapshotError, ReqParseError, parse_macros, MacroError
+from snapshot.ca_core import Snapshot, parse_macros
+from snapshot.core import SnapshotError
+from snapshot.parser import ReqParseError, MacroError
 from .compare import SnapshotCompareWidget
 from .restore import SnapshotRestoreWidget
 from .save import SnapshotSaveWidget

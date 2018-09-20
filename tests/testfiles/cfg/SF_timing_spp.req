@@ -1,0 +1,5 @@
+!./SF_timing_spp_PV.req, "SYS=SIN-TIMAST-TMA:Evt-1"
+!./SF_timing_spp_PV.req, "SYS=SIN-TIMAST-TMA:Evt-2"
+!./SF_timing_spp_PV.req, "SYS=SIN-TIMAST-TMA:Evt-3"
+!./SF_timing_spp_PV.req, "SYS=SIN-TIMAST-TMA:Evt-4"
+!./SF_timing_spp_PV.req, "SYS=SIN-TIMAST-TMA:Evt-5"
