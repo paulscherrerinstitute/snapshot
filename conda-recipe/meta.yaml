@@ -8,11 +8,11 @@ source:
 
 requirements:
     build:
-        - python==3.5
+        - python
         - setuptools
-        - pyqt==4
+        - pyqt
     run:
-        - python==3.5
+        - python
         - pyqt
         - pyepics
         - numpy
