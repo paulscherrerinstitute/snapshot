@@ -73,7 +73,7 @@ class SnapshotPv(PV):
             # Must be after connection test. If checking access when not
             # connected pyepics tries to reconnect which takes some time.
             if self.read_access:
-                saved_value = self.get(use_monitor=True)
+                saved_value = self.get(use_monitor=False)
                 if self.is_array:
                     if numpy.size(saved_value) == 0:
                         # Empty array is equal to "None" scalar value
