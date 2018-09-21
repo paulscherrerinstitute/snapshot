@@ -179,7 +179,7 @@ class Snapshot(object):
             # Make data structure with data to be saved
             pvs_data[pvname] = dict()
             pvs_data[pvname]['value'] = value
-            pvs_data[pvname]['raw_name'] = pv_ref.pvname_raw
+            pvs_data[pvname]['raw_name'] = pv_ref.pvname
 
         self.parse_to_save_file(pvs_data, save_file_path, self.macros, symlink_path, **kw)
 
