@@ -110,3 +110,13 @@ snapshot.save_pvs('path/to/desired/save/file.snap')
 snapshot.restore_pvs('path/to/desired/save/file.snap', callback=my_restore_done_callback)
 snapshot.restore_pvs_blocking('path/to/desired/save/file.snap')
 ```
+
+# Development
+## Testing
+To test the application a softioc can be started as follows (while being in the _tests_ directory):
+
+```
+docker run -it --rm -v `pwd`:/data -p 5064:5064 -p 5065:5065 -p 5064:5064/udp -p 5065:5065/udp paulscherrerinstitute/centos_build_caqtdm softIoc -d /data/epics_testioc.db
+```
+
+A test _.req_ file (test.req) is located in the _tests_ directory as well.

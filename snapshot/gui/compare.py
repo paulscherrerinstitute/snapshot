@@ -365,7 +365,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
 
         self._timer = QtCore.QTimer()
         self._timer.timeout.connect(self._push_data_to_view)
-        self._timer.start(200)
+        self._timer.start(500)  # Defined GUI update rate
         self._file_names = list()
 
     def get_snap_file_names(self):
@@ -480,6 +480,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         This function is called periodically by self._timer. It emits dataChanged() signal
         which forces views to update the whole PV table.
         """
+        print("push")
         if self._some_data_changed:
             # Something changed. Update view.
             self._some_data_changed = False
@@ -612,13 +613,13 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     def _handle_callback(self, data):
 
-        new_time = time.time()
-        if (new_time - self._last_update) >= 1:  # Only update every second
-            self._last_update = new_time
-            pv_value = data.get('value', '')
-            self.data[1]['data'] = SnapshotPv.value_to_str(pv_value, self._pv_ref.is_array)
-            self._compare(pv_value)
-            self.data_changed.emit(self)
+        # new_time = time.time()
+        # if (new_time - self._last_update) >= 1:  # Only update every second
+        #     self._last_update = new_time
+        pv_value = data.get('value', '')
+        self.data[1]['data'] = SnapshotPv.value_to_str(pv_value, self._pv_ref.is_array)
+        self._compare(pv_value)
+        self.data_changed.emit(self)
 
     def _conn_callback(self, **kwargs):
         self._pv_conn_changed.emit(kwargs)
