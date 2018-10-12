@@ -480,7 +480,6 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         This function is called periodically by self._timer. It emits dataChanged() signal
         which forces views to update the whole PV table.
         """
-        print("push")
         if self._some_data_changed:
             # Something changed. Update view.
             self._some_data_changed = False
