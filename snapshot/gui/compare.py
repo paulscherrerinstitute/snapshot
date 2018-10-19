@@ -529,6 +529,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             self.conn = False
 
         self._last_update = time.time()
+        self._signal_emitted = False
 
     def disconnect_callbacks(self):
         """
@@ -612,13 +613,19 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     def _handle_callback(self, data):
 
-        # new_time = time.time()
-        # if (new_time - self._last_update) >= 1:  # Only update every second
-        #     self._last_update = new_time
         pv_value = data.get('value', '')
         self.data[1]['data'] = SnapshotPv.value_to_str(pv_value, self._pv_ref.is_array)
         self._compare(pv_value)
-        self.data_changed.emit(self)
+
+        new_time = time.time()
+        if (new_time - self._last_update) >= 1:  # Only update every second
+            self._last_update = new_time
+            # Only allow one signal to be emitted in one time interval
+            self._signal_emitted = False
+
+        if not self._signal_emitted:
+            self.data_changed.emit(self)
+            self._signal_emitted = True
 
     def _conn_callback(self, **kwargs):
         self._pv_conn_changed.emit(kwargs)
