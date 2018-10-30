@@ -408,7 +408,21 @@ class Snapshot(object):
             if os.path.isfile(symlink_path):
                 os.remove(symlink_path)
 
-            os.symlink(save_file_path, symlink_path)
+            counter = 5
+            while counter > 0:
+                no_error = True
+                try:
+                    os.symlink(save_file_path, symlink_path)
+                except:
+                    logging.warning("unable to create link")
+                    no_error = False
+
+                if no_error:
+                    break
+
+                counter -= 1
+
+
 
     @staticmethod
     def parse_from_save_file(save_file_path):
