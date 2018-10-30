@@ -311,7 +311,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
 
         # Set column sizes
         self.file_selector.resizeColumnToContents(1)
-        self.file_selector.setColumnWidth(0, 60)
+        self.file_selector.setColumnWidth(0, 140)
         self.file_selector.setColumnWidth(2, 350)
 
         # Applies following behavior for multi select:

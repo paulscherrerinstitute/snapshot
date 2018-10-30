@@ -420,6 +420,8 @@ class Snapshot(object):
                 if no_error:
                     break
 
+                time.sleep(0.5)
+
                 counter -= 1
 
 
