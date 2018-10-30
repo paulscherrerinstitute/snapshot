@@ -55,6 +55,11 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.file_selector.files_selected.connect(self.handle_selected_files)
 
         # Make restore buttons
+        self.refresh_button = QtGui.QPushButton("Refresh", self)
+        self.refresh_button.clicked.connect(self.start_refresh)
+        self.refresh_button.setToolTip("Refresh .snap files.")
+        self.refresh_button.setEnabled(True)
+
         self.restore_button = QtGui.QPushButton("Restore Filtered", self)
         self.restore_button.clicked.connect(self.start_restore_filtered)
         self.restore_button.setToolTip("Restores only currently filtered PVs from the selected .snap file.")
@@ -66,6 +71,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.restore_all_button.setEnabled(False)
 
         btn_layout = QtGui.QHBoxLayout()
+        btn_layout.addWidget(self.refresh_button)
         btn_layout.addWidget(self.restore_all_button)
         btn_layout.addWidget(self.restore_button)
 
@@ -82,6 +88,10 @@ class SnapshotRestoreWidget(QtGui.QWidget):
     def handle_new_snapshot_instance(self, snapshot):
         self.file_selector.handle_new_snapshot_instance(snapshot)
         self.snapshot = snapshot
+        self.clear_update_files()
+
+    def start_refresh(self):
+        # print('Refresh')
         self.clear_update_files()
 
     def start_restore_all(self):
@@ -293,7 +303,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         self.file_selector.setAllColumnsShowFocus(True)
         self.file_selector.setSortingEnabled(True)
         # Sort by file name (alphabetical order)
-        self.file_selector.sortItems(1, Qt.AscendingOrder)
+        self.file_selector.sortItems(0, Qt.DescendingOrder)
 
         self.file_selector.itemSelectionChanged.connect(self.select_files)
         self.file_selector.setContextMenuPolicy(Qt.CustomContextMenu)
