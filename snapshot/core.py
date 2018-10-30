@@ -2,6 +2,8 @@ from epics import PV, ca
 import numpy
 from enum import Enum
 import json
+import logging
+
 
 # Exceptions
 class SnapshotError(Exception):
@@ -73,7 +75,7 @@ class SnapshotPv(PV):
             # Must be after connection test. If checking access when not
             # connected pyepics tries to reconnect which takes some time.
             if self.read_access:
-                saved_value = self.get(use_monitor=False)
+                saved_value = self.get(use_monitor=False, timeout=0.5)
                 if self.is_array:
                     if numpy.size(saved_value) == 0:
                         # Empty array is equal to "None" scalar value
@@ -82,7 +84,8 @@ class SnapshotPv(PV):
                         # make scalars as arrays
                         saved_value = numpy.asarray([saved_value])
 
-                if self.value is None:
+                if saved_value is None:
+                    logging.debug('No value returned for channel ' + self.pvname)
                     return saved_value, PvStatus.no_value
                 else:
                     return saved_value, PvStatus.ok

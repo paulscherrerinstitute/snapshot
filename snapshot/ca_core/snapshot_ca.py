@@ -16,6 +16,8 @@ from epics import PV, ca, dbr
 from snapshot.core import SnapshotPv, PvStatus
 from snapshot.parser import SnapshotReqFile, parse_macros
 
+import logging
+
 ca.AUTO_CLEANUP = True  # For pyepics versions older than 3.2.4, this was set to True only for
                         # python 2 but not for python 3, which resulted in errors when closing
                         # the application. If true, ca.finalize_libca() is called when app is
@@ -172,6 +174,7 @@ class Snapshot(object):
         kw["req_file_name"] = os.path.basename(self.req_file_path)
 
         pvs_data = dict()
+        logging.debug("Create snapshot for %d channels" % len(self.pvs.items()))
         for pvname, pv_ref in self.pvs.items():
             # Get current value, status of operation.
             value, pvs_status[pvname] = pv_ref.save_pv()
@@ -181,7 +184,9 @@ class Snapshot(object):
             pvs_data[pvname]['value'] = value
             pvs_data[pvname]['raw_name'] = pv_ref.pvname
 
+        logging.debug("Writing snapshot to file")
         self.parse_to_save_file(pvs_data, save_file_path, self.macros, symlink_path, **kw)
+        logging.debug("Snapshot done")
 
         return ActionStatus.ok, pvs_status
 
