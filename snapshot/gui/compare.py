@@ -7,6 +7,9 @@
 import json
 import os
 import re
+import logging
+import threading
+from collections import deque
 from enum import Enum
 
 import numpy
@@ -503,6 +506,7 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     def __init__(self, pv_ref, parent=None):
         super().__init__(parent)
+        self._last_update = time.time()
         self._WARN_ICON = QtGui.QIcon(os.path.join(self._DIR_PATH, "images/warn.png"))
         self._NEQ_ICON = QtGui.QIcon(os.path.join(self._DIR_PATH, "images/neq.png"))
 
@@ -512,8 +516,9 @@ class SnapshotPvTableLine(QtCore.QObject):
                      {'data': 'PV disconnected', 'icon': self._WARN_ICON},  # current value
                      {'icon': None}]  # Compare result
 
+        self._clb_id = None
         self._conn_clb_id = pv_ref.add_conn_callback(self._conn_callback)
-        self._clb_id = pv_ref.add_callback(self._callback)
+        self._clb_id = pv_ref.add_callback(self._callback, with_ctrlvars=False)
 
         # Internal signal
         self._pv_conn_changed.connect(self._handle_conn_callback)
@@ -528,8 +533,23 @@ class SnapshotPvTableLine(QtCore.QObject):
         else:
             self.conn = False
 
-        self._last_update = time.time()
         self._signal_emitted = False
+
+        self._reattacher_cv = threading.Condition()
+        self._reattacher = threading.Thread(target=self._reattacher_run)
+        self._reattacher.start()
+
+    def _reattacher_run(self):
+        logger = logging.getLogger(__name__)
+        while True:
+            with self._reattacher_cv:
+                while not self._signal_emitted:
+                    #logger.info("Was notified")
+                    self._reattacher_cv.wait()
+                #logger.info("reattaching callback")
+                self._signal_emitted = False
+                time.sleep(1)
+                self._clb_id = self._pv_ref.add_callback(self._callback, with_ctrlvars=False)
 
     def disconnect_callbacks(self):
         """
@@ -537,7 +557,8 @@ class SnapshotPvTableLine(QtCore.QObject):
         :return:
         """
         self._pv_ref.remove_conn_callback(self._conn_clb_id)
-        self._pv_ref.remove_callback(self._clb_id)
+        if self._clb_id is not None:
+            self._pv_ref.remove_callback(self._clb_id)
 
     def append_snap_value(self, value):
         if value is not None:
@@ -609,6 +630,9 @@ class SnapshotPvTableLine(QtCore.QObject):
             return json.dumps(value)
 
     def _callback(self, **kwargs):
+        if self._clb_id is not None:
+            self._pv_ref.remove_callback(self._clb_id)
+            self._clb_id = None
         self._pv_changed.emit(kwargs)
 
     def _handle_callback(self, data):
@@ -616,16 +640,12 @@ class SnapshotPvTableLine(QtCore.QObject):
         pv_value = data.get('value', '')
         self.data[1]['data'] = SnapshotPv.value_to_str(pv_value, self._pv_ref.is_array)
         self._compare(pv_value)
+        self._last_update = time.time()
 
-        new_time = time.time()
-        if (new_time - self._last_update) >= 1:  # Only update every second
-            self._last_update = new_time
-            # Only allow one signal to be emitted in one time interval
-            self._signal_emitted = False
-
-        if not self._signal_emitted:
-            self.data_changed.emit(self)
+        self.data_changed.emit(self)
+        with self._reattacher_cv:
             self._signal_emitted = True
+            self._reattacher_cv.notify_all()
 
     def _conn_callback(self, **kwargs):
         self._pv_conn_changed.emit(kwargs)
