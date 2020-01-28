@@ -427,7 +427,7 @@ class Snapshot(object):
 
 
     @staticmethod
-    def parse_from_save_file(save_file_path):
+    def parse_from_save_file(save_file_path, metadata_only=False):
         """
         Parses save file to dict {'pvname': {'data': {'value': <value>, 'raw_name': <name_with_macros>}}}
 
@@ -458,8 +458,12 @@ class Snapshot(object):
                     # Problem reading metadata
                     err.append('Meta data could not be decoded. Must be in JSON format.')
                 meta_loaded = True
+                if metadata_only:
+                    break
             # skip empty lines and all rest with #
-            elif line.strip() and not line.startswith('#'):
+            elif (not metadata_only
+                  and line.strip()
+                  and not line.startswith('#')):
                 split_line = line.strip().split(',', 1)
                 pvname = split_line[0]
                 if len(split_line) > 1:

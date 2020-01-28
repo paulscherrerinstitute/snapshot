@@ -379,15 +379,17 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                 if (file_name not in current_files) or \
                         (current_files[file_name]["modif_time"] != os.path.getmtime(file_path)):
 
-                    pvs_list, meta_data, err = self.snapshot.parse_from_save_file(
-                        file_path)
+                    _, meta_data, err = \
+                        self.snapshot.parse_from_save_file(file_path,
+                                                           metadata_only=True)
 
                     # check if we have req_file metadata. This is used to determine which
                     # request file the save file belongs to.
                     # If there is no metadata (or no req_file specified in the metadata)
                     # we search using a prefix of the request file.
                     # The latter is less robust, but is backwards compatible.
-                    if ("req_file_name" in meta_data and meta_data["req_file_name"] == req_file_name) \
+                    if ("req_file_name" in meta_data
+                        and meta_data["req_file_name"] == req_file_name) \
                             or file_name.startswith(req_file_name.split(".")[0] + "_"):
                         # we really should have basic meta data
                         # (or filters and some other stuff will silently fail)
@@ -396,11 +398,10 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                         if "labels" not in meta_data:
                             meta_data["labels"] = []
 
-                        # save data (no need to open file again later))
-                        parsed_save_files[file_name] = dict()
-                        parsed_save_files[file_name]["pvs_list"] = pvs_list
-                        parsed_save_files[file_name]["meta_data"] = meta_data
-                        parsed_save_files[file_name]["modif_time"] = os.path.getmtime(file_path)
+                        parsed_save_files[file_name] = {
+                            'meta_data': meta_data,
+                            'modif_time': os.path.getmtime(file_path)
+                        }
 
                         if err:  # report errors only for matching saved files
                             err_to_report.append((file_name, err))
