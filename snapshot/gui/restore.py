@@ -113,8 +113,9 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
             # Prepare pvs with values to restore
             if file_data:
-                pvs_in_file = file_data.get("pvs_list", None)  # is actually a dict
-                pvs_to_restore = copy.copy(file_data.get("pvs_list", None))  # is actually a dict
+                pvs_in_file, _, _ = \
+                    self.snapshot.parse_from_save_file(file_data['file_path'])
+                pvs_to_restore = copy.copy(pvs_in_file)  # is actually a dict
                 macros = self.snapshot.macros
 
                 if pvs_list is not None:
@@ -399,6 +400,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                             meta_data["labels"] = []
 
                         parsed_save_files[file_name] = {
+                            'file_path': file_path,
                             'meta_data': meta_data,
                             'modif_time': os.path.getmtime(file_path)
                         }
@@ -445,7 +447,6 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                 # Update the global data meta_data info, before checking if
                 # labels_to_remove are used in any of the files.
                 self.file_list[modified_file]["meta_data"] = meta_data
-                self.file_list[modified_file]["pvs_list"] = modified_data["pvs_list"]
 
                 # Check if can be removed (no other file has the same label)
                 if labels_to_remove:
