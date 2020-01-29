@@ -550,8 +550,9 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                 settings_window.resize(800, 200)
                 # if OK was pressed, update actual file and reflect changes in the list
                 if settings_window.exec_():
-                    self.snapshot.replace_metadata(self.selected_files[0],
-                                                   self.file_list.get(self.selected_files[0])["meta_data"])
+                    file_data = self.file_list.get(self.selected_files[0])
+                    self.snapshot.replace_metadata(file_data['file_path'],
+                                                   file_data['meta_data'])
                     self.parent.clear_update_files()
             else:
                 QtGui.QMessageBox.information(self, "Information", "Please select one file only",
