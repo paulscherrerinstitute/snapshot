@@ -14,6 +14,7 @@ from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
 
 from ..ca_core import Snapshot, SnapshotPv
+from .utils import show_snapshot_parse_errors
 
 import time
 
@@ -44,6 +45,7 @@ class SnapshotCompareWidget(QtGui.QWidget):
         self.view.restore_requested.connect(self._handle_restore_request)
 
         self.model = SnapshotPvTableModel(snapshot, self)
+        self.model.file_parse_errors.connect(self._show_snapshot_parse_errors)
         self._proxy = SnapshotPvFilterProxyModel(self)
         self._proxy.setSourceModel(self.model)
         self._proxy.filtered.connect(self._handle_filtered)
@@ -168,6 +170,9 @@ class SnapshotCompareWidget(QtGui.QWidget):
             self.pv_filter_inp.setPalette(self._inp_palette_ok)
 
         self._proxy.set_name_filter(srch_filter)
+
+    def _show_snapshot_parse_errors(self, errors):
+        show_snapshot_parse_errors(self, errors)
 
     def new_selected_files(self, selected_files):
         self.model.clear_snap_files()
@@ -355,6 +360,8 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
     PV change, but rather 5 times per second if some PVs have changed in this time. This increases performance.
     """
 
+    file_parse_errors = QtCore.pyqtSignal(list)
+
     def __init__(self, snapshot: Snapshot, parent=None):
         super().__init__(parent)
         self.snapshot = snapshot
@@ -401,8 +408,12 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         """
         self._file_names += list(files.keys())
         self.beginInsertColumns(QtCore.QModelIndex(), 3, len(files) + 2)
+        errors = []
         for file_name, file_data in files.items():
-            pvs_list_full_names = self._replace_macros_on_file_data(file_data)
+            pvs_list_full_names, err = \
+                self._replace_macros_on_file_data(file_data)
+            if err:
+                errors.append((file_data['file_name'], err))
 
             # To get a proper update, need to go through all existing pvs. Otherwise values of PVs listed in request
             # but not in the saved file are not cleared (value from previous file is seen on the screen)
@@ -412,6 +423,8 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
                 pv_line.append_snap_value(pv_data.get("value", None))
         self.endInsertColumns()
         self.insertColumns(1, 1, QtCore.QModelIndex())
+        if errors:
+            self.file_parse_errors.emit(errors)
 
     def clear_snap_files(self):
         self._file_names = list()
@@ -438,14 +451,20 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
     def update_snap_files(self, updated_files):
         # Check if one of updated files is currently selected, and update
         # the values if it is.
+        errors = []
         for file_name in self._headers:
             file_data = updated_files.get(file_name, None)
             if file_data is not None:
-                saved_pvs = self._replace_macros_on_file_data(file_data)
+                saved_pvs, err = self._replace_macros_on_file_data(file_data)
+                if err:
+                    errors.append((file_data['file_name'], err))
                 idx = self._headers.index(file_name)
                 for pvname, pv_line in self._pvs_lines.items():
                     pv_data = saved_pvs.get(pvname, {"value": None})
                     pv_line.change_snap_value(idx, pv_data.get("value", None))
+
+        if errors:
+            self.file_parse_errors.emit(errors)
 
     def _replace_macros_on_file_data(self, file_data):
         if self.snapshot.macros:
@@ -454,11 +473,12 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             macros = file_data["meta_data"].get("macros", dict())
 
         pvs_list_full_names = dict()  # PVS data mapped to real pvs names (no macros)
-        pvs_list, _, _ = self.snapshot.parse_from_save_file(file_data['file_path'])
+        pvs_list, _, errors = self.snapshot.parse_from_save_file(file_data['file_path'])
+
         for pv_name_raw, pv_data in pvs_list.items():
             pvs_list_full_names[SnapshotPv.macros_substitution(pv_name_raw, macros)] = pv_data
 
-        return pvs_list_full_names
+        return pvs_list_full_names, errors
 
     # Reimplementation of parent methods needed for visualization
     def rowCount(self, parent):

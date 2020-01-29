@@ -587,3 +587,24 @@ class DetailedMsgBox(QtGui.QMessageBox):
             textEdit.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
 
         return result
+
+
+def show_snapshot_parse_errors(parent, file_and_error_list):
+    err_details = ""
+    for item in file_and_error_list:
+        if item[1]:  # list of errors
+
+            err_details += '- - - ' + item[0] + \
+                            ' - - -\n * '  # file name
+            err_details += '\n * '.join(item[1])
+            err_details += '\n\n'
+
+    err_details = err_details[:-2]  # Remove last two new lines
+
+    if err_details:
+        msg = str(len(file_and_error_list)) + \
+            " of the snapshot saved files (.snap) were loaded with errors " \
+            "(see details)."
+        msg_window = DetailedMsgBox(msg, err_details, 'Warning', parent,
+                                    QtGui.QMessageBox.Ok)
+        msg_window.exec_()

@@ -13,7 +13,8 @@ from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
 
 from ..ca_core import PvStatus, ActionStatus, SnapshotPv
-from .utils import SnapshotKeywordSelectorWidget, SnapshotEditMetadataDialog, DetailedMsgBox
+from .utils import SnapshotKeywordSelectorWidget, SnapshotEditMetadataDialog, \
+    DetailedMsgBox, show_snapshot_parse_errors
 
 
 class SnapshotRestoreWidget(QtGui.QWidget):
@@ -113,6 +114,8 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
             # Prepare pvs with values to restore
             if file_data:
+                # Ignore parsing errors: the user has already seen them when
+                # when opening the snapshot.
                 pvs_in_file, _, _ = \
                     self.snapshot.parse_from_save_file(file_data['file_path'])
                 pvs_to_restore = copy.copy(pvs_in_file)  # is actually a dict
@@ -342,26 +345,11 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         save_files, err_to_report = self.get_save_files(self.common_settings["save_dir"], self.file_list)
 
         updated_files = self.update_file_list_selector(save_files)
-
         self.filter_file_list_selector()
+
         # Report any errors with snapshot files to the user
-        err_details = ""
         if err_to_report:
-            for item in err_to_report:
-                if item[1]:  # list of errors
-
-                    err_details += '- - - ' + item[0] + \
-                                   ' - - -\n * '  # file name
-                    err_details += '\n * '.join(item[1])
-                    err_details += '\n\n'
-
-            err_details = err_details[:-2]  # Remove last two new lines
-
-        if err_details:
-            msg = str(len(err_to_report)) + " of the snapshot saved files (.snap) were loaded with errors " \
-                                            "(see details)."
-            msg_window = DetailedMsgBox(msg, err_details, 'Warning', self, QtGui.QMessageBox.Ok)
-            msg_window.exec_()
+            show_snapshot_parse_errors(self, err_to_report)
 
         self.file_selector.setSortingEnabled(True)
         return updated_files
@@ -400,6 +388,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                             meta_data["labels"] = []
 
                         parsed_save_files[file_name] = {
+                            'file_name': file_name,
                             'file_path': file_path,
                             'meta_data': meta_data,
                             'modif_time': os.path.getmtime(file_path)
