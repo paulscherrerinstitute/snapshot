@@ -255,7 +255,7 @@ class SnapshotPvTableView(QTableView):
         self.set_default_visualization()
         self.sortByColumn(0, Qt.AscendingOrder)  # default sorting
 
-    def dataChanged(self, mode_idx, mode_idx1):
+    def dataChanged(self, mode_idx, mode_idx1, roles):
         """
         Force update of the view on any data change in the model. If self.viewport().update() is not called here
         the view is not updated if application window is not in focus.
@@ -265,7 +265,7 @@ class SnapshotPvTableView(QTableView):
         :return:
         """
 
-        super().dataChanged(mode_idx, mode_idx1)
+        super().dataChanged(mode_idx, mode_idx1, roles)
         self.viewport().update()
 
     def reset(self):
