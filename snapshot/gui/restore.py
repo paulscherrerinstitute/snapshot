@@ -9,15 +9,18 @@ import datetime
 import os
 import time
 
-from PyQt4 import QtGui, QtCore
-from PyQt4.QtCore import Qt
+from PyQt5 import QtCore
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QIcon, QCursor
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QHBoxLayout, QMessageBox, QTreeWidget, QTreeWidgetItem, \
+    QMenu, QLineEdit, QLabel
 
 from ..ca_core import PvStatus, ActionStatus, SnapshotPv
 from .utils import SnapshotKeywordSelectorWidget, SnapshotEditMetadataDialog, \
     DetailedMsgBox, show_snapshot_parse_errors
 
 
-class SnapshotRestoreWidget(QtGui.QWidget):
+class SnapshotRestoreWidget(QWidget):
     """
     Restore widget is a widget that enables user to restore saved state of PVs
     listed in request file from one of the saved files.
@@ -34,7 +37,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
     restored_callback = QtCore.pyqtSignal(dict, bool)
 
     def __init__(self, snapshot, common_settings, parent=None, **kw):
-        QtGui.QWidget.__init__(self, parent, **kw)
+        QWidget.__init__(self, parent, **kw)
 
         self.snapshot = snapshot
         self.common_settings = common_settings
@@ -44,8 +47,8 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.file_list = dict()
 
         # Create main layout
-        layout = QtGui.QVBoxLayout(self)
-        layout.setMargin(10)
+        layout = QVBoxLayout(self)
+        # layout.setMargin(10)
         layout.setSpacing(10)
         self.setLayout(layout)
 
@@ -56,22 +59,22 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.file_selector.files_selected.connect(self.handle_selected_files)
 
         # Make restore buttons
-        self.refresh_button = QtGui.QPushButton("Refresh", self)
+        self.refresh_button = QPushButton("Refresh", self)
         self.refresh_button.clicked.connect(self.start_refresh)
         self.refresh_button.setToolTip("Refresh .snap files.")
         self.refresh_button.setEnabled(True)
 
-        self.restore_button = QtGui.QPushButton("Restore Filtered", self)
+        self.restore_button = QPushButton("Restore Filtered", self)
         self.restore_button.clicked.connect(self.start_restore_filtered)
         self.restore_button.setToolTip("Restores only currently filtered PVs from the selected .snap file.")
         self.restore_button.setEnabled(False)
 
-        self.restore_all_button = QtGui.QPushButton("Restore All", self)
+        self.restore_all_button = QPushButton("Restore All", self)
         self.restore_all_button.clicked.connect(self.start_restore_all)
         self.restore_all_button.setToolTip("Restores all PVs from the selected .snap file.")
         self.restore_all_button.setEnabled(False)
 
-        btn_layout = QtGui.QHBoxLayout()
+        btn_layout = QHBoxLayout()
         btn_layout.addWidget(self.refresh_button)
         btn_layout.addWidget(self.restore_all_button)
         btn_layout.addWidget(self.restore_button)
@@ -148,7 +151,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
                     msg_window = DetailedMsgBox(msg, "\n".join(list(pvs_status.keys())), 'Warning', self)
                     reply = msg_window.exec_()
 
-                    if reply != QtGui.QMessageBox.No:
+                    if reply != QMessageBox.No:
                         # Force restore
                         status, pvs_status = self.snapshot.restore_pvs(pvs_to_restore,
                                                                        callback=self.restore_done_callback, force=True)
@@ -178,18 +181,18 @@ class SnapshotRestoreWidget(QtGui.QWidget):
             else:
                 # Problem reading data from file
                 warn = "Cannot start a restore. Problem reading data from selected file."
-                QtGui.QMessageBox.warning(self, "Warning", warn,
-                                          QtGui.QMessageBox.Ok,
-                                          QtGui.QMessageBox.NoButton)
+                QMessageBox.warning(self, "Warning", warn,
+                                          QMessageBox.Ok,
+                                          QMessageBox.NoButton)
                 self.restore_all_button.setEnabled(True)
                 self.restore_button.setEnabled(True)
 
         else:
             # Don't start a restore if file not selected
             warn = "Cannot start a restore. File with saved values is not selected."
-            QtGui.QMessageBox.warning(self, "Warning", warn,
-                                      QtGui.QMessageBox.Ok,
-                                      QtGui.QMessageBox.NoButton)
+            QMessageBox.warning(self, "Warning", warn,
+                                      QMessageBox.Ok,
+                                      QMessageBox.NoButton)
             self.restore_all_button.setEnabled(True)
             self.restore_button.setEnabled(True)
 
@@ -265,7 +268,7 @@ class SnapshotRestoreWidget(QtGui.QWidget):
         self.update_files()
 
 
-class SnapshotRestoreFileSelector(QtGui.QWidget):
+class SnapshotRestoreFileSelector(QWidget):
     """
     Widget for visual representation (and selection) of existing saved_value
     files.
@@ -274,7 +277,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
     files_selected = QtCore.pyqtSignal(list)
 
     def __init__(self, snapshot, common_settings, parent=None, save_file_sufix=".snap", **kw):
-        QtGui.QWidget.__init__(self, parent, **kw)
+        QWidget.__init__(self, parent, **kw)
 
         self.parent = parent
 
@@ -297,12 +300,12 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         self.filter_input.file_filter_updated.connect(self.filter_file_list_selector)
 
         # Create list with: file names, comment, labels
-        self.file_selector = QtGui.QTreeWidget(self)
+        self.file_selector = QTreeWidget(self)
         self.file_selector.setRootIsDecorated(False)
         self.file_selector.setIndentation(0)
         self.file_selector.setColumnCount(4)
         self.file_selector.setHeaderLabels(["", "File", "Comment", "Labels"])
-        self.file_selector.headerItem().setIcon(0, QtGui.QIcon(
+        self.file_selector.headerItem().setIcon(0, QIcon(
             os.path.join(os.path.dirname(os.path.realpath(__file__)), "images/clock.png")))
         self.file_selector.setAllColumnsShowFocus(True)
         self.file_selector.setSortingEnabled(True)
@@ -323,13 +326,13 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         #   Ctrl + click     adds current file to selected files
         #   Shift + click    adds all files between last selected and current
         #                    to selected
-        self.file_selector.setSelectionMode(QtGui.QTreeWidget.ExtendedSelection)
+        self.file_selector.setSelectionMode(QTreeWidget.ExtendedSelection)
 
         self.filter_file_list_selector()
 
         # Add to main layout
-        layout = QtGui.QVBoxLayout(self)
-        layout.setMargin(0)
+        layout = QVBoxLayout(self)
+        # layout.setMargin(0)
         layout.addWidget(self.filter_input)
         layout.addWidget(self.file_selector)
 
@@ -412,7 +415,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
             # check if already on list (was just modified) and modify file
             # selector
             if modified_file not in self.file_list:
-                selector_item = QtGui.QTreeWidgetItem([time_, modified_file, comment, " ".join(labels)])
+                selector_item = QTreeWidgetItem([time_, modified_file, comment, " ".join(labels)])
                 self.file_selector.addTopLevelItem(selector_item)
                 self.file_list[modified_file] = modified_data
                 self.file_list[modified_file]["file_selector"] = selector_item
@@ -505,10 +508,10 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
 
     def open_menu(self, point):
                 # Context menu
-        menu = QtGui.QMenu(self)
+        menu = QMenu(self)
         menu.addAction("Delete selected files", self.delete_files)
         menu.addAction("Edit file meta-data", self.update_file_metadata)
-        menu.exec(QtGui.QCursor.pos())
+        menu.exec(QCursor.pos())
 
     def select_files(self):
         # Pre-process selected items, to a list of files
@@ -522,8 +525,8 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
     def delete_files(self):
         if self.selected_files:
             msg = "Do you want to delete selected files?"
-            reply = QtGui.QMessageBox.question(self, 'Message', msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
-            if reply == QtGui.QMessageBox.Yes:
+            reply = QMessageBox.question(self, 'Message', msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
+            if reply == QMessageBox.Yes:
                 for selected_file in self.selected_files:
                     try:
                         file_path = os.path.join(self.common_settings["save_dir"],
@@ -537,9 +540,9 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
 
                     except OSError as e:
                         warn = "Problem deleting file:\n" + str(e)
-                        QtGui.QMessageBox.warning(self, "Warning", warn,
-                                                  QtGui.QMessageBox.Ok,
-                                                  QtGui.QMessageBox.NoButton)
+                        QMessageBox.warning(self, "Warning", warn,
+                                                  QMessageBox.Ok,
+                                                  QMessageBox.NoButton)
 
     def update_file_metadata(self):
         if self.selected_files:
@@ -555,9 +558,9 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                                                    file_data['meta_data'])
                     self.parent.clear_update_files()
             else:
-                QtGui.QMessageBox.information(self, "Information", "Please select one file only",
-                                              QtGui.QMessageBox.Ok,
-                                              QtGui.QMessageBox.NoButton)
+                QMessageBox.information(self, "Information", "Please select one file only",
+                                              QMessageBox.Ok,
+                                              QMessageBox.NoButton)
 
     def clear_file_selector(self):
         self.file_selector.clear()  # Clears and "deselects" itmes on file selector
@@ -566,7 +569,7 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         self.file_list = dict()
 
 
-class SnapshotFileFilterWidget(QtGui.QWidget):
+class SnapshotFileFilterWidget(QWidget):
     """
         Is a widget with 3 filter options:
             - by time (removed)
@@ -579,12 +582,12 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
     file_filter_updated = QtCore.pyqtSignal()
 
     def __init__(self, common_settings, parent=None, **kw):
-        QtGui.QWidget.__init__(self, parent, **kw)
+        QWidget.__init__(self, parent, **kw)
 
         self.common_settings = common_settings
         # Create main layout
-        layout = QtGui.QHBoxLayout(self)
-        layout.setMargin(0)
+        layout = QHBoxLayout(self)
+        # layout.setMargin(0)
         layout.setSpacing(10)
         self.setLayout(layout)
 
@@ -600,8 +603,8 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
         self.file_filter["name"] = ""
 
         # Labels filter
-        key_layout = QtGui.QHBoxLayout()
-        key_label = QtGui.QLabel("Labels:", self)
+        key_layout = QHBoxLayout()
+        key_label = QLabel("Labels:", self)
         self.keys_input = SnapshotKeywordSelectorWidget(self.common_settings, parent=self)  # No need to force defaults
         self.keys_input.setPlaceholderText("label_1 label_2 ...")
         self.keys_input.keywords_changed.connect(self.update_filter)
@@ -609,18 +612,18 @@ class SnapshotFileFilterWidget(QtGui.QWidget):
         key_layout.addWidget(self.keys_input)
 
         # Comment filter
-        comment_layout = QtGui.QHBoxLayout()
-        comment_label = QtGui.QLabel("Comment:", self)
-        self.comment_input = QtGui.QLineEdit(self)
+        comment_layout = QHBoxLayout()
+        comment_label = QLabel("Comment:", self)
+        self.comment_input = QLineEdit(self)
         self.comment_input.setPlaceholderText("Filter by comment")
         self.comment_input.textChanged.connect(self.update_filter)
         comment_layout.addWidget(comment_label)
         comment_layout.addWidget(self.comment_input)
 
         # File name filter
-        name_layout = QtGui.QHBoxLayout()
-        name_label = QtGui.QLabel("Name:", self)
-        self.name_input = QtGui.QLineEdit(self)
+        name_layout = QHBoxLayout()
+        name_label = QLabel("Name:", self)
+        self.name_input = QLineEdit(self)
         self.name_input.setPlaceholderText("Filter by name")
         self.name_input.textChanged.connect(self.update_filter)
         name_layout.addWidget(name_label)

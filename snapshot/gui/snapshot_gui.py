@@ -9,8 +9,10 @@ import json
 import os
 import sys
 
-from PyQt4 import QtGui, QtCore
-from PyQt4.QtCore import Qt
+from PyQt5 import QtCore
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QApplication, QStatusBar, QLabel, QVBoxLayout, QPlainTextEdit, QWidget, QMessageBox, \
+    QDialog, QSplitter, QCheckBox, QAction, QMenu, QMainWindow
 
 from snapshot.ca_core import Snapshot, parse_macros
 from snapshot.core import SnapshotError
@@ -21,7 +23,7 @@ from .save import SnapshotSaveWidget
 from .utils import SnapshotConfigureDialog, SnapshotSettingsDialog, DetailedMsgBox
 
 
-class SnapshotGui(QtGui.QMainWindow):
+class SnapshotGui(QMainWindow):
     """
     Main GUI class for Snapshot application. It needs separate working
     thread where core of the application is running
@@ -42,7 +44,7 @@ class SnapshotGui(QtGui.QMainWindow):
         :param parent: Parent QtObject
         :return:
         """
-        QtGui.QMainWindow.__init__(self, parent)
+        QMainWindow.__init__(self, parent)
 
         if config_path:
             # Validate configuration file
@@ -56,7 +58,7 @@ class SnapshotGui(QtGui.QMainWindow):
                 msg_window = DetailedMsgBox(msg, str(e), 'Warning')
                 reply = msg_window.exec_()
 
-                if reply == QtGui.QMessageBox.No:
+                if reply == QMessageBox.No:
                     self.close_gui()
 
                 config = dict()
@@ -113,7 +115,7 @@ class SnapshotGui(QtGui.QMainWindow):
             configure_dialog.accepted.connect(self.set_request_file)
 
             self.hide()
-            if configure_dialog.exec_() == QtGui.QDialog.Rejected:
+            if configure_dialog.exec_() == QDialog.Rejected:
                 self.close_gui()
 
         else:
@@ -146,16 +148,16 @@ class SnapshotGui(QtGui.QMainWindow):
         # menu bar
         menu_bar = self.menuBar()
 
-        settings_menu = QtGui.QMenu("Snapshot", menu_bar)
-        open_settings_action = QtGui.QAction("Settings", settings_menu)
-        open_settings_action.setMenuRole(QtGui.QAction.NoRole)
+        settings_menu = QMenu("Snapshot", menu_bar)
+        open_settings_action = QAction("Settings", settings_menu)
+        open_settings_action.setMenuRole(QAction.NoRole)
         open_settings_action.triggered.connect(self.open_settings)
         settings_menu.addAction(open_settings_action)
         menu_bar.addMenu(settings_menu)
 
-        file_menu = QtGui.QMenu("File", menu_bar)
-        open_new_req_file_action = QtGui.QAction("Open", file_menu)
-        open_new_req_file_action.setMenuRole(QtGui.QAction.NoRole)
+        file_menu = QMenu("File", menu_bar)
+        open_new_req_file_action = QAction("Open", file_menu)
+        open_new_req_file_action.setMenuRole(QAction.NoRole)
         open_new_req_file_action.triggered.connect(self.open_new_req_file)
         file_menu.addAction(open_new_req_file_action)
         menu_bar.addMenu(file_menu)
@@ -167,7 +169,7 @@ class SnapshotGui(QtGui.QMainWindow):
         self.common_settings["sts_info"] = self.status_bar
 
         # Create status log show/hide control and add it to status bar
-        self.show_log_control = QtGui.QCheckBox("Show status log")
+        self.show_log_control = QCheckBox("Show status log")
         self.show_log_control.setStyleSheet("background-color: transparent")
         self.show_log_control.stateChanged.connect(self.status_log.setVisible)
         self.status_log.setVisible(False)
@@ -196,13 +198,13 @@ class SnapshotGui(QtGui.QMainWindow):
 
         self.restore_widget.files_selected.connect(self.handle_selected_files)
 
-        sr_splitter = QtGui.QSplitter(self)
+        sr_splitter = QSplitter(self)
         sr_splitter.addWidget(self.save_widget)
         sr_splitter.addWidget(self.restore_widget)
         element_size = (self.save_widget.sizeHint().width() + self.restore_widget.sizeHint().width()) / 2
         sr_splitter.setSizes([element_size, element_size])
 
-        main_splitter = QtGui.QSplitter(self)
+        main_splitter = QSplitter(self)
         main_splitter.addWidget(sr_splitter)
         main_splitter.addWidget(self.compare_widget)
         main_splitter.addWidget(self.status_log)
@@ -264,23 +266,23 @@ class SnapshotGui(QtGui.QMainWindow):
 
         except IOError:
             warn = "File {} does not exist!".format(req_file_path)
-            QtGui.QMessageBox.warning(self, "Warning", warn, QtGui.QMessageBox.Ok, QtGui.QMessageBox.NoButton)
+            QMessageBox.warning(self, "Warning", warn, QMessageBox.Ok, QMessageBox.NoButton)
             reopen_config = True
 
         except ReqParseError as e:
             msg = 'Snapshot cannot be loaded due to a syntax error in request file. See details.'
-            msg_window = DetailedMsgBox(msg, str(e), 'Warning', self, QtGui.QMessageBox.Ok)
+            msg_window = DetailedMsgBox(msg, str(e), 'Warning', self, QMessageBox.Ok)
             msg_window.exec_()
             reopen_config = True
 
         except SnapshotError as e:
-            QtGui.QMessageBox.warning(self, "Warning", str(e), QtGui.QMessageBox.Ok, QtGui.QMessageBox.NoButton)
+            QMessageBox.warning(self, "Warning", str(e), QMessageBox.Ok, QMessageBox.NoButton)
             reopen_config = True
 
         if reopen_config:
             configure_dialog = SnapshotConfigureDialog(self, init_path=req_file_path, init_macros=req_macros)
             configure_dialog.accepted.connect(self.init_snapshot)
-            if configure_dialog.exec_() == QtGui.QDialog.Rejected:
+            if configure_dialog.exec_() == QDialog.Rejected:
                 self.close_gui()
 
     def handle_files_updated(self, updated_files):
@@ -329,16 +331,16 @@ class SnapshotGui(QtGui.QMainWindow):
 
 
 # -------- Status widgets -----------
-class SnapshotStatusLog(QtGui.QWidget):
+class SnapshotStatusLog(QWidget):
     """ Command line like logger widget """
 
     def __init__(self, parent=None):
-        QtGui.QWidget.__init__(self, parent)
-        self.sts_log = QtGui.QPlainTextEdit(self)
+        QWidget.__init__(self, parent)
+        self.sts_log = QPlainTextEdit(self)
         self.sts_log.setReadOnly(True)
 
-        layout = QtGui.QVBoxLayout()
-        layout.setMargin(10)
+        layout = QVBoxLayout()
+        # layout.setMargin(10)
         layout.addWidget(self.sts_log)
         self.setLayout(layout)
 
@@ -354,14 +356,14 @@ class SnapshotStatusLog(QtGui.QWidget):
         self.sts_log.ensureCursorVisible()
 
 
-class SnapshotStatus(QtGui.QStatusBar):
+class SnapshotStatus(QStatusBar):
     def __init__(self, common_settings, parent=None):
-        QtGui.QStatusBar.__init__(self, parent)
+        QStatusBar.__init__(self, parent)
         self.common_settings = common_settings
         self.setSizeGripEnabled(False)
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.clear_status)
-        self.status_txt = QtGui.QLabel()
+        self.status_txt = QLabel()
         self.status_txt.setStyleSheet("background-color: transparent")
         self.addWidget(self.status_txt)
         self.set_status()
@@ -388,7 +390,7 @@ class SnapshotStatus(QtGui.QStatusBar):
 
 # This function should be called from outside, to start the gui
 def start_gui(*args, **kwargs):
-    app = QtGui.QApplication(sys.argv)
+    app = QApplication(sys.argv)
 
     # Load an application style
     default_style_path = os.path.dirname(os.path.realpath(__file__))

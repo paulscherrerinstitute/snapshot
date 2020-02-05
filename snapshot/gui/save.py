@@ -8,14 +8,16 @@ import datetime
 import os
 import time
 
-from PyQt4 import QtGui, QtCore
-from PyQt4.QtCore import Qt
+from PyQt5 import QtCore
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QLineEdit, QLabel, QHBoxLayout, QVBoxLayout, QFrame, QGroupBox, QMessageBox, QPushButton, \
+    QWidget
 
 from ..ca_core import PvStatus, ActionStatus
 from .utils import SnapshotKeywordSelectorWidget, DetailedMsgBox
 
 
-class SnapshotSaveWidget(QtGui.QWidget):
+class SnapshotSaveWidget(QWidget):
     """
     Save widget is a widget that enables user to save current state of PVs
     listed in request file. Widget includes:
@@ -34,7 +36,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
     saved = QtCore.pyqtSignal()
 
     def __init__(self, snapshot, common_settings, parent=None, **kw):
-        QtGui.QWidget.__init__(self, parent, **kw)
+        QWidget.__init__(self, parent, **kw)
 
         self.common_settings = common_settings
         self.snapshot = snapshot
@@ -46,31 +48,31 @@ class SnapshotSaveWidget(QtGui.QWidget):
         self.save_file_sufix = ".snap"
 
         # Create layout and add GUI elements (input fields, buttons, ...)
-        layout = QtGui.QVBoxLayout(self)
-        layout.setMargin(10)
+        layout = QVBoxLayout(self)
+        # layout.setMargin(10)
         layout.setSpacing(10)
         self.setLayout(layout)
         min_label_width = 120
 
         # Make a field to select file extension (has a read-back)
-        extension_layout = QtGui.QHBoxLayout()
+        extension_layout = QHBoxLayout()
         extension_layout.setSpacing(10)
-        extension_label = QtGui.QLabel("Name extension:", self)
+        extension_label = QLabel("Name extension:", self)
         extension_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
         extension_label.setMinimumWidth(min_label_width)
-        self.extension_input = QtGui.QLineEdit(self)
+        self.extension_input = QLineEdit(self)
         extension_layout.addWidget(extension_label)
         extension_layout.addWidget(self.extension_input)
 
         # "Monitor" any name changes (by user, or by other methods)
-        extension_rb_layout = QtGui.QHBoxLayout()
+        extension_rb_layout = QHBoxLayout()
         extension_rb_layout.setSpacing(10)
         self.extension_input.textChanged.connect(self.update_name)
 
-        file_name_label = QtGui.QLabel("File name: ", self)
+        file_name_label = QLabel("File name: ", self)
         file_name_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
         file_name_label.setMinimumWidth(min_label_width)
-        self.file_name_rb = QtGui.QLabel(self)
+        self.file_name_rb = QLabel(self)
 
         # Create collapsible group with advanced options,
         # then update output file name and finish adding widgets to layout
@@ -84,9 +86,9 @@ class SnapshotSaveWidget(QtGui.QWidget):
         extension_rb_layout.addStretch()
 
         # Make Save button
-        save_layout = QtGui.QHBoxLayout()
+        save_layout = QHBoxLayout()
         save_layout.setSpacing(10)
-        self.save_button = QtGui.QPushButton("Save", self)
+        self.save_button = QPushButton("Save", self)
         self.save_button.clicked.connect(self.start_save)
 
         save_layout.addWidget(self.save_button)
@@ -148,7 +150,7 @@ class SnapshotSaveWidget(QtGui.QWidget):
                 msg_window = DetailedMsgBox(msg, "\n".join(list(pvs_status.keys())), "Warning", self)
                 reply = msg_window.exec_()
 
-                if reply != QtGui.QMessageBox.No:
+                if reply != QMessageBox.No:
                     # Start saving process in forced mode and notify when finished
                     status, pvs_status = self.snapshot.save_pvs(self.file_path,
                                                                 force=True,
@@ -233,11 +235,11 @@ class SnapshotSaveWidget(QtGui.QWidget):
         if os.path.exists(self.file_path):
             msg = "File already exists. Do you want to overwrite it?\n" + \
                   self.file_path
-            reply = QtGui.QMessageBox.question(self, 'Message', msg,
-                                               QtGui.QMessageBox.Yes,
-                                               QtGui.QMessageBox.No)
+            reply = QMessageBox.question(self, 'Message', msg,
+                                               QMessageBox.Yes,
+                                               QMessageBox.No)
 
-            if reply == QtGui.QMessageBox.No:
+            if reply == QMessageBox.No:
                 return False
         return True
 
@@ -245,15 +247,15 @@ class SnapshotSaveWidget(QtGui.QWidget):
         self.advanced.update_labels()
 
 
-class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
+class SnapshotAdvancedSaveSettings(QGroupBox):
     def __init__(self, text, common_settings, parent=None):
         self.parent = parent
 
-        QtGui.QGroupBox.__init__(self, text, parent)
+        QGroupBox.__init__(self, text, parent)
         self.setStyleSheet("background-color: rgba(0, 0, 0, 15)")
         min_label_width = 120
         # frame is a container with all widgets, tat should be collapsed
-        self.frame = QtGui.QFrame(self)
+        self.frame = QFrame(self)
         self.frame.setContentsMargins(0, 20, 0, 0)
         self.frame.setStyleSheet("background-color: None")
         self.setCheckable(True)
@@ -261,30 +263,30 @@ class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
         self.setChecked(False)
         self.toggled.connect(self.toggle)
 
-        layout = QtGui.QVBoxLayout()
-        layout.setMargin(0)
+        layout = QVBoxLayout()
+        # layout.setMargin(0)
         layout.addWidget(self.frame)
         self.setLayout(layout)
 
-        self.frame_layout = QtGui.QVBoxLayout()
-        self.frame_layout.setMargin(0)
+        self.frame_layout = QVBoxLayout()
+        # self.frame_layout.setMargin(0)
         self.frame.setLayout(self.frame_layout)
 
         # Make a field to enable user adding a comment
-        comment_layout = QtGui.QHBoxLayout()
+        comment_layout = QHBoxLayout()
         comment_layout.setSpacing(10)
-        comment_label = QtGui.QLabel("Comment:", self.frame)
+        comment_label = QLabel("Comment:", self.frame)
         comment_label.setStyleSheet("background-color: None")
         comment_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
         comment_label.setMinimumWidth(min_label_width)
-        self.comment_input = QtGui.QLineEdit(self.frame)
+        self.comment_input = QLineEdit(self.frame)
         comment_layout.addWidget(comment_label)
         comment_layout.addWidget(self.comment_input)
 
         # Make field for labels
-        labels_layout = QtGui.QHBoxLayout()
+        labels_layout = QHBoxLayout()
         labels_layout.setSpacing(10)
-        labels_label = QtGui.QLabel("Labels:", self.frame)
+        labels_label = QLabel("Labels:", self.frame)
         labels_label.setStyleSheet("background-color: None")
         labels_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
         labels_label.setMinimumWidth(min_label_width)
@@ -296,13 +298,13 @@ class SnapshotAdvancedSaveSettings(QtGui.QGroupBox):
         labels_layout.addWidget(self.labels_input)
 
         # Make field for specifying save file prefix
-        file_prefix_layout = QtGui.QHBoxLayout()
+        file_prefix_layout = QHBoxLayout()
         file_prefix_layout.setSpacing(10)
-        file_prefix_label = QtGui.QLabel("File name prefix:", self.frame)
+        file_prefix_label = QLabel("File name prefix:", self.frame)
         file_prefix_label.setStyleSheet("background-color: None")
         file_prefix_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
         file_prefix_label.setMinimumWidth(min_label_width)
-        self.file_prefix_input = QtGui.QLineEdit(self.frame)
+        self.file_prefix_input = QLineEdit(self.frame)
         file_prefix_layout.addWidget(file_prefix_label)
         file_prefix_layout.addWidget(self.file_prefix_input)
         self.file_prefix_input.textChanged.connect(

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import os
-from setuptools import setup, find_packages
+from setuptools import setup
 
 here = os.path.abspath(os.path.dirname(__file__))
 README = open(os.path.join(here, 'Readme.md')).read()
@@ -18,5 +18,5 @@ setup(name='snapshot',
       #              'snapshot.cmd': 'src/cmd'},
       package_data={'snapshot': ['gui/images/*.png', 'gui/qss/*.qss']},
       platforms=["any"],
-      requires=['pyepics', 'pyqt4', 'numpy'],
+      # requires=['pyepics', 'pyqt', 'numpy'],
       )
