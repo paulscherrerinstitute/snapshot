@@ -13,7 +13,8 @@ from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
 
 from ..ca_core import PvStatus, ActionStatus, SnapshotPv
-from .utils import SnapshotKeywordSelectorWidget, SnapshotEditMetadataDialog, DetailedMsgBox
+from .utils import SnapshotKeywordSelectorWidget, SnapshotEditMetadataDialog, \
+    DetailedMsgBox, show_snapshot_parse_errors
 
 
 class SnapshotRestoreWidget(QtGui.QWidget):
@@ -113,8 +114,11 @@ class SnapshotRestoreWidget(QtGui.QWidget):
 
             # Prepare pvs with values to restore
             if file_data:
-                pvs_in_file = file_data.get("pvs_list", None)  # is actually a dict
-                pvs_to_restore = copy.copy(file_data.get("pvs_list", None))  # is actually a dict
+                # Ignore parsing errors: the user has already seen them when
+                # when opening the snapshot.
+                pvs_in_file, _, _ = \
+                    self.snapshot.parse_from_save_file(file_data['file_path'])
+                pvs_to_restore = copy.copy(pvs_in_file)  # is actually a dict
                 macros = self.snapshot.macros
 
                 if pvs_list is not None:
@@ -341,26 +345,11 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
         save_files, err_to_report = self.get_save_files(self.common_settings["save_dir"], self.file_list)
 
         updated_files = self.update_file_list_selector(save_files)
-
         self.filter_file_list_selector()
+
         # Report any errors with snapshot files to the user
-        err_details = ""
         if err_to_report:
-            for item in err_to_report:
-                if item[1]:  # list of errors
-
-                    err_details += '- - - ' + item[0] + \
-                                   ' - - -\n * '  # file name
-                    err_details += '\n * '.join(item[1])
-                    err_details += '\n\n'
-
-            err_details = err_details[:-2]  # Remove last two new lines
-
-        if err_details:
-            msg = str(len(err_to_report)) + " of the snapshot saved files (.snap) were loaded with errors " \
-                                            "(see details)."
-            msg_window = DetailedMsgBox(msg, err_details, 'Warning', self, QtGui.QMessageBox.Ok)
-            msg_window.exec_()
+            show_snapshot_parse_errors(self, err_to_report)
 
         self.file_selector.setSortingEnabled(True)
         return updated_files
@@ -379,15 +368,17 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                 if (file_name not in current_files) or \
                         (current_files[file_name]["modif_time"] != os.path.getmtime(file_path)):
 
-                    pvs_list, meta_data, err = self.snapshot.parse_from_save_file(
-                        file_path)
+                    _, meta_data, err = \
+                        self.snapshot.parse_from_save_file(file_path,
+                                                           metadata_only=True)
 
                     # check if we have req_file metadata. This is used to determine which
                     # request file the save file belongs to.
                     # If there is no metadata (or no req_file specified in the metadata)
                     # we search using a prefix of the request file.
                     # The latter is less robust, but is backwards compatible.
-                    if ("req_file_name" in meta_data and meta_data["req_file_name"] == req_file_name) \
+                    if ("req_file_name" in meta_data
+                        and meta_data["req_file_name"] == req_file_name) \
                             or file_name.startswith(req_file_name.split(".")[0] + "_"):
                         # we really should have basic meta data
                         # (or filters and some other stuff will silently fail)
@@ -396,11 +387,12 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                         if "labels" not in meta_data:
                             meta_data["labels"] = []
 
-                        # save data (no need to open file again later))
-                        parsed_save_files[file_name] = dict()
-                        parsed_save_files[file_name]["pvs_list"] = pvs_list
-                        parsed_save_files[file_name]["meta_data"] = meta_data
-                        parsed_save_files[file_name]["modif_time"] = os.path.getmtime(file_path)
+                        parsed_save_files[file_name] = {
+                            'file_name': file_name,
+                            'file_path': file_path,
+                            'meta_data': meta_data,
+                            'modif_time': os.path.getmtime(file_path)
+                        }
 
                         if err:  # report errors only for matching saved files
                             err_to_report.append((file_name, err))
@@ -444,7 +436,6 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                 # Update the global data meta_data info, before checking if
                 # labels_to_remove are used in any of the files.
                 self.file_list[modified_file]["meta_data"] = meta_data
-                self.file_list[modified_file]["pvs_list"] = modified_data["pvs_list"]
 
                 # Check if can be removed (no other file has the same label)
                 if labels_to_remove:
@@ -559,8 +550,9 @@ class SnapshotRestoreFileSelector(QtGui.QWidget):
                 settings_window.resize(800, 200)
                 # if OK was pressed, update actual file and reflect changes in the list
                 if settings_window.exec_():
-                    self.snapshot.replace_metadata(self.selected_files[0],
-                                                   self.file_list.get(self.selected_files[0])["meta_data"])
+                    file_data = self.file_list.get(self.selected_files[0])
+                    self.snapshot.replace_metadata(file_data['file_path'],
+                                                   file_data['meta_data'])
                     self.parent.clear_update_files()
             else:
                 QtGui.QMessageBox.information(self, "Information", "Please select one file only",
