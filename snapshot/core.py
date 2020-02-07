@@ -57,7 +57,7 @@ class SnapshotPv(PV):
             self.add_conn_callback(connection_callback)
         self.is_array = False
 
-        super().__init__(pvname, connection_callback=self._internal_cnct_callback, auto_monitor=True,
+        super().__init__(pvname, connection_callback=self._internal_cnct_callback, auto_monitor=False,
                          connection_timeout=None, **kw)
 
     def save_pv(self):

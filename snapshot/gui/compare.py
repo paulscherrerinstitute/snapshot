@@ -520,7 +520,6 @@ class SnapshotPvTableLine(QtCore.QObject):
     Model of row in the PV table. Uses SnapshotPv callbacks to update its
     visualization of the PV state.
     """
-    _pv_changed = QtCore.pyqtSignal(dict)
     _pv_conn_changed = QtCore.pyqtSignal(dict)
     data_changed = QtCore.pyqtSignal(QtCore.QObject)
     _DIR_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -537,16 +536,13 @@ class SnapshotPvTableLine(QtCore.QObject):
                      {'icon': None}]  # Compare result
 
         self._conn_clb_id = pv_ref.add_conn_callback(self._conn_callback)
-        self._clb_id = pv_ref.add_callback(self._callback)
 
         # Internal signal
         self._pv_conn_changed.connect(self._handle_conn_callback)
-        self._pv_changed.connect(self._handle_callback)
 
-        # If connected take current value (might missed first callbacks)
         if pv_ref.connected:
             self.conn = pv_ref.connected
-            self.data[1]['data'] = pv_ref.value_as_str()
+            self.data[1]['data'] = ''
             self.data[1]['icon'] = None
 
         else:
@@ -561,7 +557,6 @@ class SnapshotPvTableLine(QtCore.QObject):
         :return:
         """
         self._pv_ref.remove_conn_callback(self._conn_clb_id)
-        self._pv_ref.remove_callback(self._clb_id)
 
     def append_snap_value(self, value):
         if value is not None:
@@ -632,9 +627,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             # dump other values
             return json.dumps(value)
 
-    def _callback(self, **kwargs):
-        self._pv_changed.emit(kwargs)
-
+    # TODO: unused without PV monitors, refactor after polling is added.
     def _handle_callback(self, data):
 
         pv_value = data.get('value', '')
