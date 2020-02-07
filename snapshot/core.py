@@ -3,6 +3,8 @@ import numpy
 from enum import Enum
 import json
 import logging
+from time import monotonic, sleep
+from threading import Lock
 
 
 # Exceptions
@@ -298,3 +300,63 @@ class SnapshotPv(PV):
             txt = txt.replace(macro, macros[key])
         return txt
 
+
+class PvUpdater:
+    updateRate = 1.  # seconds
+    _sleep_quantum = 0.1
+
+    def __init__(self, callback=lambda: None, **kwargs):
+        self._callback = callback
+        self._lock = Lock()
+        self._pvs = list()
+        self._quit = False
+        self._thread = ca.CAThread(target=self._run)
+
+    def __del__(self):
+        self.stop()
+
+    def start(self):
+        self._thread.start()
+
+    def stop(self):
+        self._quit = True
+        if self._thread.is_alive():
+            self._thread.join()
+
+    def add_pvs(self, pvs):
+        with self._lock:
+            self._pvs.extend(pvs)
+
+    def clear_pvs(self):
+        with self._lock:
+            self._pvs = list()
+
+    def _get_start(self, chid):
+        try:
+            ca.get(chid, wait=False)
+        except ca.ChannelAccessException:
+            pass
+
+    def _get_complete(self, chid):
+        try:
+            return ca.get_complete(chid, as_numpy=True,
+                                   timeout=self.updateRate)
+        except ca.ChannelAccessException:
+            return None
+
+    def _run(self):
+        startTime = monotonic()
+        while True:
+            if self._quit:
+                return
+            while monotonic() < startTime + self.updateRate:
+                sleep(self._sleep_quantum)
+                if self._quit:
+                    return
+
+            startTime = monotonic()
+            with self._lock:
+                for p in self._pvs:
+                    self._get_start(p.chid)
+                vals = [self._get_complete(p.chid) for p in self._pvs]
+            self._callback(vals)
