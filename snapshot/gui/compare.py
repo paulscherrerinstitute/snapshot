@@ -383,7 +383,6 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
     def __init__(self, snapshot: Snapshot, parent=None):
         super().__init__(parent)
         self.snapshot = snapshot
-        self._pvs_lines = dict()
         self._data = list()
         self._headers = ['PV', 'Current value', '']
         self._file_names = list()
@@ -404,7 +403,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         return self.get_pv_line_model(line).pvname
 
     def get_pv_line_model(self, line: int):
-        return self._pvs_lines.get(self.data(self.createIndex(line, 0), QtCore.Qt.DisplayRole), None)
+        return self._data[line]
 
     def add_pvs(self, pvs: list):
         """
@@ -415,10 +414,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         """
         self._updater.add_pvs(pvs)
         self.beginResetModel()
-        for pv in pvs:
-            line = SnapshotPvTableLine(pv, self)
-            self._pvs_lines[pv.pvname] = line
-            self._data.append(line)
+        self._data += [SnapshotPvTableLine(pv, self) for pv in pvs]
         self.endResetModel()
 
     def add_snap_files(self, files: dict):
@@ -440,7 +436,8 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             # To get a proper update, need to go through all existing pvs. Otherwise values of PVs listed in request
             # but not in the saved file are not cleared (value from previous file is seen on the screen)
             self._headers.append(file_name)
-            for pvname, pv_line in self._pvs_lines.items():
+            for pv_line in self._data:
+                pvname = pv_line.pvname
                 pv_data = pvs_list_full_names.get(pvname, {"value": None})
                 pv_line.append_snap_value(pv_data.get("value", None))
         self.endInsertColumns()
@@ -452,7 +449,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self._file_names = list()
         self.beginRemoveColumns(QtCore.QModelIndex(), 3, self.columnCount(self.createIndex(-1, -1)) - 1)
         # remove all snap files
-        for pvname, pv_line in self._pvs_lines.items():  # Go through all existing pv lines
+        for pv_line in self._data:
             pv_line.clear_snap_values()
 
         self._headers = self._headers[0:3]
@@ -465,10 +462,9 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         """
         self._updater.clear_pvs()
         self.beginResetModel()
-        for line in self._pvs_lines.values():
+        for line in self._data:
             line.disconnect_callbacks()
         self._data = list()
-        self._pvs_lines = dict()
         self.endResetModel()
 
     def update_snap_files(self, updated_files):
@@ -482,7 +478,8 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
                 if err:
                     errors.append((file_data['file_name'], err))
                 idx = self._headers.index(file_name)
-                for pvname, pv_line in self._pvs_lines.items():
+                for pv_line in self._data:
+                    pvname = pv_line.pvname
                     pv_data = saved_pvs.get(pvname, {"value": None})
                     pv_line.change_snap_value(idx, pv_data.get("value", None))
 
