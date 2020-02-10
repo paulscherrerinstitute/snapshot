@@ -521,6 +521,12 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self.dataChanged.emit(self.createIndex(0, 1),
                               self.createIndex(len(self._data), 1))
 
+    def handle_pv_connection_status(self, line_model):
+        row = self._data.index(line_model)
+        last_column = len(line_model.data) - 1
+        self.dataChanged.emit(self.createIndex(row, 0),
+                              self.createIndex(row, last_column))
+
     def headerData(self, section, orientation, role):
         if role == QtCore.Qt.DisplayRole:
             return self._headers[section]
@@ -532,6 +538,7 @@ class SnapshotPvTableLine(QtCore.QObject):
     visualization of the PV state. The value is updated by the parent (i.e.
     SnapshotPvTableModel).
     """
+    connectionStatusChanged = QtCore.pyqtSignal('PyQt_PyObject')
     _pv_conn_changed = QtCore.pyqtSignal(dict)
     _DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 
@@ -546,6 +553,8 @@ class SnapshotPvTableLine(QtCore.QObject):
                      {'data': 'PV disconnected', 'icon': self._WARN_ICON},  # current value
                      {'icon': None}]  # Compare result
 
+        self.connectionStatusChanged \
+            .connect(parent.handle_pv_connection_status)
         self._conn_clb_id = pv_ref.add_conn_callback(self._conn_callback)
 
         # Internal signal
@@ -653,6 +662,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             self.data[2]['icon'] = None
         else:
             self.data[1] = {'data': '', 'icon': None}
+        self.connectionStatusChanged.emit(self)
 
 
 class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
