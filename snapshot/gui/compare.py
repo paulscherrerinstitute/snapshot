@@ -373,9 +373,9 @@ class ModelUpdater(QtCore.QObject, PvUpdater):
 
 class SnapshotPvTableModel(QtCore.QAbstractTableModel):
     """
-    Model of the PV table. Handles adding and removing PVs (rows) and snapshot files (columns).
-    Each row (PV) is represented with SnapshotPvTableLine object. It doesnt emmit dataChange() on each
-    PV change, but rather 5 times per second if some PVs have changed in this time. This increases performance.
+    Model of the PV table. Handles adding and removing PVs (rows)
+    and snapshot files (columns). Each row (PV) is represented with
+    SnapshotPvTableLine object.
     """
 
     file_parse_errors = QtCore.pyqtSignal(list)
@@ -529,7 +529,8 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
 class SnapshotPvTableLine(QtCore.QObject):
     """
     Model of row in the PV table. Uses SnapshotPv callbacks to update its
-    visualization of the PV state.
+    visualization of the PV state. The value is updated by the parent (i.e.
+    SnapshotPvTableModel).
     """
     _pv_conn_changed = QtCore.pyqtSignal(dict)
     _DIR_PATH = os.path.dirname(os.path.realpath(__file__))
