@@ -666,10 +666,10 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
         self._name_filter = ''  # string or regex object
         self._eq_filter = PvCompareFilter.show_all
         self._filtered_pvs = list()
-    
+
     def setSourceModel(self, model):
         super().setSourceModel(model)
-        self.sourceModel().dataChanged.connect(self.apply_filter)
+        self.sourceModel().modelReset.connect(self.apply_filter)
 
     def set_name_filter(self, srch_filter):
         self._name_filter = srch_filter
