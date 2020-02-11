@@ -43,7 +43,8 @@ class PvStatus(Enum):
 # Subclass PV to be to later add info if needed
 class SnapshotPv(PV):
     """
-    Extended PV class with non-blocking methods to save and restore pvs.
+    Extended PV class with non-blocking methods to save and restore pvs. It
+    does not enable monitors, instead relying on values from PvUpdater.
     """
 
     def __init__(self, pvname, connection_callback=None, **kw):
@@ -58,9 +59,26 @@ class SnapshotPv(PV):
         if connection_callback:
             self.add_conn_callback(connection_callback)
         self.is_array = False
+        self._last_value = None
+        self._value_lock = Lock()
 
-        super().__init__(pvname, connection_callback=self._internal_cnct_callback, auto_monitor=False,
+        super().__init__(pvname,
+                         connection_callback=self._internal_cnct_callback,
+                         auto_monitor=False,
                          connection_timeout=None, **kw)
+
+    @PV.value.getter
+    def value(self):
+        """
+        Override the value property. Since auto_monitor is disabled, this
+        property would perform a get(). Instead, we return the last value
+        that was fetched by PvUpdater, emulating auto_monitor using periodic
+        updates. If no value was fetched yet, do a get().
+        """
+        with self._value_lock:
+            if self._last_value is None:
+                self._last_value = self.get()
+            return self._last_value
 
     def save_pv(self):
         """
@@ -359,4 +377,7 @@ class PvUpdater:
                 for p in self._pvs:
                     self._get_start(p.chid)
                 vals = [self._get_complete(p.chid) for p in self._pvs]
+                for p, v in zip(self._pvs, vals):
+                    with p._value_lock:
+                        p._last_value = v
             self._callback(vals)
