@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import QApplication, QStatusBar, QLabel, QVBoxLayout, QPlai
     QDialog, QSplitter, QCheckBox, QAction, QMenu, QMainWindow
 
 from snapshot.ca_core import Snapshot, parse_macros
-from snapshot.core import SnapshotError
+from snapshot.core import SnapshotError, backgroundWorkers
 from snapshot.parser import ReqParseError, MacroError
 from .compare import SnapshotCompareWidget
 from .restore import SnapshotRestoreWidget
@@ -231,7 +231,9 @@ class SnapshotGui(QMainWindow):
         configure_dialog.exec_()  # Do not act on rejected
 
     def change_req_file(self, req_file_path, macros):
+        backgroundWorkers.suspend()
         self.status_bar.set_status("Loading new request file ...", 0, "orange")
+
         self.set_request_file(req_file_path, macros)
         self.init_snapshot(req_file_path, macros)
 
@@ -243,6 +245,7 @@ class SnapshotGui(QMainWindow):
         self.setWindowTitle(os.path.basename(req_file_path) + ' - Snapshot')
 
         self.status_bar.set_status("New request file loaded.", 3000, "#64C864")
+        backgroundWorkers.resume()
 
     def handle_saved(self):
         # When save is done, save widget is updated by itself

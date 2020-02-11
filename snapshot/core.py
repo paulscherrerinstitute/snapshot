@@ -7,6 +7,40 @@ from time import monotonic, sleep
 from threading import Lock, RLock
 
 
+class _BackgroundWorkers:
+    """
+    A simple interface to suspend, resume and register background threads.
+    """
+
+    def __init__(self):
+        self._workers = []
+        self._count = 0
+
+    def suspend(self):
+        if self._count == 0:
+            for w in self._workers:
+                w.suspend()
+        self._count += 1
+
+    def resume(self):
+        if self._count > 0:
+            self._count -= 1
+            if self._count == 0:
+                for w in self._workers:
+                    w.resume()
+
+    def register(self, worker):
+        if worker not in self._workers:
+            self._workers.append(worker)
+
+    def unregister(self, worker):
+        idx = self._workers.index(worker)
+        del self._workers[idx]
+
+
+backgroundWorkers = _BackgroundWorkers()
+
+
 # Exceptions
 class SnapshotError(Exception):
     """
@@ -352,9 +386,12 @@ class PvUpdater:
         self._lock = Lock()
         self._pvs = list()
         self._quit = False
+        self._suspend = False
         self._thread = ca.CAThread(target=self._run)
+        backgroundWorkers.register(self)
 
     def __del__(self):
+        backgroundWorkers.unregister(self)
         self.stop()
 
     def start(self):
@@ -364,6 +401,14 @@ class PvUpdater:
         self._quit = True
         if self._thread.is_alive():
             self._thread.join()
+
+    def suspend(self):
+        with self._lock:
+            self._suspend = True
+
+    def resume(self):
+        with self._lock:
+            self._suspend = False
 
     def add_pvs(self, pvs):
         with self._lock:
@@ -388,16 +433,16 @@ class PvUpdater:
 
     def _run(self):
         startTime = monotonic()
-        while True:
-            if self._quit:
-                return
+        while not self._quit:
             while monotonic() < startTime + self.updateRate:
                 sleep(self._sleep_quantum)
                 if self._quit:
                     return
 
-            startTime = monotonic()
             with self._lock:
+                startTime = monotonic()
+                if self._suspend:  # this check needs the lock
+                    continue
                 for p in self._pvs:
                     p._value_lock.acquire()
                     self._get_start(p.chid)

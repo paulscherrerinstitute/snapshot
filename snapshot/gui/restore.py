@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QHBoxLayout, QMes
     QMenu, QLineEdit, QLabel
 
 from ..ca_core import PvStatus, ActionStatus, SnapshotPv
+from ..core import backgroundWorkers
 from .utils import SnapshotKeywordSelectorWidget, SnapshotEditMetadataDialog, \
     DetailedMsgBox, show_snapshot_parse_errors
 
@@ -361,6 +362,7 @@ class SnapshotRestoreFileSelector(QWidget):
         # Parses all new or modified files. Parsed files are returned as a
         # dictionary.
         import glob
+        backgroundWorkers.suspend()
         parsed_save_files = dict()
         err_to_report = list()
         req_file_name = os.path.basename(self.common_settings["req_file_path"])
@@ -400,6 +402,7 @@ class SnapshotRestoreFileSelector(QWidget):
                         if err:  # report errors only for matching saved files
                             err_to_report.append((file_name, err))
 
+        backgroundWorkers.resume()
         return parsed_save_files, err_to_report
 
     def update_file_list_selector(self, modif_file_list):
