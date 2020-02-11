@@ -388,7 +388,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self._file_names = list()
 
         self._updater = ModelUpdater(self)
-        self._updater.update_complete.connect(self.handle_pv_update)
+        self._updater.update_complete.connect(self._handle_pv_update)
 
         # Tie starting and stopping the worker thread to starting and
         # stopping of the application.
@@ -513,7 +513,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         elif role == QtCore.Qt.DecorationRole:
             return self._data[index.row()].data[index.column()].get('icon', None)
 
-    def handle_pv_update(self, new_values):
+    def _handle_pv_update(self, new_values):
         for value, line in zip(new_values, self._data):
             line.update_pv_value(value)
 
