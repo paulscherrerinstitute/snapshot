@@ -517,9 +517,9 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         for value, line in zip(new_values, self._data):
             line.update_pv_value(value)
 
-        # Only update the value column.
+        # Only update the value and comparison columns.
         self.dataChanged.emit(self.createIndex(0, 1),
-                              self.createIndex(len(self._data), 1))
+                              self.createIndex(len(self._data), 2))
 
     def handle_pv_connection_status(self, line_model):
         row = self._data.index(line_model)
@@ -621,6 +621,9 @@ class SnapshotPvTableLine(QtCore.QObject):
         return len(self.data) - 3
 
     def _compare(self, pv_value=None):
+        if pv_value is None and self._pv_ref.connected:
+            pv_value = self._pv_ref.value
+
         n_files = self.get_snap_count()
 
         if n_files == 1 and self._pv_ref.connected and \
