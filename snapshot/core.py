@@ -4,7 +4,7 @@ from enum import Enum
 import json
 import logging
 from time import monotonic, sleep
-from threading import Lock
+from threading import Lock, RLock
 
 
 # Exceptions
@@ -60,7 +60,7 @@ class SnapshotPv(PV):
             self.add_conn_callback(connection_callback)
         self.is_array = False
         self._last_value = None
-        self._value_lock = Lock()
+        self._value_lock = RLock()
 
         super().__init__(pvname,
                          connection_callback=self._internal_cnct_callback,
@@ -70,7 +70,7 @@ class SnapshotPv(PV):
     @PV.value.getter
     def value(self):
         """
-        Override the value property. Since auto_monitor is disabled, this
+        Overriden PV.value property. Since auto_monitor is disabled, this
         property would perform a get(). Instead, we return the last value
         that was fetched by PvUpdater, emulating auto_monitor using periodic
         updates. If no value was fetched yet, do a get().
@@ -79,6 +79,30 @@ class SnapshotPv(PV):
             if self._last_value is None:
                 self._last_value = self.get()
             return self._last_value
+
+    def get(self, *args, **kwargs):
+        """
+        Overriden PV.get() function to provide locking and avoid conflicts
+        with PvUpdater.
+        """
+        with self._value_lock:
+            return PV.get(self, *args, **kwargs)
+
+    def get_with_metadata(self, *args, **kwargs):
+        """
+        Overriden PV.get_with_metadata() function to provide locking and avoid
+        conflicts with PvUpdater.
+        """
+        with self._value_lock:
+            return PV.get_with_metadata(self, *args, **kwargs)
+
+    def put(self, *args, **kwargs):
+        """
+        Overriden PV.put() function to provide locking and avoid conflicts
+        with PvUpdater.
+        """
+        with self._value_lock:
+            return PV.put(self, *args, **kwargs)
 
     def save_pv(self):
         """
@@ -375,9 +399,10 @@ class PvUpdater:
             startTime = monotonic()
             with self._lock:
                 for p in self._pvs:
+                    p._value_lock.acquire()
                     self._get_start(p.chid)
                 vals = [self._get_complete(p.chid) for p in self._pvs]
                 for p, v in zip(self._pvs, vals):
-                    with p._value_lock:
-                        p._last_value = v
+                    p._last_value = v
+                    p._value_lock.release()
             self._callback(vals)
