@@ -364,11 +364,19 @@ class ModelUpdater(QtCore.QObject, PvUpdater):
 
     def __init__(self, parent):
         super().__init__(parent=parent, callback=self._callback)
+
+        # Use a blocking connection to throttle the thread.
         self._internal_update.connect(self.update_complete,
-                                      QtCore.Qt.QueuedConnection)
+                                      QtCore.Qt.BlockingQueuedConnection)
 
     def _callback(self, pvs):
         self._internal_update.emit(pvs)
+
+    def stop(self):
+        # The connection is blocking, so disconnect to prevent deadlock
+        # while waiting for thread to finish.
+        self._internal_update.disconnect()
+        PvUpdater.stop(self)
 
 
 class SnapshotPvTableModel(QtCore.QAbstractTableModel):
