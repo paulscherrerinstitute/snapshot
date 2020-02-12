@@ -101,6 +101,9 @@ class SnapshotPv(PV):
                          auto_monitor=False,
                          connection_timeout=None, **kw)
 
+    def update_last_value(self, value):
+        self._last_value = value
+
     @PV.value.getter
     def value(self):
         """
@@ -464,6 +467,6 @@ class PvUpdater:
                     self._get_start(ch)
                 vals = [self._get_complete(ch) for ch in chids]
                 for pv, v in zip(pvs, vals):
-                    pv._last_value = v
+                    pv.update_last_value(v)
 
             self._callback(vals)
