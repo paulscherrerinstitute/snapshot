@@ -116,8 +116,8 @@ class SnapshotPv(PV):
 
     def get(self, *args, **kwargs):
         """
-        Overriden PV.get() function to provide locking and avoid conflicts
-        with PvUpdater.
+        Overriden PV.get() function. If not arguments are given, returns the
+        cached value if available. See value().
         """
         if args or kwargs:
             return PV.get(self, *args, **kwargs)
@@ -364,6 +364,12 @@ class SnapshotPv(PV):
 
 
 class PvUpdater:
+    """
+    Manages a thread that periodically updated PV values. The values are both
+    cached in the PV objects (see SnapshotPv.value()) and passed to a callback.
+    A normal python thread is used instead of a CAThread because a fresh CA
+    context is needed.
+    """
     updateRate = 1.  # seconds
     _sleep_quantum = 0.1
 
