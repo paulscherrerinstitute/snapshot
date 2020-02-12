@@ -4,7 +4,7 @@ from enum import Enum
 import json
 import logging
 from time import monotonic, sleep
-from threading import Lock, RLock
+from threading import Thread, Lock
 
 
 class _BackgroundWorkers:
@@ -78,7 +78,8 @@ class PvStatus(Enum):
 class SnapshotPv(PV):
     """
     Extended PV class with non-blocking methods to save and restore pvs. It
-    does not enable monitors, instead relying on values from PvUpdater.
+    does not enable monitors, instead relying on values from PvUpdater. Without
+    PvUpdater, it will always perform a get().
     """
 
     def __init__(self, pvname, connection_callback=None, **kw):
@@ -94,7 +95,6 @@ class SnapshotPv(PV):
             self.add_conn_callback(connection_callback)
         self.is_array = False
         self._last_value = None
-        self._value_lock = RLock()
 
         super().__init__(pvname,
                          connection_callback=self._internal_cnct_callback,
@@ -109,34 +109,20 @@ class SnapshotPv(PV):
         that was fetched by PvUpdater, emulating auto_monitor using periodic
         updates. If no value was fetched yet, do a get().
         """
-        with self._value_lock:
-            if self._last_value is None:
-                self._last_value = self.get()
-            return self._last_value
+        value = self._last_value  # it could be updated in the background
+        if value is None:
+            return PV.get(self)
+        return value
 
     def get(self, *args, **kwargs):
         """
         Overriden PV.get() function to provide locking and avoid conflicts
         with PvUpdater.
         """
-        with self._value_lock:
+        if args or kwargs:
             return PV.get(self, *args, **kwargs)
-
-    def get_with_metadata(self, *args, **kwargs):
-        """
-        Overriden PV.get_with_metadata() function to provide locking and avoid
-        conflicts with PvUpdater.
-        """
-        with self._value_lock:
-            return PV.get_with_metadata(self, *args, **kwargs)
-
-    def put(self, *args, **kwargs):
-        """
-        Overriden PV.put() function to provide locking and avoid conflicts
-        with PvUpdater.
-        """
-        with self._value_lock:
-            return PV.put(self, *args, **kwargs)
+        else:
+            return self.value
 
     def save_pv(self):
         """
@@ -384,10 +370,10 @@ class PvUpdater:
     def __init__(self, callback=lambda: None, **kwargs):
         self._callback = callback
         self._lock = Lock()
-        self._pvs = list()
+        self._new_pvs = None
         self._quit = False
         self._suspend = False
-        self._thread = ca.CAThread(target=self._run)
+        self._thread = Thread(target=self._run)
         backgroundWorkers.register(self)
 
     def __del__(self):
@@ -410,28 +396,35 @@ class PvUpdater:
         with self._lock:
             self._suspend = False
 
-    def add_pvs(self, pvs):
+    def set_pvs(self, pvs):
         with self._lock:
-            self._pvs.extend(pvs)
-
-    def clear_pvs(self):
-        with self._lock:
-            self._pvs = list()
+            self._new_pvs = pvs
 
     def _get_start(self, chid):
         try:
-            ca.get(chid, wait=False)
+            if ca.isConnected(chid):
+                ca.get(chid, wait=False)
         except ca.ChannelAccessException:
             pass
 
     def _get_complete(self, chid):
         try:
-            return ca.get_complete(chid, as_numpy=True,
-                                   timeout=self.updateRate)
+            if ca.isConnected(chid):
+                return ca.get_complete(chid, as_numpy=True,
+                                       timeout=self.updateRate)
+            else:
+                return None
         except ca.ChannelAccessException:
             return None
 
     def _run(self):
+        ca.create_context()
+        self._run_loop()
+        ca.destroy_context()
+
+    def _run_loop(self):
+        pvs = []  # these references are only used to update cached values
+        chids = []
         startTime = monotonic()
         while not self._quit:
             while monotonic() < startTime + self.updateRate:
@@ -443,11 +436,28 @@ class PvUpdater:
                 startTime = monotonic()
                 if self._suspend:  # this check needs the lock
                     continue
-                for p in self._pvs:
-                    p._value_lock.acquire()
-                    self._get_start(p.chid)
-                vals = [self._get_complete(p.chid) for p in self._pvs]
-                for p, v in zip(self._pvs, vals):
-                    p._last_value = v
-                    p._value_lock.release()
+
+                if self._new_pvs is not None:
+                    pvs = self._new_pvs
+                    self._new_pvs = None
+
+                    # Simply calling ca_clear to free chids is not
+                    # enough: something happens the library, causing
+                    # crashes with newly created chids. So we just
+                    # tear down everything.
+                    ca.destroy_context()
+                    ca.create_context()
+
+                    # Connect in background and sleep unlocked while waiting
+                    # for connection.
+                    chids = [ca.create_channel(pv.pvname, connect=False)
+                             for pv in pvs]
+                    continue
+
+                for ch in chids:
+                    self._get_start(ch)
+                vals = [self._get_complete(ch) for ch in chids]
+                for pv, v in zip(pvs, vals):
+                    pv._last_value = v
+
             self._callback(vals)

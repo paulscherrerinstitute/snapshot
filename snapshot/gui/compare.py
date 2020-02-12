@@ -55,7 +55,7 @@ class SnapshotCompareWidget(QWidget):
         self._proxy.filtered.connect(self._handle_filtered)
 
         # Build model and set default visualization on view (column widths, etc)
-        self.model.add_pvs(snapshot.pvs.values())
+        self.model.set_pvs(snapshot.pvs.values())
         self.view.setModel(self._proxy)
 
         # ---------- Filter control elements ---------------
@@ -190,8 +190,7 @@ class SnapshotCompareWidget(QWidget):
     def handle_new_snapshot_instance(self, snapshot):
         self.snapshot = snapshot
         self.model.snapshot = snapshot
-        self.model.clear_pvs()
-        self.model.add_pvs(snapshot.pvs.values())
+        self.model.set_pvs(snapshot.pvs.values())
         self.view.sortByColumn(0, Qt.AscendingOrder)  # default sorting
 
     def _handle_restore_request(self, pvs_list):
@@ -413,16 +412,18 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
     def get_pv_line_model(self, line: int):
         return self._data[line]
 
-    def add_pvs(self, pvs: list):
+    def set_pvs(self, pvs: list):
         """
-        Create new rows for given pvs.
+        Clear the rows and create new rows for given pvs.
 
         :param pvs: list of snapshot PVs
         :return:
         """
-        self._updater.add_pvs(pvs)
+        self._updater.set_pvs(pvs)
         self.beginResetModel()
-        self._data += [SnapshotPvTableLine(pv, self) for pv in pvs]
+        for line in self._data:
+            line.disconnect_callbacks()
+        self._data = [SnapshotPvTableLine(pv, self) for pv in pvs]
         self.endResetModel()
 
     def add_snap_files(self, files: dict):
@@ -462,18 +463,6 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
 
         self._headers = self._headers[0:3]
         self.endRemoveColumns()
-
-    def clear_pvs(self):
-        """
-        Removes all data from the model.
-        :return:
-        """
-        self._updater.clear_pvs()
-        self.beginResetModel()
-        for line in self._data:
-            line.disconnect_callbacks()
-        self._data = list()
-        self.endResetModel()
 
     def update_snap_files(self, updated_files):
         # Check if one of updated files is currently selected, and update
