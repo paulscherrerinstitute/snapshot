@@ -432,8 +432,8 @@ class PvUpdater:
                 if self._quit:
                     return
 
+            startTime = monotonic()
             with self._lock:
-                startTime = monotonic()
                 if self._suspend:  # this check needs the lock
                     continue
 
