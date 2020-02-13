@@ -512,7 +512,10 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
 
     def _handle_pv_update(self, new_values):
         for value, line in zip(new_values, self._data):
-            line.update_pv_value(value)
+            # PvUpdater may reconnect faster, so if we are not connected yet,
+            # ignore the update.
+            if line.conn:
+                line.update_pv_value(value)
 
         # Only update the value and comparison columns.
         self.dataChanged.emit(self.createIndex(0, 1),
