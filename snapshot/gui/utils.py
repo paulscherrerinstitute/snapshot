@@ -455,13 +455,13 @@ class SnapshotKeywordSelectorInput(QLineEdit):
                 (not self.text().strip() and event.key() == Qt.Key_Backspace):
             self.callback(event)
         else:
-            QtGui.QLineEdit.keyPressEvent(self, event)
+            QLineEdit.keyPressEvent(self, event)
 
     def focusOutEvent(self, event):
         # Pass the event to the main widget which will add current string to
         # the selected keywords, and then remove the focus
         self.callback(event)
-        QtGui.QLineEdit.focusOutEvent(self, event)
+        QLineEdit.focusOutEvent(self, event)
 
 
 class SnapshotKeywordWidget(QFrame):
@@ -609,6 +609,5 @@ def show_snapshot_parse_errors(parent, file_and_error_list):
         msg = str(len(file_and_error_list)) + \
             " of the snapshot saved files (.snap) were loaded with errors " \
             "(see details)."
-        msg_window = DetailedMsgBox(msg, err_details, 'Warning', parent,
-                                    QtGui.QMessageBox.Ok)
+        msg_window = DetailedMsgBox(msg, err_details, 'Warning', parent, QMessageBox.Ok)
         msg_window.exec_()

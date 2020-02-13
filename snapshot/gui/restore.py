@@ -525,7 +525,7 @@ class SnapshotRestoreFileSelector(QWidget):
     def delete_files(self):
         if self.selected_files:
             msg = "Do you want to delete selected files?"
-            reply = QMessageBox.question(self, 'Message', msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
+            reply = QMessageBox.question(self, 'Message', msg, QMessageBox.Yes, QMessageBox.No)
             if reply == QMessageBox.Yes:
                 for selected_file in self.selected_files:
                     try:
