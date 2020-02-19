@@ -3,6 +3,42 @@ import numpy
 from enum import Enum
 import json
 import logging
+from time import monotonic, sleep
+from threading import Thread, Lock
+
+
+class _BackgroundWorkers:
+    """
+    A simple interface to suspend, resume and register background threads.
+    """
+
+    def __init__(self):
+        self._workers = []
+        self._count = 0
+
+    def suspend(self):
+        if self._count == 0:
+            for w in self._workers:
+                w.suspend()
+        self._count += 1
+
+    def resume(self):
+        if self._count > 0:
+            self._count -= 1
+            if self._count == 0:
+                for w in self._workers:
+                    w.resume()
+
+    def register(self, worker):
+        if worker not in self._workers:
+            self._workers.append(worker)
+
+    def unregister(self, worker):
+        idx = self._workers.index(worker)
+        del self._workers[idx]
+
+
+backgroundWorkers = _BackgroundWorkers()
 
 
 # Exceptions
@@ -41,7 +77,9 @@ class PvStatus(Enum):
 # Subclass PV to be to later add info if needed
 class SnapshotPv(PV):
     """
-    Extended PV class with non-blocking methods to save and restore pvs.
+    Extended PV class with non-blocking methods to save and restore pvs. It
+    does not enable monitors, instead relying on values from PvUpdater. Without
+    PvUpdater, it will always perform a get().
     """
 
     def __init__(self, pvname, connection_callback=None, **kw):
@@ -56,9 +94,38 @@ class SnapshotPv(PV):
         if connection_callback:
             self.add_conn_callback(connection_callback)
         self.is_array = False
+        self._last_value = None
 
-        super().__init__(pvname, connection_callback=self._internal_cnct_callback, auto_monitor=True,
+        super().__init__(pvname,
+                         connection_callback=self._internal_cnct_callback,
+                         auto_monitor=False,
                          connection_timeout=None, **kw)
+
+    def update_last_value(self, value):
+        self._last_value = value
+
+    @PV.value.getter
+    def value(self):
+        """
+        Overriden PV.value property. Since auto_monitor is disabled, this
+        property would perform a get(). Instead, we return the last value
+        that was fetched by PvUpdater, emulating auto_monitor using periodic
+        updates. If no value was fetched yet, do a get().
+        """
+        value = self._last_value  # it could be updated in the background
+        if value is None:
+            return PV.get(self)
+        return value
+
+    def get(self, *args, **kwargs):
+        """
+        Overriden PV.get() function. If not arguments are given, returns the
+        cached value if available. See value().
+        """
+        if args or kwargs:
+            return PV.get(self, *args, **kwargs)
+        else:
+            return self.value
 
     def save_pv(self):
         """
@@ -298,3 +365,108 @@ class SnapshotPv(PV):
             txt = txt.replace(macro, macros[key])
         return txt
 
+
+class PvUpdater:
+    """
+    Manages a thread that periodically updated PV values. The values are both
+    cached in the PV objects (see SnapshotPv.value()) and passed to a callback.
+    A normal python thread is used instead of a CAThread because a fresh CA
+    context is needed.
+    """
+    updateRate = 1.  # seconds
+    _sleep_quantum = 0.1
+
+    def __init__(self, callback=lambda: None, **kwargs):
+        self._callback = callback
+        self._lock = Lock()
+        self._new_pvs = None
+        self._quit = False
+        self._suspend = False
+        self._thread = Thread(target=self._run)
+        backgroundWorkers.register(self)
+
+    def __del__(self):
+        backgroundWorkers.unregister(self)
+        self.stop()
+
+    def start(self):
+        self._thread.start()
+
+    def stop(self):
+        self._quit = True
+        if self._thread.is_alive():
+            self._thread.join()
+
+    def suspend(self):
+        with self._lock:
+            self._suspend = True
+
+    def resume(self):
+        with self._lock:
+            self._suspend = False
+
+    def set_pvs(self, pvs):
+        with self._lock:
+            self._new_pvs = pvs
+
+    def _get_start(self, chid):
+        try:
+            if ca.isConnected(chid):
+                ca.get(chid, wait=False)
+        except ca.ChannelAccessException:
+            pass
+
+    def _get_complete(self, chid):
+        try:
+            if ca.isConnected(chid):
+                return ca.get_complete(chid, as_numpy=True,
+                                       timeout=self.updateRate)
+            else:
+                return None
+        except ca.ChannelAccessException:
+            return None
+
+    def _run(self):
+        ca.create_context()
+        self._run_loop()
+        ca.destroy_context()
+
+    def _run_loop(self):
+        pvs = []  # these references are only used to update cached values
+        chids = []
+        startTime = monotonic()
+        while not self._quit:
+            while monotonic() < startTime + self.updateRate:
+                sleep(self._sleep_quantum)
+                if self._quit:
+                    return
+
+            startTime = monotonic()
+            with self._lock:
+                if self._suspend:  # this check needs the lock
+                    continue
+
+                if self._new_pvs is not None:
+                    pvs = self._new_pvs
+                    self._new_pvs = None
+
+                    # Simply calling ca_clear to free chids is not
+                    # enough: something happens the library, causing
+                    # crashes with newly created chids. So we just
+                    # tear down everything.
+                    ca.destroy_context()
+                    ca.create_context()
+
+                    # Connect in background and sleep unlocked while waiting
+                    # for connection.
+                    chids = [ca.create_channel(pv.pvname, connect=False)
+                             for pv in pvs]
+                    continue
+
+                for ch in chids:
+                    self._get_start(ch)
+                vals = [self._get_complete(ch) for ch in chids]
+                for pv, v in zip(pvs, vals):
+                    pv.update_last_value(v)
+
+            self._callback(vals)

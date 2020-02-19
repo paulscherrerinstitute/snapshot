@@ -16,7 +16,8 @@ from PyQt5.QtGui import QIcon, QCursor, QPalette, QColor
 from PyQt5.QtWidgets import QApplication, QHeaderView, QAbstractItemView, QMenu, QTableView, QVBoxLayout, QFrame, \
     QHBoxLayout, QCheckBox, QComboBox, QLineEdit, QLabel, QSizePolicy, QWidget
 
-from ..ca_core import Snapshot, SnapshotPv
+from ..ca_core import Snapshot
+from ..core import SnapshotPv, PvUpdater
 from .utils import show_snapshot_parse_errors
 
 import time
@@ -54,7 +55,7 @@ class SnapshotCompareWidget(QWidget):
         self._proxy.filtered.connect(self._handle_filtered)
 
         # Build model and set default visualization on view (column widths, etc)
-        self.model.add_pvs(snapshot.pvs.values())
+        self.model.set_pvs(snapshot.pvs.values())
         self.view.setModel(self._proxy)
 
         # ---------- Filter control elements ---------------
@@ -189,8 +190,7 @@ class SnapshotCompareWidget(QWidget):
     def handle_new_snapshot_instance(self, snapshot):
         self.snapshot = snapshot
         self.model.snapshot = snapshot
-        self.model.clear_pvs()
-        self.model.add_pvs(snapshot.pvs.values())
+        self.model.set_pvs(snapshot.pvs.values())
         self.view.sortByColumn(0, Qt.AscendingOrder)  # default sorting
 
     def _handle_restore_request(self, pvs_list):
@@ -356,11 +356,33 @@ class SnapshotPvTableView(QTableView):
         return self.model().sourceModel().get_pvname(self.selectionModel().model().mapToSource(idx).row())
 
 
+# Wrap PvUpdater into QObject for threadsafe signalling
+class ModelUpdater(QtCore.QObject, PvUpdater):
+    update_complete = QtCore.pyqtSignal(list)
+    _internal_update = QtCore.pyqtSignal(list)
+
+    def __init__(self, parent):
+        super().__init__(parent=parent, callback=self._callback)
+
+        # Use a blocking connection to throttle the thread.
+        self._internal_update.connect(self.update_complete,
+                                      QtCore.Qt.BlockingQueuedConnection)
+
+    def _callback(self, pvs):
+        self._internal_update.emit(pvs)
+
+    def stop(self):
+        # The connection is blocking, so disconnect to prevent deadlock
+        # while waiting for thread to finish.
+        self._internal_update.disconnect()
+        PvUpdater.stop(self)
+
+
 class SnapshotPvTableModel(QtCore.QAbstractTableModel):
     """
-    Model of the PV table. Handles adding and removing PVs (rows) and snapshot files (columns).
-    Each row (PV) is represented with SnapshotPvTableLine object. It doesnt emmit dataChange() on each
-    PV change, but rather 5 times per second if some PVs have changed in this time. This increases performance.
+    Model of the PV table. Handles adding and removing PVs (rows)
+    and snapshot files (columns). Each row (PV) is represented with
+    SnapshotPvTableLine object.
     """
 
     file_parse_errors = QtCore.pyqtSignal(list)
@@ -368,15 +390,18 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
     def __init__(self, snapshot: Snapshot, parent=None):
         super().__init__(parent)
         self.snapshot = snapshot
-        self._pvs_lines = dict()
         self._data = list()
         self._headers = ['PV', 'Current value', '']
-        self._some_data_changed = False
-
-        self._timer = QtCore.QTimer()
-        self._timer.timeout.connect(self._push_data_to_view)
-        self._timer.start(500)  # Defined GUI update rate
         self._file_names = list()
+
+        self._updater = ModelUpdater(self)
+        self._updater.update_complete.connect(self._handle_pv_update)
+
+        # Tie starting and stopping the worker thread to starting and
+        # stopping of the application.
+        app = QtCore.QCoreApplication.instance()
+        app.aboutToQuit.connect(self._updater.stop)
+        QtCore.QTimer.singleShot(0, self._updater.start)
 
     def get_snap_file_names(self):
         return self._file_names
@@ -385,21 +410,20 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         return self.get_pv_line_model(line).pvname
 
     def get_pv_line_model(self, line: int):
-        return self._pvs_lines.get(self.data(self.createIndex(line, 0), QtCore.Qt.DisplayRole), None)
+        return self._data[line]
 
-    def add_pvs(self, pvs: list):
+    def set_pvs(self, pvs: list):
         """
-        Create new rows for given pvs.
+        Clear the rows and create new rows for given pvs.
 
         :param pvs: list of snapshot PVs
         :return:
         """
+        self._updater.set_pvs(pvs)
         self.beginResetModel()
-        for pv in pvs:
-            line = SnapshotPvTableLine(pv, self)
-            self._pvs_lines[pv.pvname] = line
-            self._data.append(line)
-            self._data[-1].data_changed.connect(self.handle_pv_change)
+        for line in self._data:
+            line.disconnect_callbacks()
+        self._data = [SnapshotPvTableLine(pv, self) for pv in pvs]
         self.endResetModel()
 
     def add_snap_files(self, files: dict):
@@ -421,7 +445,8 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             # To get a proper update, need to go through all existing pvs. Otherwise values of PVs listed in request
             # but not in the saved file are not cleared (value from previous file is seen on the screen)
             self._headers.append(file_name)
-            for pvname, pv_line in self._pvs_lines.items():
+            for pv_line in self._data:
+                pvname = pv_line.pvname
                 pv_data = pvs_list_full_names.get(pvname, {"value": None})
                 pv_line.append_snap_value(pv_data.get("value", None))
         self.endInsertColumns()
@@ -433,23 +458,11 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self._file_names = list()
         self.beginRemoveColumns(QtCore.QModelIndex(), 3, self.columnCount(self.createIndex(-1, -1)) - 1)
         # remove all snap files
-        for pvname, pv_line in self._pvs_lines.items():  # Go through all existing pv lines
+        for pv_line in self._data:
             pv_line.clear_snap_values()
 
         self._headers = self._headers[0:3]
         self.endRemoveColumns()
-
-    def clear_pvs(self):
-        """
-        Removes all data from the model.
-        :return:
-        """
-        self.beginResetModel()
-        for line in self._pvs_lines.values():
-            line.disconnect_callbacks()
-        self._data = list()
-        self._pvs_lines = dict()
-        self.endResetModel()
 
     def update_snap_files(self, updated_files):
         # Check if one of updated files is currently selected, and update
@@ -462,7 +475,8 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
                 if err:
                     errors.append((file_data['file_name'], err))
                 idx = self._headers.index(file_name)
-                for pvname, pv_line in self._pvs_lines.items():
+                for pv_line in self._data:
+                    pvname = pv_line.pvname
                     pv_data = saved_pvs.get(pvname, {"value": None})
                     pv_line.change_snap_value(idx, pv_data.get("value", None))
 
@@ -496,19 +510,22 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         elif role == QtCore.Qt.DecorationRole:
             return self._data[index.row()].data[index.column()].get('icon', None)
 
-    def handle_pv_change(self, pv_line):
-        self._some_data_changed = True
+    def _handle_pv_update(self, new_values):
+        for value, line in zip(new_values, self._data):
+            # PvUpdater may reconnect faster, so if we are not connected yet,
+            # ignore the update.
+            if line.conn:
+                line.update_pv_value(value)
 
-    def _push_data_to_view(self):
-        """
-        This function is called periodically by self._timer. It emits dataChanged() signal
-        which forces views to update the whole PV table.
-        """
-        if self._some_data_changed:
-            # Something changed. Update view.
-            self._some_data_changed = False
-            self.dataChanged.emit(self.createIndex(0, 0), self.createIndex(len(self._data) - 1,
-                                  len(self._data[-1].data) - 1))
+        # Only update the value and comparison columns.
+        self.dataChanged.emit(self.createIndex(0, 1),
+                              self.createIndex(len(self._data), 2))
+
+    def handle_pv_connection_status(self, line_model):
+        row = self._data.index(line_model)
+        last_column = len(line_model.data) - 1
+        self.dataChanged.emit(self.createIndex(row, 0),
+                              self.createIndex(row, last_column))
 
     def headerData(self, section, orientation, role):
         if role == QtCore.Qt.DisplayRole:
@@ -518,11 +535,11 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
 class SnapshotPvTableLine(QtCore.QObject):
     """
     Model of row in the PV table. Uses SnapshotPv callbacks to update its
-    visualization of the PV state.
+    visualization of the PV state. The value is updated by the parent (i.e.
+    SnapshotPvTableModel).
     """
-    _pv_changed = QtCore.pyqtSignal(dict)
+    connectionStatusChanged = QtCore.pyqtSignal('PyQt_PyObject')
     _pv_conn_changed = QtCore.pyqtSignal(dict)
-    data_changed = QtCore.pyqtSignal(QtCore.QObject)
     _DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 
     def __init__(self, pv_ref, parent=None):
@@ -536,24 +553,20 @@ class SnapshotPvTableLine(QtCore.QObject):
                      {'data': 'PV disconnected', 'icon': self._WARN_ICON},  # current value
                      {'icon': None}]  # Compare result
 
+        self.connectionStatusChanged \
+            .connect(parent.handle_pv_connection_status)
         self._conn_clb_id = pv_ref.add_conn_callback(self._conn_callback)
-        self._clb_id = pv_ref.add_callback(self._callback)
 
         # Internal signal
         self._pv_conn_changed.connect(self._handle_conn_callback)
-        self._pv_changed.connect(self._handle_callback)
 
-        # If connected take current value (might missed first callbacks)
         if pv_ref.connected:
             self.conn = pv_ref.connected
-            self.data[1]['data'] = pv_ref.value_as_str()
+            self.data[1]['data'] = ''
             self.data[1]['icon'] = None
 
         else:
             self.conn = False
-
-        self._last_update = time.time()
-        self._signal_emitted = False
 
     def disconnect_callbacks(self):
         """
@@ -561,7 +574,6 @@ class SnapshotPvTableLine(QtCore.QObject):
         :return:
         """
         self._pv_ref.remove_conn_callback(self._conn_clb_id)
-        self._pv_ref.remove_callback(self._clb_id)
 
     def append_snap_value(self, value):
         if value is not None:
@@ -632,24 +644,16 @@ class SnapshotPvTableLine(QtCore.QObject):
             # dump other values
             return json.dumps(value)
 
-    def _callback(self, **kwargs):
-        self._pv_changed.emit(kwargs)
-
-    def _handle_callback(self, data):
-
-        pv_value = data.get('value', '')
-        self.data[1]['data'] = SnapshotPv.value_to_str(pv_value, self._pv_ref.is_array)
-        self._compare(pv_value)
-
-        new_time = time.time()
-        if (new_time - self._last_update) >= 1:  # Only update every second
-            self._last_update = new_time
-            # Only allow one signal to be emitted in one time interval
-            self._signal_emitted = False
-
-        if not self._signal_emitted:
-            self.data_changed.emit(self)
-            self._signal_emitted = True
+    def update_pv_value(self, pv_value):
+        if pv_value is None:
+            return True
+        new_value = SnapshotPv.value_to_str(pv_value, self._pv_ref.is_array)
+        if self.data[1]['data'] == new_value:
+            return False
+        else:
+            self.data[1]['data'] = new_value
+            self._compare(pv_value)
+            return True
 
     def _conn_callback(self, **kwargs):
         self._pv_conn_changed.emit(kwargs)
@@ -661,9 +665,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             self.data[2]['icon'] = None
         else:
             self.data[1] = {'data': '', 'icon': None}
-
-        self._compare()
-        self.data_changed.emit(self)
+        self.connectionStatusChanged.emit(self)
 
 
 class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
@@ -678,10 +680,10 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
         self._name_filter = ''  # string or regex object
         self._eq_filter = PvCompareFilter.show_all
         self._filtered_pvs = list()
-    
+
     def setSourceModel(self, model):
         super().setSourceModel(model)
-        self.sourceModel().dataChanged.connect(self.apply_filter)
+        self.sourceModel().modelReset.connect(self.apply_filter)
 
     def set_name_filter(self, srch_filter):
         self._name_filter = srch_filter
