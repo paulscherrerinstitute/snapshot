@@ -513,7 +513,7 @@ class SnapshotEditMetadataDialog(QDialog):
         layout = QVBoxLayout()
         form_layout = QFormLayout()
         form_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-        form_layout.setMargin(10)
+        # form_layout.setMargin(10)
         form_layout.setSpacing(10)
         form_layout.setLabelAlignment(Qt.AlignRight)
 
