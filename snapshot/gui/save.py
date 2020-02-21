@@ -259,8 +259,8 @@ class SnapshotAdvancedSaveSettings(QGroupBox):
         self.frame.setContentsMargins(0, 20, 0, 0)
         self.frame.setStyleSheet("background-color: None")
         # self.setCheckable(True)
-        # self.frame.setVisible(True)
-        # self.setChecked(False)
+        self.frame.setVisible(True)
+        self.setChecked(True)
         # self.toggled.connect(self.toggle)
 
         layout = QVBoxLayout()
