@@ -125,12 +125,12 @@ class SnapshotSaveWidget(QWidget):
             self.sts_info.set_status("Saving ...", 0, "orange")
 
             # Use advanced settings only if selected
-            if self.advanced.isChecked():
-                labels = self.advanced.labels_input.get_keywords()
-                comment = self.advanced.comment_input.text()
-            else:
-                labels = list()
-                comment = ""
+            # if self.advanced.isChecked():
+            labels = self.advanced.labels_input.get_keywords()
+            comment = self.advanced.comment_input.text()
+            # else:
+            #     labels = list()
+            #     comment = ""
 
             force = self.common_settings["force"]
             # Start saving process with default "force" flag and notify when finished
