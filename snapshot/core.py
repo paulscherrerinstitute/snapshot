@@ -97,6 +97,7 @@ class SnapshotPv(PV):
             self.add_conn_callback(connection_callback)
         self.is_array = False
         self._last_value = None
+        self._initialized = False
         self._pvget_lock = Lock()
 
         super().__init__(pvname,
@@ -113,9 +114,11 @@ class SnapshotPv(PV):
         updates. If no value was fetched yet, do a get().
         """
         value = self._last_value  # it could be updated in the background
-        if value is None:
+        if not self._initialized:
+            self._initialized = True
             with self._pvget_lock:
-                return PV.get(self)
+                value = PV.get(self)
+                self._last_value = value
         return value
 
     def get(self, *args, **kwargs):
