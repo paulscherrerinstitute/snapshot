@@ -80,6 +80,8 @@ class SnapshotPv(PV):
     Extended PV class with non-blocking methods to save and restore pvs. It
     does not enable monitors, instead relying on values from PvUpdater. Without
     PvUpdater, it will always perform a get().
+
+    Note: PvUpdater is a "friend class" and uses this class' internals.
     """
 
     def __init__(self, pvname, connection_callback=None, **kw):
@@ -95,14 +97,12 @@ class SnapshotPv(PV):
             self.add_conn_callback(connection_callback)
         self.is_array = False
         self._last_value = None
+        self._pvget_lock = Lock()
 
         super().__init__(pvname,
                          connection_callback=self._internal_cnct_callback,
                          auto_monitor=False,
                          connection_timeout=None, **kw)
-
-    def update_last_value(self, value):
-        self._last_value = value
 
     @PV.value.getter
     def value(self):
@@ -114,18 +114,38 @@ class SnapshotPv(PV):
         """
         value = self._last_value  # it could be updated in the background
         if value is None:
-            return PV.get(self)
+            with self._pvget_lock:
+                return PV.get(self)
         return value
 
     def get(self, *args, **kwargs):
         """
         Overriden PV.get() function. If not arguments are given, returns the
-        cached value if available. See value().
+        cached value, otherwise calls PV.get(). See also SnapshotPv.value().
+        Positional arguments are not allowed. The following keyword arguments
+        are allowed: use_monitor.
         """
-        if args or kwargs:
-            return PV.get(self, *args, **kwargs)
-        else:
-            return self.value
+
+        # Because PvUpdater uses low-level ca calls that can time out,
+        # PV.get() must be able to handle incomplete gets that it
+        # didn't start itself. Thus, all calls to ca.get() in
+        # PvUpdater and PV.get() must be compatible in terms of which
+        # data is fetched. Thus, if any other keyword arguments are
+        # needed, they need to be handled explicitly.
+
+        allowed_kw = ('use_monitor',)
+
+        if args:
+            raise RuntimeError("Positional arguments not allowed.")
+
+        if kwargs:
+            for k in kwargs.keys():
+                if k not in allowed_kw:
+                    raise RuntimeError(f"Keyword argument {k} not allowed.")
+            with self._pvget_lock:
+                return PV.get(self, *args, **kwargs)
+
+        return self.value
 
     def save_pv(self):
         """
@@ -379,7 +399,7 @@ class PvUpdater:
     def __init__(self, callback=lambda: None, **kwargs):
         self._callback = callback
         self._lock = Lock()
-        self._new_pvs = None
+        self._pvs = []
         self._quit = False
         self._suspend = False
         self._thread = Thread(target=self._run)
@@ -407,33 +427,36 @@ class PvUpdater:
 
     def set_pvs(self, pvs):
         with self._lock:
-            self._new_pvs = pvs
+            self._pvs = list(pvs)
 
-    def _get_start(self, chid):
+    def _get_start(self, pv):
         try:
-            if ca.isConnected(chid):
-                ca.get(chid, wait=False)
+            if pv.connected:
+                # Use get_with_metadata with explicit ftype. This is what
+                # PV.get() does and this call must match that. If that is not
+                # the case and if the get times out, the next call to PV.get()
+                # will crash.
+                ca.get_with_metadata(pv.chid, wait=False, as_numpy=True,
+                                     ftype=pv.ftype)
         except ca.ChannelAccessException:
             pass
 
-    def _get_complete(self, chid):
+    def _get_complete(self, pv):
         try:
-            if ca.isConnected(chid):
-                return ca.get_complete(chid, as_numpy=True,
-                                       timeout=self.updateRate)
+            if pv.connected:
+                md = ca.get_complete_with_metadata(pv.chid, as_numpy=True,
+                                                   ftype=pv.ftype,
+                                                   timeout=self.updateRate)
+                if md is None:
+                    return None
+                return md['value']
             else:
                 return None
         except ca.ChannelAccessException:
             return None
 
     def _run(self):
-        ca.create_context()
-        self._run_loop()
-        ca.destroy_context()
-
-    def _run_loop(self):
-        pvs = []  # these references are only used to update cached values
-        chids = []
+        ca.use_initial_context()
         startTime = monotonic()
         while not self._quit:
             while monotonic() < startTime + self.updateRate:
@@ -446,27 +469,14 @@ class PvUpdater:
                 if self._suspend:  # this check needs the lock
                     continue
 
-                if self._new_pvs is not None:
-                    pvs = self._new_pvs
-                    self._new_pvs = None
+                for pv in self._pvs:
+                    pv._pvget_lock.acquire()
+                    self._get_start(pv)
 
-                    # Simply calling ca_clear to free chids is not
-                    # enough: something happens the library, causing
-                    # crashes with newly created chids. So we just
-                    # tear down everything.
-                    ca.destroy_context()
-                    ca.create_context()
+                vals = [self._get_complete(pv) for pv in self._pvs]
 
-                    # Connect in background and sleep unlocked while waiting
-                    # for connection.
-                    chids = [ca.create_channel(pv.pvname, connect=False)
-                             for pv in pvs]
-                    continue
-
-                for ch in chids:
-                    self._get_start(ch)
-                vals = [self._get_complete(ch) for ch in chids]
-                for pv, v in zip(pvs, vals):
-                    pv.update_last_value(v)
+                for pv, v in zip(self._pvs, vals):
+                    pv._last_value = v
+                    pv._pvget_lock.release()
 
             self._callback(vals)
