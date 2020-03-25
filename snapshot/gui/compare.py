@@ -620,14 +620,17 @@ class SnapshotPvTableLine(QtCore.QObject):
     def get_snap_count(self):
         return len(self.data) - 3
 
-    def _compare(self, pv_value=None):
-        if pv_value is None and self._pv_ref.connected:
+    def _compare(self, pv_value=None, get_missing=True):
+        if pv_value is None and self._pv_ref.connected and get_missing:
             pv_value = self._pv_ref.value
 
         n_files = self.get_snap_count()
+        if n_files == 1:
+            comparison = SnapshotPv.compare(pv_value,
+                                            self.data[-1]['raw_value'],
+                                            self._pv_ref.is_array)
 
-        if n_files == 1 and self._pv_ref.connected and \
-                not SnapshotPv.compare(pv_value, self.data[-1]['raw_value'], self._pv_ref.is_array):
+        if n_files == 1 and self._pv_ref.connected and not comparison:
             self.data[2]['icon'] = self._NEQ_ICON
         else:
             self.data[2]['icon'] = None
@@ -646,6 +649,8 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     def update_pv_value(self, pv_value):
         if pv_value is None:
+            self.data[1]['data'] = ''
+            self._compare(None, get_missing=False)
             return True
         new_value = SnapshotPv.value_to_str(pv_value, self._pv_ref.is_array)
         if self.data[1]['data'] == new_value:

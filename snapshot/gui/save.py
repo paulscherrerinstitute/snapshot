@@ -180,21 +180,27 @@ class SnapshotSaveWidget(QWidget):
 
     def save_done(self, status, forced):
         # Enable save button, and update status widgets
-        error = False
+        success = True
         msgs = list()
         msg_times = list()
         status_txt = ""
         status_background = ""
         for pvname, sts in status.items():
-            if sts == PvStatus.access_err:
-                error = not forced  # if here and not in force mode, then this is error state
-                msgs.append("WARNING: {}: Not saved (no connection or no read access)".format(pvname))
+            if sts != PvStatus.ok:
+                if sts == PvStatus.access_err:
+                    # if here and not in force mode, then this is error state
+                    success = success and not forced
+                    msgs.append("WARNING: {}: Not saved (no connection or no read access)".format(pvname))
+                else:
+                    success = False
+                    msgs.append("WARNING: {}: Not saved, error status {}."
+                                .format(pvname, sts))
                 msg_times.append(time.time())
                 status_txt = "Save error"
                 status_background = "#F06464"
         self.sts_log.log_msgs(msgs, msg_times)
 
-        if not error:
+        if success:
             self.sts_log.log_msgs("Save finished.", time.time())
             status_txt = "Save done"
             status_background = "#64C864"
