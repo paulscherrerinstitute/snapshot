@@ -1,6 +1,7 @@
 from snapshot.core import SnapshotError, SnapshotPv
 import os
 import re
+import json
 
 
 class SnapshotReqFile(object):
@@ -199,3 +200,88 @@ class ReqFileInfLoopError(ReqParseError):
     If request file is calling one of its ancestors.
     """
     pass
+
+
+def initialize_config(config_path=None, save_dir=None, force=False,
+                      default_labels=None, force_default_labels=None,
+                      req_file_path=None, req_file_macros=None,
+                      init_path=None):
+    """
+    Settings are a dictionary which holds common configuration of
+    the application (such as directory with save files, request file
+    path, etc). It is propagated to snapshot widgets.
+
+    :param save_dir: path to the default save directory
+    :param config_path: path to configuration file
+    :param force: force saving on disconnected channels
+    :param default_labels: list of default labels
+    :param force_default_labels: whether user can only select predefined labels
+    :param req_file_path: path to request file
+    :param req_file_macros: macros can be as dict (key, value pairs)
+                            or a string in format A=B,C=D
+    :param init_path: default path to be shown on the file selector
+    """
+    config = {'config_ok': True, 'macros_ok': True}
+    if config_path:
+        # Validate configuration file
+        try:
+            config.update(json.load(open(config_path)))
+            # force-labels must be type of bool
+            if not isinstance(config.get('labels', dict())
+                                    .get('force-labels', False), bool):
+                raise TypeError('"force-labels" must be boolean')
+        except Exception as e:
+            # Propagate error to the caller, but continue filling in defaults
+            config['config_ok'] = False
+            config['config_error'] = str(e)
+
+    config['save_file_prefix'] = ''
+    config['req_file_path'] = ''
+    config['req_file_macros'] = dict()
+    config['existing_labels'] = list()  # labels that are already in snap files
+    config['force'] = force
+    config['init_path'] = init_path if init_path else ''
+
+    if isinstance(default_labels, str):
+        default_labels = default_labels.split(',')
+
+    elif not isinstance(default_labels, list):
+        default_labels = list()
+
+    # default labels also in config file? Add them
+    config['default_labels'] = \
+        list(set(default_labels + (config.get('labels', dict())
+                                   .get('labels', list()))))
+
+    config['force_default_labels'] = \
+        config.get('labels', dict()) \
+              .get('force-labels', False) or force_default_labels
+
+    # Predefined filters
+    config["predefined_filters"] = config.get('filters', dict())
+
+    if req_file_macros is None:
+        req_file_macros = dict()
+    elif isinstance(req_file_macros, str):
+        # Try to parse macros. If problem, just pass to configure window
+        # which will force user to do it right way.
+        try:
+            req_file_macros = parse_macros(req_file_macros)
+        except MacroError:
+            config['macros_ok'] = False
+        config['req_file_macros'] = req_file_macros
+
+    if req_file_path and config['macros_ok']:
+        config['req_file_path'] = \
+            os.path.abspath(os.path.join(config['init_path'], req_file_path))
+
+    if not save_dir:
+        # Default save dir (do this once we have valid req file)
+        save_dir = os.path.dirname(config['req_file_path'])
+
+    if not save_dir:
+        config['save_dir'] = None
+    else:
+        config['save_dir'] = os.path.abspath(save_dir)
+
+    return config

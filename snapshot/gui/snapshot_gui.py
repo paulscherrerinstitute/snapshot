@@ -11,12 +11,13 @@ import sys
 
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QApplication, QStatusBar, QLabel, QVBoxLayout, QPlainTextEdit, QWidget, QMessageBox, \
-    QDialog, QSplitter, QCheckBox, QAction, QMenu, QMainWindow
+from PyQt5.QtWidgets import QApplication, QStatusBar, QLabel, QVBoxLayout, \
+    QPlainTextEdit, QWidget, QMessageBox, QDialog, QSplitter, QCheckBox, \
+    QAction, QMenu, QMainWindow
 
-from snapshot.ca_core import Snapshot, parse_macros
+from snapshot.ca_core import Snapshot
 from snapshot.core import SnapshotError, backgroundWorkers
-from snapshot.parser import ReqParseError, MacroError
+from snapshot.parser import ReqParseError, initialize_config
 from .compare import SnapshotCompareWidget
 from .restore import SnapshotRestoreWidget
 from .save import SnapshotSaveWidget
@@ -29,109 +30,45 @@ class SnapshotGui(QMainWindow):
     thread where core of the application is running
     """
 
-    def __init__(self, req_file_path: str = None, req_file_macros=None, save_dir: str = None, force: bool = False,
-                 default_labels: list = None, force_default_labels: bool = None, init_path: str = None,
-                 config_path: str = None, parent=None):
+    def __init__(self, config: dict = {}, parent=None):
         """
-        :param req_file_path: path to request file
-        :param req_file_macros: macros can be as dict (key, value pairs) or a string in format A=B,C=D
-        :param save_dir: path to the default save directory
-        :param force: force saving on disconnected channels
-        :param default_labels: list of default labels
-        :param force_default_labels: if True, user can only select predefined labels
-        :param init_path: default path to be shown on the file selector
-        :param config_path: path to configuration file
-        :param parent: Parent QtObject
+        :param config: application settings
+        :param parent: parent QtObject
         :return:
         """
         QMainWindow.__init__(self, parent)
 
-        if config_path:
-            # Validate configuration file
-            try:
-                config = json.load(open(config_path))
-                # force-labels must be type of bool
-                if not isinstance(config.get('labels', dict()).get('force-labels', False), bool):
-                    raise TypeError('"force-labels" must be boolean')
-            except Exception as e:
-                msg = "Loading configuration file failed! Do you want to continue with out it?\n"
-                msg_window = DetailedMsgBox(msg, str(e), 'Warning')
-                reply = msg_window.exec_()
-
-                if reply == QMessageBox.No:
-                    self.close_gui()
-
-                config = dict()
-        else:
-            config = dict()
-
         self.resize(1500, 850)
 
-        # common_settings is a dictionary which holds common configuration of
-        # the application (such as directory with save files, request file
-        # path, etc). It is propagated to other snapshot widgets if needed
-        self.common_settings = dict()
-        self.common_settings["save_file_prefix"] = ""
-        self.common_settings["req_file_path"] = ""
-        self.common_settings["req_file_macros"] = dict()
-        self.common_settings["existing_labels"] = list()  # labels that are already in snap files
-        self.common_settings["force"] = force
+        if not config or config['config_ok'] is False:
+            msg = "Loading configuration file failed! " \
+                  "Do you want to continue without it?\n"
+            msg_window = DetailedMsgBox(msg, config['config_error'], 'Warning')
+            reply = msg_window.exec_()
 
-        if isinstance(default_labels, str):
-            default_labels = default_labels.split(',')
+            if reply == QMessageBox.No:
+                self.close_gui()
 
-        elif not isinstance(default_labels, list):
-            default_labels = list()
+        self.common_settings = config
 
-        # default labels also in config file? Add them
-        self.common_settings["default_labels"] = list(set(default_labels +
-                                                          (config.get('labels', dict()).get('labels', list()))))
-
-        self.common_settings["force_default_labels"] = config.get('labels', dict()).get('force-labels', False) \
-                                                       or force_default_labels
-
-        # Predefined filters
-        self.common_settings["predefined_filters"] = config.get('filters', dict())
-
-        macros_ok = True
-        if req_file_macros is None:
-            req_file_macros = dict()
-        elif isinstance(req_file_macros, str):
-            # Try to parse macros. If problem, just pass to configure window which will force user to do it
-            # right way.
-            try:
-                req_file_macros = parse_macros(req_file_macros)
-            except MacroError:
-                macros_ok = False
-
-        if req_file_path is None:
-            req_file_path = ''
-        if init_path is None:
-            init_path = ''
-
-        if not req_file_path or not macros_ok:
-            configure_dialog = SnapshotConfigureDialog(self, init_path=os.path.join(init_path, req_file_path),
-                                                       init_macros=req_file_macros)
+        if not config['req_file_path'] or not config['macros_ok']:
+            req_file_macros = config['req_file_macros']
+            req_file_path = config['req_file_path']
+            init_path = config['init_path']
+            configure_dialog = \
+                SnapshotConfigureDialog(self,
+                                        init_macros=req_file_macros,
+                                        init_path=os.path.join(init_path,
+                                                               req_file_path))
             configure_dialog.accepted.connect(self.set_request_file)
-
             self.hide()
             if configure_dialog.exec_() == QDialog.Rejected:
                 self.close_gui()
-
-        else:
-            self.common_settings["req_file_path"] = os.path.abspath(os.path.join(init_path, req_file_path))
-            self.common_settings["req_file_macros"] = req_file_macros
 
         # Before creating GUI, snapshot must be initialized.
         self.snapshot = None
         self.init_snapshot(self.common_settings["req_file_path"],
                            self.common_settings["req_file_macros"])
-
-        if not save_dir:
-            # Default save dir (do this once we have valid req file)
-            save_dir = os.path.dirname(self.common_settings["req_file_path"])
-
-        self.common_settings["save_dir"] = os.path.abspath(save_dir)
 
         # Create main GUI components:
         #         menu bar
@@ -255,6 +192,8 @@ class SnapshotGui(QMainWindow):
     def set_request_file(self, path: str, macros: dict):
         self.common_settings["req_file_path"] = path
         self.common_settings["req_file_macros"] = macros
+        if not self.common_settings['save_dir']:
+            self.common_settings['save_dir'] = os.path.dirname(path)
 
     def init_snapshot(self, req_file_path, req_macros=None):
         if self.snapshot:
@@ -393,6 +332,8 @@ class SnapshotStatus(QStatusBar):
 
 # This function should be called from outside, to start the gui
 def start_gui(*args, **kwargs):
+    config = initialize_config(**kwargs)
+
     app = QApplication(sys.argv)
 
     # Load an application style
@@ -401,6 +342,6 @@ def start_gui(*args, **kwargs):
     app.setStyleSheet("file:///" + default_style_path)
 
     # IMPORTANT the reference to the SnapshotGui Object need to be retrieved otherwise the GUI will not show up
-    _ = SnapshotGui(*args, **kwargs)
+    _ = SnapshotGui(config)
 
     sys.exit(app.exec_())
