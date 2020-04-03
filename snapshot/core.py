@@ -5,11 +5,18 @@ import json
 import logging
 from time import monotonic, sleep
 from threading import Thread, Lock
+from concurrent.futures import ThreadPoolExecutor
+
+
+# A shared thread pool that can be used from anywhere for tasks that
+# should run in background, but not indefinitely.
+globalThreadPool = ThreadPoolExecutor(16)
 
 
 class _BackgroundWorkers:
     """
-    A simple interface to suspend, resume and register background threads.
+    A simple interface to suspend, resume and register background threads
+    for tasks that run for the lifetime of the program.
     """
 
     def __init__(self):

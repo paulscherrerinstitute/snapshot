@@ -91,10 +91,10 @@ class SnapshotRestoreWidget(QWidget):
 
         self.restored_callback.connect(self.restore_done)
 
-    def handle_new_snapshot_instance(self, snapshot):
+    def handle_new_snapshot_instance(self, snapshot, already_parsed_files):
         self.file_selector.handle_new_snapshot_instance(snapshot)
         self.snapshot = snapshot
-        self.clear_update_files()
+        self.clear_update_files(already_parsed_files)
 
     def start_refresh(self):
         # print('Refresh')
@@ -262,12 +262,14 @@ class SnapshotRestoreWidget(QWidget):
         # First update other GUI components (compare widget) and then pass pvs to compare to the snapshot core
         self.files_selected.emit(selected_data)
 
-    def update_files(self):
-        self.files_updated.emit(self.file_selector.start_file_list_update())
+    def update_files(self, already_parsed_files=None):
+        self.files_updated.emit(
+            self.file_selector.start_file_list_update(
+                already_parsed_files))
 
-    def clear_update_files(self):
+    def clear_update_files(self, already_parsed_files=None):
         self.file_selector.clear_file_selector()
-        self.update_files()
+        self.update_files(already_parsed_files)
 
 
 class SnapshotRestoreFileSelector(QWidget):
@@ -342,16 +344,19 @@ class SnapshotRestoreFileSelector(QWidget):
         self.filter_input.clear()
         self.snapshot = snapshot
 
-    def start_file_list_update(self):
+    def start_file_list_update(self, already_parsed_files=None):
         self.file_selector.setSortingEnabled(False)
-        # Rescans directory and adds new/modified files and removes none
-        # existing ones from the list.
-        backgroundWorkers.suspend()
-        save_dir = self.common_settings["save_dir"]
-        req_file_path = self.common_settings["req_file_path"]
-        save_files, err_to_report = get_save_files(save_dir, req_file_path,
-                                                   self.file_list)
-        backgroundWorkers.resume()
+        if already_parsed_files:
+            save_files, err_to_report = already_parsed_files
+        else:
+            # Rescans directory and adds new/modified files and removes
+            # non-existing ones from the list.
+            backgroundWorkers.suspend()
+            save_dir = self.common_settings["save_dir"]
+            req_file_path = self.common_settings["req_file_path"]
+            save_files, err_to_report = get_save_files(save_dir, req_file_path,
+                                                       self.file_list)
+            backgroundWorkers.resume()
 
         updated_files = self.update_file_list_selector(save_files)
         self.filter_file_list_selector()

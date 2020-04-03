@@ -10,14 +10,14 @@ import os
 import sys
 
 from PyQt5 import QtCore
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QStatusBar, QLabel, QVBoxLayout, \
     QPlainTextEdit, QWidget, QMessageBox, QDialog, QSplitter, QCheckBox, \
     QAction, QMenu, QMainWindow
 
 from snapshot.ca_core import Snapshot
-from snapshot.core import SnapshotError, backgroundWorkers
-from snapshot.parser import ReqParseError, initialize_config
+from snapshot.core import SnapshotError, backgroundWorkers, globalThreadPool
+from snapshot.parser import ReqParseError, initialize_config, get_save_files
 from .compare import SnapshotCompareWidget
 from .restore import SnapshotRestoreWidget
 from .save import SnapshotSaveWidget
@@ -67,8 +67,6 @@ class SnapshotGui(QMainWindow):
 
         # Before creating GUI, snapshot must be initialized.
         self.snapshot = Snapshot()
-        self.init_snapshot(self.common_settings["req_file_path"],
-                           self.common_settings["req_file_macros"])
 
         # Create main GUI components:
         #         menu bar
@@ -126,12 +124,7 @@ class SnapshotGui(QMainWindow):
 
         self.restore_widget = SnapshotRestoreWidget(self.snapshot,
                                                     self.common_settings, self)
-        # If new files were added to restore list, all elements with Labels
-        # should update with new existing labels. Force update for first time
         self.restore_widget.files_updated.connect(self.handle_files_updated)
-        # Trigger files update for first time to properly update label selectors
-        self.restore_widget.update_files()
-        self.compare_widget.filter_update()
 
         self.restore_widget.files_selected.connect(self.handle_selected_files)
 
@@ -161,6 +154,13 @@ class SnapshotGui(QMainWindow):
         widgets_sizes[main_splitter.indexOf(main_splitter)] = 100
         main_splitter.setSizes(widgets_sizes)
 
+        # Schedule opening the request file for after the GUI is shown.
+        QTimer.singleShot(
+            100,
+            lambda: self.change_req_file(
+                self.common_settings['req_file_path'],
+                self.common_settings['req_file_macros'],))
+
     def open_new_req_file(self):
         configure_dialog = SnapshotConfigureDialog(self, init_path=self.common_settings['req_file_path'],
                                                    init_macros=self.common_settings['req_file_macros'])
@@ -172,10 +172,28 @@ class SnapshotGui(QMainWindow):
         self.status_bar.set_status("Loading new request file ...", 0, "orange")
 
         self.set_request_file(req_file_path, macros)
+        save_dir = self.common_settings['save_dir']
+
+        # Read snapshots and instantiate PVs in parallel
+        future_files = globalThreadPool.submit(get_save_files, save_dir,
+                                               req_file_path, {})
         self.init_snapshot(req_file_path, macros)
+        if self.common_settings['save_dir'] == save_dir:
+            already_parsed_files = future_files.result()
+        else:
+            # Apparently init_snapshot() found that the request file was
+            # invalid, the save_dir changed, and we need to junk the
+            # already read snapfiles.
+            future_files.cancel()
+            already_parsed_files = get_save_files(
+                self.common_settings['save_dir'],
+                self.common_settings['req_file_path'],
+                {})
+
 
         # handle all gui components
-        self.restore_widget.handle_new_snapshot_instance(self.snapshot)
+        self.restore_widget.handle_new_snapshot_instance(self.snapshot,
+                                                         already_parsed_files)
         self.save_widget.handle_new_snapshot_instance(self.snapshot)
         self.compare_widget.handle_new_snapshot_instance(self.snapshot)
 
