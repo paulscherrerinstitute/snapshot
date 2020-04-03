@@ -18,6 +18,8 @@ from snapshot.parser import SnapshotReqFile, parse_macros, parse_from_save_file
 
 import logging
 
+from snapshot.core import since_start
+
 ca.AUTO_CLEANUP = True  # For pyepics versions older than 3.2.4, this was set to True only for
                         # python 2 but not for python 3, which resulted in errors when closing
                         # the application. If true, ca.finalize_libca() is called when app is
@@ -72,12 +74,15 @@ class Snapshot(object):
         self.restore_callback = None
 
         if req_file_path:
+            since_start("Started parsing reqfile")
             # holds path to the req_file_path as this is sort of identifier
             self.req_file_path = \
                 os.path.normpath(os.path.abspath(req_file_path))
             req_f = SnapshotReqFile(self.req_file_path,
                                     changeable_macros=list(macros.keys()))
             pvs = req_f.read()
+            since_start("Finished parsing reqfile")
+
             self.add_pvs(pvs)
 
     def add_pvs(self, pv_list):
@@ -88,6 +93,8 @@ class Snapshot(object):
 
         :return:
         """
+
+        since_start("Started adding PVs")
 
         # pyepics will handle PVs to have only one connection per PV.
         # If pv not yet on list add it.
@@ -100,6 +107,8 @@ class Snapshot(object):
 
             # if not self.pvs.get(pv_ref.pvname):
                 self.pvs[pv_ref.pvname] = pv_ref
+
+        since_start("Finished adding PVs")
 
     def remove_pvs(self, pv_list):
         """

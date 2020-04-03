@@ -251,7 +251,7 @@ class ReqFileInfLoopError(ReqParseError):
 def initialize_config(config_path=None, save_dir=None, force=False,
                       default_labels=None, force_default_labels=None,
                       req_file_path=None, req_file_macros=None,
-                      init_path=None):
+                      init_path=None, **kwargs):
     """
     Settings are a dictionary which holds common configuration of
     the application (such as directory with save files, request file

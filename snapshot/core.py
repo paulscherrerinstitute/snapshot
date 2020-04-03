@@ -3,9 +3,26 @@ import numpy
 from enum import Enum
 import json
 import logging
-from time import monotonic, sleep
+from time import monotonic, sleep, time
 from threading import Thread, Lock
 from concurrent.futures import ThreadPoolExecutor
+
+
+_start_time = time()
+_print_trace = False
+
+
+def since_start(message=None):
+    seconds = '{:.2f}'.format(time() - _start_time)
+    if message and _print_trace:
+        print(message, "at", seconds, 's.')
+    else:
+        return seconds
+
+
+def enable_tracing(enable=True):
+    global _print_trace
+    _print_trace = enable
 
 
 # A shared thread pool that can be used from anywhere for tasks that
@@ -475,11 +492,13 @@ class PvUpdater:
                 if self._suspend:  # this check needs the lock
                     continue
 
+                since_start("Started getting PV values")
                 for pv in self._pvs:
                     pv._pvget_lock.acquire()
                     self._get_start(pv)
                 vals = [self._get_complete(pv) for pv in self._pvs]
                 for pv in self._pvs:
                     pv._pvget_lock.release()
+                since_start("Finished getting PV values")
 
             self._callback(vals)

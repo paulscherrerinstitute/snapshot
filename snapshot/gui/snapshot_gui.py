@@ -23,6 +23,8 @@ from .restore import SnapshotRestoreWidget
 from .save import SnapshotSaveWidget
 from .utils import SnapshotConfigureDialog, SnapshotSettingsDialog, DetailedMsgBox
 
+from snapshot.core import since_start, enable_tracing
+
 
 class SnapshotGui(QMainWindow):
     """
@@ -177,7 +179,11 @@ class SnapshotGui(QMainWindow):
         save_dir = self.common_settings['save_dir']
 
         # Read snapshots and instantiate PVs in parallel
-        future_files = globalThreadPool.submit(get_save_files, save_dir,
+        def getfiles(*args):
+            since_start("Started parsing snaps")
+            get_save_files(*args)
+            since_start("Finished parsing snaps")
+        future_files = globalThreadPool.submit(getfiles, save_dir,
                                                req_file_path, {})
         self.init_snapshot(req_file_path, macros)
         if self.common_settings['save_dir'] == save_dir:
@@ -192,7 +198,6 @@ class SnapshotGui(QMainWindow):
                 self.common_settings['req_file_path'],
                 {})
 
-
         # handle all gui components
         self.restore_widget.handle_new_snapshot_instance(self.snapshot,
                                                          already_parsed_files)
@@ -203,6 +208,7 @@ class SnapshotGui(QMainWindow):
 
         self.status_bar.set_status("New request file loaded.", 3000, "#64C864")
         backgroundWorkers.resume()
+        since_start("GUI processing finished")
 
     def handle_saved(self):
         # When save is done, save widget is updated by itself
@@ -346,6 +352,11 @@ class SnapshotStatus(QStatusBar):
 
 # This function should be called from outside, to start the gui
 def start_gui(*args, **kwargs):
+    if kwargs.get('trace_execution'):
+        enable_tracing()
+
+    since_start("Interpreter started")
+
     config = initialize_config(**kwargs)
 
     app = QApplication(sys.argv)
@@ -357,5 +368,7 @@ def start_gui(*args, **kwargs):
 
     # IMPORTANT the reference to the SnapshotGui Object need to be retrieved otherwise the GUI will not show up
     _ = SnapshotGui(config)
+
+    since_start("GUI constructed")
 
     sys.exit(app.exec_())
