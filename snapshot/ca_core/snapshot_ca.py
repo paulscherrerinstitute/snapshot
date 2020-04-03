@@ -14,7 +14,7 @@ from enum import Enum
 from epics import PV, ca, dbr
 
 from snapshot.core import SnapshotPv, PvStatus, backgroundWorkers
-from snapshot.parser import SnapshotReqFile, parse_macros
+from snapshot.parser import SnapshotReqFile, parse_macros, parse_from_save_file
 
 import logging
 
@@ -222,7 +222,7 @@ class Snapshot(object):
             custom_macros = dict()
 
         if isinstance(pvs_raw, str):
-            pvs_raw, meta_data, err = self.parse_from_save_file(pvs_raw)
+            pvs_raw, meta_data, err = parse_from_save_file(pvs_raw)
             custom_macros = meta_data.get('macros', dict())  # if no self.macros use ones from file
 
         pvs = dict()
@@ -427,76 +427,3 @@ class Snapshot(object):
                 time.sleep(0.5)
 
                 counter -= 1
-
-
-
-    @staticmethod
-    def parse_from_save_file(save_file_path, metadata_only=False):
-        """
-        Parses save file to dict {'pvname': {'data': {'value': <value>, 'raw_name': <name_with_macros>}}}
-
-        :param save_file_path: Path to save file.
-
-        :return: (saved_pvs, meta_data, err)
-
-            saved_pvs: in format {'pvname': {'data': {'value': <value>, 'raw_name': <name_with_macros>}}}
-
-            meta_data: as dictionary
-
-            err: list of strings (each entry one error)
-        """
-
-        saved_pvs = dict()
-        meta_data = dict()  # If macros were used they will be saved in meta_data
-        err = list()
-        saved_file = open(save_file_path)
-        meta_loaded = False
-
-        for line in saved_file:
-            # first line with # is metadata (as json dump of dict)
-            if line.startswith('#') and not meta_loaded:
-                line = line[1:]
-                try:
-                    meta_data = json.loads(line)
-                except json.JSONDecodeError:
-                    # Problem reading metadata
-                    err.append('Meta data could not be decoded. Must be in JSON format.')
-                meta_loaded = True
-                if metadata_only:
-                    break
-            # skip empty lines and all rest with #
-            elif (not metadata_only
-                  and line.strip()
-                  and not line.startswith('#')):
-                split_line = line.strip().split(',', 1)
-                pvname = split_line[0]
-                if len(split_line) > 1:
-                    pv_value_str = split_line[1]
-                    # In case of array it will return a list, otherwise value
-                    # of proper type
-                    try:
-                        pv_value = json.loads(pv_value_str)
-                    except json.JSONDecodeError:
-                        pv_value = None
-                        err.append('Value of \'{}\' cannot be decoded. Will be ignored.'.format(pvname))
-
-                    if isinstance(pv_value, list):
-                        # arrays as numpy array, because pyepics returns
-                        # as numpy array
-                        pv_value = numpy.asarray(pv_value)
-                else:
-                    pv_value = None
-
-                saved_pvs[pvname] = dict()
-                saved_pvs[pvname]['value'] = pv_value
-
-        if not meta_loaded:
-            err.insert(0, 'No meta data in the file.')
-
-        saved_file.close()
-        return saved_pvs, meta_data, err
-
-
-
-
-

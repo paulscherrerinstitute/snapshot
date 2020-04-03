@@ -17,6 +17,7 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QHBoxLayout, QMes
 
 from ..ca_core import PvStatus, ActionStatus, SnapshotPv
 from ..core import backgroundWorkers
+from ..parser import get_save_files, parse_from_save_file
 from .utils import SnapshotKeywordSelectorWidget, SnapshotEditMetadataDialog, \
     DetailedMsgBox, show_snapshot_parse_errors
 
@@ -121,7 +122,7 @@ class SnapshotRestoreWidget(QWidget):
                 # Ignore parsing errors: the user has already seen them when
                 # when opening the snapshot.
                 pvs_in_file, _, _ = \
-                    self.snapshot.parse_from_save_file(file_data['file_path'])
+                    parse_from_save_file(file_data['file_path'])
                 pvs_to_restore = copy.copy(pvs_in_file)  # is actually a dict
                 macros = self.snapshot.macros
 
@@ -277,7 +278,7 @@ class SnapshotRestoreFileSelector(QWidget):
 
     files_selected = QtCore.pyqtSignal(list)
 
-    def __init__(self, snapshot, common_settings, parent=None, save_file_sufix=".snap", **kw):
+    def __init__(self, snapshot, common_settings, parent=None, **kw):
         QWidget.__init__(self, parent, **kw)
 
         self.parent = parent
@@ -285,7 +286,6 @@ class SnapshotRestoreFileSelector(QWidget):
         self.snapshot = snapshot
         self.selected_files = list()
         self.common_settings = common_settings
-        self.save_file_sufix = save_file_sufix
 
         self.file_list = dict()
         self.pvs = dict()
@@ -346,7 +346,12 @@ class SnapshotRestoreFileSelector(QWidget):
         self.file_selector.setSortingEnabled(False)
         # Rescans directory and adds new/modified files and removes none
         # existing ones from the list.
-        save_files, err_to_report = self.get_save_files(self.common_settings["save_dir"], self.file_list)
+        backgroundWorkers.suspend()
+        save_dir = self.common_settings["save_dir"]
+        req_file_path = self.common_settings["req_file_path"]
+        save_files, err_to_report = get_save_files(save_dir, req_file_path,
+                                                   self.file_list)
+        backgroundWorkers.resume()
 
         updated_files = self.update_file_list_selector(save_files)
         self.filter_file_list_selector()
@@ -357,53 +362,6 @@ class SnapshotRestoreFileSelector(QWidget):
 
         self.file_selector.setSortingEnabled(True)
         return updated_files
-
-    def get_save_files(self, save_dir, current_files):
-        # Parses all new or modified files. Parsed files are returned as a
-        # dictionary.
-        import glob
-        backgroundWorkers.suspend()
-        parsed_save_files = dict()
-        err_to_report = list()
-        req_file_name = os.path.basename(self.common_settings["req_file_path"])
-        # Check if any file added or modified (time of modification)
-        for file_path in glob.glob(os.path.join(save_dir, os.path.splitext(req_file_name)[0])+'*'+self.save_file_sufix):
-            file_name=os.path.basename(file_path)
-            if os.path.isfile(file_path):
-                if (file_name not in current_files) or \
-                        (current_files[file_name]["modif_time"] != os.path.getmtime(file_path)):
-
-                    _, meta_data, err = \
-                        self.snapshot.parse_from_save_file(file_path,
-                                                           metadata_only=True)
-
-                    # check if we have req_file metadata. This is used to determine which
-                    # request file the save file belongs to.
-                    # If there is no metadata (or no req_file specified in the metadata)
-                    # we search using a prefix of the request file.
-                    # The latter is less robust, but is backwards compatible.
-                    if ("req_file_name" in meta_data
-                        and meta_data["req_file_name"] == req_file_name) \
-                            or file_name.startswith(req_file_name.split(".")[0] + "_"):
-                        # we really should have basic meta data
-                        # (or filters and some other stuff will silently fail)
-                        if "comment" not in meta_data:
-                            meta_data["comment"] = ""
-                        if "labels" not in meta_data:
-                            meta_data["labels"] = []
-
-                        parsed_save_files[file_name] = {
-                            'file_name': file_name,
-                            'file_path': file_path,
-                            'meta_data': meta_data,
-                            'modif_time': os.path.getmtime(file_path)
-                        }
-
-                        if err:  # report errors only for matching saved files
-                            err_to_report.append((file_name, err))
-
-        backgroundWorkers.resume()
-        return parsed_save_files, err_to_report
 
     def update_file_list_selector(self, modif_file_list):
 

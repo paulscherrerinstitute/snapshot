@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import QLineEdit, QLabel, QHBoxLayout, QVBoxLayout, QFrame,
     QWidget
 
 from ..ca_core import PvStatus, ActionStatus
+from ..parser import save_file_suffix
 from .utils import SnapshotKeywordSelectorWidget, DetailedMsgBox
 
 
@@ -45,7 +46,6 @@ class SnapshotSaveWidget(QWidget):
         # Default saved file name: If req file name is PREFIX.req, then saved
         # file name is: PREFIX_YYMMDD_hhmmss (holds time info)
         # Get the prefix ... use update_name() later
-        self.save_file_sufix = ".snap"
 
         # Create layout and add GUI elements (input fields, buttons, ...)
         layout = QVBoxLayout(self)
@@ -141,7 +141,7 @@ class SnapshotSaveWidget(QWidget):
                                                         symlink_path=os.path.join(
                                                             self.common_settings["save_dir"],
                                                             self.common_settings["save_file_prefix"] +
-                                                            'latest' + self.save_file_sufix))
+                                                            'latest' + save_file_suffix))
 
             if status == ActionStatus.no_conn:
                 # Prompt user and ask if he wants to save in force mode
@@ -159,7 +159,7 @@ class SnapshotSaveWidget(QWidget):
                                                                 symlink_path=os.path.join(
                                                                     self.common_settings["save_dir"],
                                                                     self.common_settings["save_file_prefix"] +
-                                                                    'latest' + self.save_file_sufix))
+                                                                    'latest' + save_file_suffix))
 
                     # finished in forced mode
                     self.save_done(pvs_status, True)
@@ -216,12 +216,12 @@ class SnapshotSaveWidget(QWidget):
         # When file extension is changed, update all corresponding variables
         name_extension_inp = self.extension_input.text()
         if not name_extension_inp:
-            name_extension_rb = "{TIMESTAMP}" + self.save_file_sufix
+            name_extension_rb = "{TIMESTAMP}" + save_file_suffix
             self.name_extension = datetime.datetime.fromtimestamp(
                 time.time()).strftime('%Y%m%d_%H%M%S')
         else:
             self.name_extension = name_extension_inp
-            name_extension_rb = name_extension_inp + self.save_file_sufix
+            name_extension_rb = name_extension_inp + save_file_suffix
 
         # Use manually entered prefix only if advanced options are selected
         if self.advanced.file_prefix_input.text() and self.advanced.isChecked():
@@ -232,7 +232,7 @@ class SnapshotSaveWidget(QWidget):
 
         self.file_path = os.path.join(self.common_settings["save_dir"],
                                       self.common_settings["save_file_prefix"] +
-                                      self.name_extension + self.save_file_sufix)
+                                      self.name_extension + save_file_suffix)
         self.file_name_rb.setText(self.common_settings["save_file_prefix"] +
                                   name_extension_rb)
 

@@ -2,6 +2,11 @@ from snapshot.core import SnapshotError, SnapshotPv
 import os
 import re
 import json
+import glob
+import numpy
+
+
+save_file_suffix = '.snap'
 
 
 class SnapshotReqFile(object):
@@ -285,3 +290,123 @@ def initialize_config(config_path=None, save_dir=None, force=False,
         config['save_dir'] = os.path.abspath(save_dir)
 
     return config
+
+
+def parse_from_save_file(save_file_path, metadata_only=False):
+    """
+    Parses save file to dict {'pvname': {'data': {'value': <value>, 'raw_name': <name_with_macros>}}}
+
+    :param save_file_path: Path to save file.
+
+    :return: (saved_pvs, meta_data, err)
+
+        saved_pvs: in format {'pvname': {'data': {'value': <value>, 'raw_name': <name_with_macros>}}}
+
+        meta_data: as dictionary
+
+        err: list of strings (each entry one error)
+    """
+
+    saved_pvs = dict()
+    meta_data = dict()  # If macros were used they will be saved in meta_data
+    err = list()
+    saved_file = open(save_file_path)
+    meta_loaded = False
+
+    for line in saved_file:
+        # first line with # is metadata (as json dump of dict)
+        if line.startswith('#') and not meta_loaded:
+            line = line[1:]
+            try:
+                meta_data = json.loads(line)
+            except json.JSONDecodeError:
+                # Problem reading metadata
+                err.append('Meta data could not be decoded. '
+                           'Must be in JSON format.')
+            meta_loaded = True
+            if metadata_only:
+                break
+        # skip empty lines and all rest with #
+        elif (not metadata_only
+                and line.strip()
+                and not line.startswith('#')):
+            split_line = line.strip().split(',', 1)
+            pvname = split_line[0]
+            if len(split_line) > 1:
+                pv_value_str = split_line[1]
+                # In case of array it will return a list, otherwise value
+                # of proper type
+                try:
+                    pv_value = json.loads(pv_value_str)
+                except json.JSONDecodeError:
+                    pv_value = None
+                    err.append('Value of \'{}\' cannot be decoded. '
+                               'Will be ignored.'.format(pvname))
+
+                if isinstance(pv_value, list):
+                    # arrays as numpy array, because pyepics returns
+                    # as numpy array
+                    pv_value = numpy.asarray(pv_value)
+            else:
+                pv_value = None
+
+            saved_pvs[pvname] = dict()
+            saved_pvs[pvname]['value'] = pv_value
+
+    if not meta_loaded:
+        err.insert(0, 'No meta data in the file.')
+
+    saved_file.close()
+    return saved_pvs, meta_data, err
+
+
+def get_save_files(save_dir, req_file_path, current_files):
+    """
+    Parses all new or modified files. Parsed files are returned as a
+    dictionary.
+    """
+    parsed_save_files = dict()
+    err_to_report = list()
+    req_file_name = os.path.basename(req_file_path)
+    # Check if any file added or modified (time of modification)
+    file_dir = os.path.join(save_dir, os.path.splitext(req_file_name)[0])
+    file_list = glob.glob(file_dir + '*' + save_file_suffix)
+    for file_path in file_list:
+        file_name = os.path.basename(file_path)
+        if os.path.isfile(file_path):
+            already_known = file_name in current_files
+            modif_time = os.path.getmtime(file_path)
+            if already_known:
+                modified = modif_time != current_files[file_name]["modif_time"]
+            if not already_known or modified:
+                _, meta_data, err = parse_from_save_file(file_path,
+                                                         metadata_only=True)
+
+                # Check if we have req_file metadata. This is used to determine
+                # which request file the save file belongs to. If there is no
+                # metadata (or no req_file specified in the metadata) we search
+                # using a prefix of the request file. The latter is less
+                # robust, but is backwards compatible.
+                have_metadata = "req_file_name" in meta_data \
+                    and meta_data["req_file_name"] == req_file_name
+                prefix_matches = \
+                    file_name.startswith(req_file_name.split(".")[0] + "_")
+                if have_metadata or prefix_matches:
+                    # we really should have basic meta data
+                    # (or filters and some other stuff will silently fail)
+                    if "comment" not in meta_data:
+                        meta_data["comment"] = ""
+                    if "labels" not in meta_data:
+                        meta_data["labels"] = []
+
+                    parsed_save_files[file_name] = {
+                        'file_name': file_name,
+                        'file_path': file_path,
+                        'meta_data': meta_data,
+                        'modif_time': modif_time
+                    }
+
+                    if err:  # report errors only for matching saved files
+                        err_to_report.append((file_name, err))
+
+    return parsed_save_files, err_to_report

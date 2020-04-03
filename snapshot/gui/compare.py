@@ -18,6 +18,7 @@ from PyQt5.QtWidgets import QApplication, QHeaderView, QAbstractItemView, QMenu,
 
 from ..ca_core import Snapshot
 from ..core import SnapshotPv, PvUpdater
+from ..parser import parse_from_save_file
 from .utils import show_snapshot_parse_errors
 
 import time
@@ -490,7 +491,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             macros = file_data["meta_data"].get("macros", dict())
 
         pvs_list_full_names = dict()  # PVS data mapped to real pvs names (no macros)
-        pvs_list, _, errors = self.snapshot.parse_from_save_file(file_data['file_path'])
+        pvs_list, _, errors = parse_from_save_file(file_data['file_path'])
 
         for pv_name_raw, pv_data in pvs_list.items():
             pvs_list_full_names[SnapshotPv.macros_substitution(pv_name_raw, macros)] = pv_data
