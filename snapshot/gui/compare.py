@@ -84,9 +84,10 @@ class SnapshotCompareWidget(QWidget):
 
             # Add filters
             self.pv_filter_sel.addItem(None)
+            icon = QIcon(os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                      "images/rgx.png")), rgx
             for rgx in predefined_filters.get('rgx-filters', list()):
-                self.pv_filter_sel.addItem(QIcon(os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                                                    "images/rgx.png")), rgx)
+                self.pv_filter_sel.addItem(icon)
             self.pv_filter_sel.addItems(predefined_filters.get('filters', list()))
             self.pv_filter_sel.currentIndexChanged.connect(self._predefined_filter_selected)
 
@@ -542,11 +543,17 @@ class SnapshotPvTableLine(QtCore.QObject):
     connectionStatusChanged = QtCore.pyqtSignal('PyQt_PyObject')
     _pv_conn_changed = QtCore.pyqtSignal(dict)
     _DIR_PATH = os.path.dirname(os.path.realpath(__file__))
+    _WARN_ICON = None
+    _NEQ_ICON = None
 
     def __init__(self, pv_ref, parent=None):
         super().__init__(parent)
-        self._WARN_ICON = QIcon(os.path.join(self._DIR_PATH, "images/warn.png"))
-        self._NEQ_ICON = QIcon(os.path.join(self._DIR_PATH, "images/neq.png"))
+
+        if SnapshotPvTableLine._WARN_ICON is None:
+            SnapshotPvTableLine._WARN_ICON = \
+                QIcon(os.path.join(self._DIR_PATH, "images/warn.png"))
+            SnapshotPvTableLine._NEQ_ICON = \
+                QIcon(os.path.join(self._DIR_PATH, "images/neq.png"))
 
         self._pv_ref = pv_ref
         self.pvname = pv_ref.pvname
