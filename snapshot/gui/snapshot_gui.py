@@ -66,7 +66,7 @@ class SnapshotGui(QMainWindow):
                 self.close_gui()
 
         # Before creating GUI, snapshot must be initialized.
-        self.snapshot = None
+        self.snapshot = Snapshot()
         self.init_snapshot(self.common_settings["req_file_path"],
                            self.common_settings["req_file_macros"])
 
@@ -196,10 +196,7 @@ class SnapshotGui(QMainWindow):
             self.common_settings['save_dir'] = os.path.dirname(path)
 
     def init_snapshot(self, req_file_path, req_macros=None):
-        if self.snapshot:
-            # Remove callbacks from existing snapshot
-            self.snapshot.clear_pvs()
-
+        self.snapshot.clear_pvs()
         req_macros = req_macros or {}
         reopen_config = False
         try:

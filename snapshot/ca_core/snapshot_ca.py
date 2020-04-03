@@ -41,7 +41,7 @@ class ActionStatus(Enum):
 
 
 class Snapshot(object):
-    def __init__(self, req_file_path, macros=None):
+    def __init__(self, req_file_path=None, macros=None):
         """
         Main snapshot class. Provides methods to handle PVs from request or snapshot files and to create, delete, etc
         snap (saved) files
@@ -57,11 +57,9 @@ class Snapshot(object):
         elif macros is None:
             macros = dict()
 
-        # holds path to the req_file_path as this is sort of identifier
-        self.req_file_path = os.path.normpath(os.path.abspath(req_file_path))
-
         self.pvs = dict()
         self.macros = macros
+        self.req_file_path = ''
 
         # Other important states
         self._restore_started = False
@@ -73,10 +71,14 @@ class Snapshot(object):
         self.restored_pvs_list = list()
         self.restore_callback = None
 
-        req_f = SnapshotReqFile(self.req_file_path, changeable_macros=list(macros.keys()))
-        pvs = req_f.read()
-
-        self.add_pvs(pvs)
+        if req_file_path:
+            # holds path to the req_file_path as this is sort of identifier
+            self.req_file_path = \
+                os.path.normpath(os.path.abspath(req_file_path))
+            req_f = SnapshotReqFile(self.req_file_path,
+                                    changeable_macros=list(macros.keys()))
+            pvs = req_f.read()
+            self.add_pvs(pvs)
 
     def add_pvs(self, pv_list):
         """
