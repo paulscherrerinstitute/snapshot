@@ -47,7 +47,8 @@ class SnapshotGui(QMainWindow):
             reply = msg_window.exec_()
 
             if reply == QMessageBox.No:
-                self.close_gui()
+                self.close()
+                return
 
         self.common_settings = config
 
@@ -63,7 +64,8 @@ class SnapshotGui(QMainWindow):
             configure_dialog.accepted.connect(self.set_request_file)
             self.hide()
             if configure_dialog.exec_() == QDialog.Rejected:
-                self.close_gui()
+                self.close()
+                return
 
         # Before creating GUI, snapshot must be initialized.
         self.snapshot = Snapshot()
@@ -240,7 +242,7 @@ class SnapshotGui(QMainWindow):
             configure_dialog = SnapshotConfigureDialog(self, init_path=req_file_path, init_macros=req_macros)
             configure_dialog.accepted.connect(self.init_snapshot)
             if configure_dialog.exec_() == QDialog.Rejected:
-                self.close_gui()
+                self.close()
 
     def handle_files_updated(self, updated_files):
         # When new save file is added, or old one has changed, this method
@@ -282,9 +284,6 @@ class SnapshotGui(QMainWindow):
             pvs = list()
 
         self.restore_widget.filtered_pvs = pvs
-
-    def close_gui(self):
-        sys.exit()
 
 
 # -------- Status widgets -----------
