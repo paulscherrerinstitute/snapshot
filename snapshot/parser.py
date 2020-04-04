@@ -46,7 +46,9 @@ class SnapshotReqFile(object):
 
     def read(self):
         """
-        Parse request file and return list of pv names where changeable_macros are not replaced. ("raw" pv names).
+        Parse request file and return list of pv names where changeable_macros
+        are not replaced. ("raw" pv names).
+
         In case of problems raises exceptions.
                 ReqParseError
                     ReqFileFormatError
@@ -54,10 +56,40 @@ class SnapshotReqFile(object):
 
         :return: List of PV names.
         """
-        f = open(self._path)
+        result = self._read_only_self()
+        if not isinstance(result, tuple):
+            raise result
+
+        pvs, includes = result
+        while includes:
+            results = globalThreadPool.map(lambda f: f._read_only_self(),
+                                           includes)
+            includes = []
+            for r in results:
+                if not isinstance(r, tuple):
+                    raise r
+                pvs += r[0]
+                includes += r[1]
+
+        return pvs
+
+    def _read_only_self(self):
+        """
+        Parse request file and return a tuple of pvs and includes.
+
+        In case of problems returns (but does not raise) exceptions.
+                ReqParseError
+                    ReqFileFormatError
+                    ReqFileInfLoopError
+
+        :return: A tuple (pv_list, includes_list, error_list)
+        """
 
         pvs = list()
-        err = list()
+        includes = list()
+
+        with open(self._path) as f:
+            f = f.readlines()
 
         self._curr_line_n = 0
         for self._curr_line in f:
@@ -65,17 +97,20 @@ class SnapshotReqFile(object):
             self._curr_line = self._curr_line.strip()
 
             # skip comments and empty lines
-            if not self._curr_line.startswith(('#', "data{", "}", "!")) and self._curr_line.strip():
-                # First replace macros, then check if any unreplaced macros which are not "global"
-                pvname = SnapshotPv.macros_substitution((self._curr_line.rstrip().split(',', maxsplit=1)[0]),
-                                                        self._macros)
+            if not self._curr_line.startswith(('#', "data{", "}", "!")) \
+               and self._curr_line.strip():
+                # First replace macros, then check if any unreplaced macros
+                # which are not "global"
+                pvname = SnapshotPv.macros_substitution(
+                    (self._curr_line.rstrip().split(',', maxsplit=1)[0]),
+                    self._macros)
 
                 try:
                     # Check if any unreplaced macros
                     self._validate_macros_in_txt(pvname)
                 except MacroError as e:
-                    f.close()
-                    raise ReqParseError(self._format_err((self._curr_line_n, self._curr_line), e))
+                    return ReqParseError(self._format_err(
+                        (self._curr_line_n, self._curr_line), e))
 
                 pvs.append(pvname)
 
@@ -86,25 +121,30 @@ class SnapshotReqFile(object):
                 if len(split_line) > 1:
                     macro_txt = split_line[1].strip()
                     if not macro_txt.startswith(('\"', '\'')):
-                        f.close()
-                        raise ReqFileFormatError(self._format_err((self._curr_line_n, self._curr_line),
-                                                                  'Syntax error. Macros argument must be quoted.'))
+                        return ReqFileFormatError(
+                            self._format_err(
+                                (self._curr_line_n, self._curr_line),
+                                'Syntax error. Macro argument must be quoted'))
                     else:
                         quote_type = macro_txt[0]
 
                     if not macro_txt.endswith(quote_type):
-                        f.close()
-                        raise ReqFileFormatError(self._format_err((self._curr_line_n, self._curr_line),
-                                                                  'Syntax error. Macros argument must be quoted.'))
+                        return ReqFileFormatError(
+                            self._format_err(
+                                (self._curr_line_n, self._curr_line),
+                                'Syntax error. Macro argument must be quoted'))
 
-                    macro_txt = SnapshotPv.macros_substitution(macro_txt[1:-1], self._macros)
+                    macro_txt = SnapshotPv.macros_substitution(
+                        macro_txt[1:-1], self._macros)
                     try:
-                        self._validate_macros_in_txt(macro_txt)  # Check if any unreplaced macros
+                        # Check for any unreplaced macros
+                        self._validate_macros_in_txt(macro_txt)
                         macros = parse_macros(macro_txt)
 
                     except MacroError as e:
-                        f.close()
-                        raise ReqParseError(self._format_err((self._curr_line_n, self._curr_line), e))
+                        return ReqParseError(
+                            self._format_err(
+                                (self._curr_line_n, self._curr_line), e))
 
                 else:
                     macros = dict()
@@ -112,19 +152,20 @@ class SnapshotReqFile(object):
                 path = os.path.join(os.path.dirname(self._path), split_line[0])
                 msg = self._check_looping(path)
                 if msg:
-                    f.close()
-                    raise ReqFileInfLoopError(self._format_err((self._curr_line_n, self._curr_line), msg))
+                    return ReqFileInfLoopError(
+                        self._format_err(
+                            (self._curr_line_n, self._curr_line), msg))
 
                 try:
                     sub_f = SnapshotReqFile(path, parent=self, macros=macros)
-                    sub_pvs = sub_f.read()
-                    pvs += sub_pvs
+                    includes.append(sub_f)
 
                 except IOError as e:
-                    f.close()
-                    raise IOError(self._format_err((self._curr_line, self._curr_line_n), e))
-        f.close()
-        return pvs
+                    return IOError(
+                        self._format_err(
+                            (self._curr_line, self._curr_line_n), e))
+
+        return (pvs, includes)
 
     def _format_err(self, line: tuple, msg: str):
         return '{} [line {}: {}]: {}'.format(self._trace, line[0], line[1], msg)
