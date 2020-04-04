@@ -1,4 +1,4 @@
-from snapshot.core import SnapshotError, SnapshotPv
+from snapshot.core import SnapshotError, SnapshotPv, globalThreadPool
 import os
 import re
 import json
@@ -365,13 +365,12 @@ def get_save_files(save_dir, req_file_path, current_files):
     Parses all new or modified files. Parsed files are returned as a
     dictionary.
     """
-    parsed_save_files = dict()
-    err_to_report = list()
     req_file_name = os.path.basename(req_file_path)
     # Check if any file added or modified (time of modification)
     file_dir = os.path.join(save_dir, os.path.splitext(req_file_name)[0])
     file_list = glob.glob(file_dir + '*' + save_file_suffix)
-    for file_path in file_list:
+
+    def process_file(file_path):
         file_name = os.path.basename(file_path)
         if os.path.isfile(file_path):
             already_known = file_name in current_files
@@ -399,14 +398,21 @@ def get_save_files(save_dir, req_file_path, current_files):
                     if "labels" not in meta_data:
                         meta_data["labels"] = []
 
-                    parsed_save_files[file_name] = {
-                        'file_name': file_name,
-                        'file_path': file_path,
-                        'meta_data': meta_data,
-                        'modif_time': modif_time
-                    }
+                    return (file_name,
+                            {'file_name': file_name,
+                             'file_path': file_path,
+                             'meta_data': meta_data,
+                             'modif_time': modif_time},
+                            err)
 
-                    if err:  # report errors only for matching saved files
-                        err_to_report.append((file_name, err))
+    results = globalThreadPool.map(process_file, file_list)
+    err_to_report = list()
+    parsed_save_files = dict()
+    for r in results:
+        if r is not None:
+            file_name, info, err = r
+            parsed_save_files[file_name] = info
+            if err:
+                err_to_report.append((file_name, err))
 
     return parsed_save_files, err_to_report
