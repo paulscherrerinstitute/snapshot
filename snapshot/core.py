@@ -109,13 +109,6 @@ class SnapshotPv(PV):
     """
 
     def __init__(self, pvname, connection_callback=None, **kw):
-        # Store the origin
-        # self.pvname_raw = pvname
-        # self.macros = macros
-
-        # if macros:
-        #     pvname = SnapshotPv.macros_substitution(pvname, macros)
-
         self.conn_callbacks = dict()  # dict {idx: callback}
         if connection_callback:
             self.add_conn_callback(connection_callback)

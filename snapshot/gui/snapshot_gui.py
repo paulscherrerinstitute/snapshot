@@ -21,7 +21,7 @@ from snapshot.parser import ReqParseError, initialize_config, get_save_files
 from .compare import SnapshotCompareWidget
 from .restore import SnapshotRestoreWidget
 from .save import SnapshotSaveWidget
-from .utils import SnapshotConfigureDialog, SnapshotSettingsDialog, DetailedMsgBox
+from .utils import SnapshotConfigureDialog, DetailedMsgBox
 
 from snapshot.core import since_start, enable_tracing
 
@@ -86,13 +86,6 @@ class SnapshotGui(QMainWindow):
 
         # menu bar
         menu_bar = self.menuBar()
-
-        settings_menu = QMenu("Snapshot", menu_bar)
-        open_settings_action = QAction("Settings", settings_menu)
-        open_settings_action.setMenuRole(QAction.NoRole)
-        open_settings_action.triggered.connect(self.open_settings)
-        settings_menu.addAction(open_settings_action)
-        menu_bar.addMenu(settings_menu)
 
         file_menu = QMenu("File", menu_bar)
         open_new_req_file_action = QAction("Open", file_menu)
@@ -263,27 +256,6 @@ class SnapshotGui(QMainWindow):
 
     def _handle_restore_request(self, pvs_list):
         self.restore_widget.do_restore(pvs_list)
-
-    def open_settings(self):
-        settings_window = SnapshotSettingsDialog(self.common_settings, self)  # Destroyed when closed
-        settings_window.new_config.connect(self.handle_new_config)
-        settings_window.resize(800, 200)
-        settings_window.show()
-
-    def handle_new_config(self, config):
-        for config_name, config_value in config.items():
-            if config_name == "macros":
-                self.snapshot.change_macros(config_value)
-                self.common_settings["req_file_macros"] = config_value
-                # For compare widget this is same as new snapshot
-                self.compare_widget.handle_new_snapshot_instance(self.snapshot)
-                self.restore_widget.handle_selected_files(self.restore_widget.file_selector.selected_files)
-            elif config_name == "force":
-                self.common_settings["force"] = config_value
-                self.common_settings["sts_info"].set_status()
-            elif config_name == "save_dir":
-                self.common_settings["save_dir"] = config_value
-                self.restore_widget.clear_update_files()
 
     def handle_pvs_filtered(self, pvs=None):
         if pvs is None:

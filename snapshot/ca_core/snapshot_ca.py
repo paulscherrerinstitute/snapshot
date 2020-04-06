@@ -128,28 +128,6 @@ class Snapshot(object):
     def clear_pvs(self):
         self.remove_pvs(list(self.pvs.keys()))
 
-    def change_macros(self, macros=None):
-        """
-        Check existing PVs if they have macros in their "raw name". If macros to be replaced remove existing PVs and
-        create new PVs.
-
-        :param macros: Dictionary of macros {'macro': 'value' }
-
-        :return:
-        """
-        macros = macros or {}
-        if self.macros != macros:
-            self.macros = macros
-            pvs_to_change = list()
-            pvs_to_remove = list()
-            for pvname, pv_ref in self.pvs.items():
-                if "$" in pv_ref.pvname_raw:
-                    pvs_to_change.append(pv_ref.pvname_raw)
-                    pvs_to_remove.append(pvname)
-
-            self.remove_pvs(pvs_to_remove)
-            self.add_pvs(pvs_to_change)
-
     def save_pvs(self, save_file_path, force=False, symlink_path=None, **kw):
         """
         Get current PV values and save them in file. can also create symlink to the file. If additional metadata should
