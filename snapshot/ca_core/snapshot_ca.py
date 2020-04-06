@@ -13,7 +13,7 @@ from enum import Enum
 
 from epics import PV, ca, dbr
 
-from snapshot.core import SnapshotPv, PvStatus, backgroundWorkers
+from snapshot.core import SnapshotPv, PvStatus, background_workers
 from snapshot.parser import SnapshotReqFile, parse_macros, parse_from_save_file
 
 import logging
@@ -184,7 +184,7 @@ class Snapshot(object):
         kw["save_time"] = time.time()
         kw["req_file_name"] = os.path.basename(self.req_file_path)
 
-        backgroundWorkers.suspend()
+        background_workers.suspend()
         pvs_data = dict()
         logging.debug("Create snapshot for %d channels" % len(self.pvs.items()))
         for pvname, pv_ref in self.pvs.items():
@@ -199,7 +199,7 @@ class Snapshot(object):
         logging.debug("Writing snapshot to file")
         self.parse_to_save_file(pvs_data, save_file_path, self.macros, symlink_path, **kw)
         logging.debug("Snapshot done")
-        backgroundWorkers.resume()
+        background_workers.resume()
 
         return ActionStatus.ok, pvs_status
 
@@ -271,7 +271,7 @@ class Snapshot(object):
             return ActionStatus.no_conn, pvs_status
 
         # Do a restore
-        backgroundWorkers.suspend()
+        background_workers.suspend()
         self.restored_pvs_list = list()
         self.restore_callback = callback
         for pvname, pv_ref in self.pvs.items():
@@ -292,7 +292,7 @@ class Snapshot(object):
             self._restore_started = False
             self.restore_callback(status=dict(self.restored_pvs_list), forced=self._current_restore_forced)
             self.restore_callback = None
-            backgroundWorkers.resume()
+            background_workers.resume()
 
     def restore_pvs_blocking(self, pvs_raw=None, force=False, timeout=10, custom_macros=None):
         """

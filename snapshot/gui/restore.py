@@ -16,7 +16,7 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QHBoxLayout, QMes
     QMenu, QLineEdit, QLabel
 
 from ..ca_core import PvStatus, ActionStatus, SnapshotPv
-from ..core import backgroundWorkers
+from ..core import background_workers
 from ..parser import get_save_files, parse_from_save_file
 from .utils import SnapshotKeywordSelectorWidget, SnapshotEditMetadataDialog, \
     DetailedMsgBox, show_snapshot_parse_errors
@@ -351,12 +351,12 @@ class SnapshotRestoreFileSelector(QWidget):
         else:
             # Rescans directory and adds new/modified files and removes
             # non-existing ones from the list.
-            backgroundWorkers.suspend()
+            background_workers.suspend()
             save_dir = self.common_settings["save_dir"]
             req_file_path = self.common_settings["req_file_path"]
             save_files, err_to_report = get_save_files(save_dir, req_file_path,
                                                        self.file_list)
-            backgroundWorkers.resume()
+            background_workers.resume()
 
         updated_files = self.update_file_list_selector(save_files)
         self.filter_file_list_selector()

@@ -27,7 +27,7 @@ def enable_tracing(enable=True):
 
 # A shared thread pool that can be used from anywhere for tasks that
 # should run in background, but not indefinitely.
-globalThreadPool = ThreadPoolExecutor(16)
+global_thread_pool = ThreadPoolExecutor(16)
 
 
 class _BackgroundWorkers:
@@ -62,7 +62,7 @@ class _BackgroundWorkers:
         del self._workers[idx]
 
 
-backgroundWorkers = _BackgroundWorkers()
+background_workers = _BackgroundWorkers()
 
 
 # Exceptions
@@ -424,10 +424,10 @@ class PvUpdater:
         self._quit = False
         self._suspend = False
         self._thread = Thread(target=self._run)
-        backgroundWorkers.register(self)
+        background_workers.register(self)
 
     def __del__(self):
-        backgroundWorkers.unregister(self)
+        background_workers.unregister(self)
         self.stop()
 
     def start(self):

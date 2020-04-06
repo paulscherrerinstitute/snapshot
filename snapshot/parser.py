@@ -1,4 +1,4 @@
-from snapshot.core import SnapshotError, SnapshotPv, globalThreadPool
+from snapshot.core import SnapshotError, SnapshotPv, global_thread_pool
 import os
 import re
 import json
@@ -62,7 +62,7 @@ class SnapshotReqFile(object):
 
         pvs, includes = result
         while includes:
-            results = globalThreadPool.map(lambda f: f._read_only_self(),
+            results = global_thread_pool.map(lambda f: f._read_only_self(),
                                            includes)
             includes = []
             for r in results:
@@ -446,7 +446,7 @@ def get_save_files(save_dir, req_file_path, current_files):
                              'modif_time': modif_time},
                             err)
 
-    results = globalThreadPool.map(process_file, file_list)
+    results = global_thread_pool.map(process_file, file_list)
     err_to_report = list()
     parsed_save_files = dict()
     for r in results:

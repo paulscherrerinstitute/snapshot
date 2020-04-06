@@ -16,7 +16,7 @@ from PyQt5.QtWidgets import QApplication, QStatusBar, QLabel, QVBoxLayout, \
     QAction, QMenu, QMainWindow
 
 from snapshot.ca_core import Snapshot
-from snapshot.core import SnapshotError, backgroundWorkers, globalThreadPool
+from snapshot.core import SnapshotError, background_workers, global_thread_pool
 from snapshot.parser import ReqParseError, initialize_config, get_save_files
 from .compare import SnapshotCompareWidget
 from .restore import SnapshotRestoreWidget
@@ -172,7 +172,7 @@ class SnapshotGui(QMainWindow):
         configure_dialog.exec_()  # Do not act on rejected
 
     def change_req_file(self, req_file_path, macros):
-        backgroundWorkers.suspend()
+        background_workers.suspend()
         self.status_bar.set_status("Loading new request file ...", 0, "orange")
 
         self.set_request_file(req_file_path, macros)
@@ -183,7 +183,7 @@ class SnapshotGui(QMainWindow):
             since_start("Started parsing snaps")
             get_save_files(*args)
             since_start("Finished parsing snaps")
-        future_files = globalThreadPool.submit(getfiles, save_dir,
+        future_files = global_thread_pool.submit(getfiles, save_dir,
                                                req_file_path, {})
         self.init_snapshot(req_file_path, macros)
         if self.common_settings['save_dir'] == save_dir:
@@ -207,7 +207,7 @@ class SnapshotGui(QMainWindow):
         self.setWindowTitle(os.path.basename(req_file_path) + ' - Snapshot')
 
         self.status_bar.set_status("New request file loaded.", 3000, "#64C864")
-        backgroundWorkers.resume()
+        background_workers.resume()
         since_start("GUI processing finished")
 
     def handle_saved(self):
