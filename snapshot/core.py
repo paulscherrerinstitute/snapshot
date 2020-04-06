@@ -32,8 +32,11 @@ global_thread_pool = ThreadPoolExecutor(16)
 
 class _BackgroundWorkers:
     """
-    A simple interface to suspend, resume and register background threads
-    for tasks that run for the lifetime of the program.
+    A simple interface to suspend, resume and register background threads for
+    tasks that run for the lifetime of the program, e.g. updating of PV values.
+    These tasks should be suspended when they are not needed and when their CPU
+    usage would needlessly prolong execution of other functions. Examples are
+    saving and restoring PVs, and reading a request file.
     """
 
     def __init__(self):
