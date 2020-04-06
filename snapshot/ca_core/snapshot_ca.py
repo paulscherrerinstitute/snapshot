@@ -248,28 +248,33 @@ class Snapshot(object):
             self._restore_started = False
             return ActionStatus.no_conn, pvs_status
 
-        # Do a restore
+        # Do a restore. It is started here, but is completed
+        # in _check_restore_complete()
         background_workers.suspend()
         self.restored_pvs_list = list()
         self.restore_callback = callback
         for pvname, pv_ref in self.pvs.items():
             save_data = pvs.get(pvname)  # Check if this pv is to be restored
             if save_data:
-                pv_ref.restore_pv(save_data.get('value', None), callback=self._check_restore_complete)
+                pv_ref.restore_pv(save_data.get('value', None),
+                                  callback=self._check_restore_complete)
             else:
-                # pv is not in subset in the "selected only" mode
-                # checking algorithm should think this one was successfully restored
+                # pv is not in subset in the "selected only" mode checking
+                # algorithm should think this one was successfully restored
                 self._check_restore_complete(pvname, PvStatus.ok)
 
         # PVs status will be returned in callback
         return ActionStatus.ok, dict()
 
     def _check_restore_complete(self, pvname, status, **kw):
+        # Collect all results and proceed when everything is done
         self.restored_pvs_list.append((pvname, status))
-        if len(self.restored_pvs_list) == len(self.pvs) and self.restore_callback:
+        if len(self.restored_pvs_list) == len(self.pvs):
+            if self.restore_callback:
+                self.restore_callback(status=dict(self.restored_pvs_list),
+                                      forced=self._current_restore_forced)
+                self.restore_callback = None
             self._restore_started = False
-            self.restore_callback(status=dict(self.restored_pvs_list), forced=self._current_restore_forced)
-            self.restore_callback = None
             background_workers.resume()
 
     def restore_pvs_blocking(self, pvs_raw=None, force=False, timeout=10, custom_macros=None):
