@@ -253,6 +253,7 @@ class SnapshotPvTableView(QTableView):
         super().setModel(model)
         self.model().sourceModel().columnsInserted.connect(self.set_snap_visualization)
         self.model().sourceModel().columnsRemoved.connect(self.set_snap_visualization)
+        self.model().sourceModel().modelReset.connect(self.set_default_visualization)
         self.set_default_visualization()
         self.sortByColumn(0, Qt.AscendingOrder)  # default sorting
 
