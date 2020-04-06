@@ -120,6 +120,13 @@ class SnapshotRestoreWidget(QWidget):
             # Do not start a restore if nothing to restore
 
     def do_restore(self, pvs_list=None):
+        num_pvs = len(pvs_list) if pvs_list else "ALL"
+        response = QMessageBox.question(self, "Confirm restore",
+                                        "Do you wish to restore "
+                                        f"{num_pvs} PVs?")
+        if response != QMessageBox.StandardButton.Yes:
+            return
+
         # Restore can be done only if specific file is selected
         if len(self.file_selector.selected_files) == 1:
             file_data = self.file_selector.file_list.get(self.file_selector.selected_files[0])
