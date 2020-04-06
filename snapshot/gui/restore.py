@@ -50,8 +50,7 @@ class SnapshotRestoreWidget(QWidget):
 
         # Create main layout
         layout = QVBoxLayout(self)
-        # layout.setMargin(10)
-        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
         self.setLayout(layout)
 
         # Create list with: file names, comment, labels
@@ -335,7 +334,7 @@ class SnapshotRestoreFileSelector(QWidget):
 
         # Add to main layout
         layout = QVBoxLayout(self)
-        # layout.setMargin(0)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.filter_input)
         layout.addWidget(self.file_selector)
 
@@ -553,8 +552,7 @@ class SnapshotFileFilterWidget(QWidget):
         self.common_settings = common_settings
         # Create main layout
         layout = QHBoxLayout(self)
-        # layout.setMargin(0)
-        layout.setSpacing(10)
+        layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
         # Create filter selectors (with readbacks)

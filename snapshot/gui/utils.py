@@ -41,8 +41,7 @@ class SnapshotConfigureDialog(QDialog):
     def __init__(self, parent=None, init_path=None, init_macros=None, **kw):
         QDialog.__init__(self, parent, **kw)
         layout = QVBoxLayout()
-        # layout.setMargin(10)
-        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
         self.setLayout(layout)
 
         # This Dialog consists of file selector and buttons to apply
@@ -121,8 +120,7 @@ class SnapshotFileSelector(QWidget):
         self.show_files = show_files
         # Create main layout
         layout = QHBoxLayout(self)
-        # layout.setMargin(0)
-        layout.setSpacing(10)
+        layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
         # This widget has 3 parts:
@@ -391,8 +389,7 @@ class SnapshotEditMetadataDialog(QDialog):
         layout = QVBoxLayout()
         form_layout = QFormLayout()
         form_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-        # form_layout.setMargin(10)
-        form_layout.setSpacing(10)
+        form_layout.setContentsMargins(10, 10, 10, 10)
         form_layout.setLabelAlignment(Qt.AlignRight)
 
         # Make a field to enable user adding a comment

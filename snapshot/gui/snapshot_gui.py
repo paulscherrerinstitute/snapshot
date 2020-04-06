@@ -274,7 +274,7 @@ class SnapshotStatusLog(QWidget):
         self.sts_log.setReadOnly(True)
 
         layout = QVBoxLayout()
-        # layout.setMargin(10)
+        layout.setContentsMargins(10, 10, 10, 10)
         layout.addWidget(self.sts_log)
         self.setLayout(layout)
 

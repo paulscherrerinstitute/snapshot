@@ -49,8 +49,7 @@ class SnapshotSaveWidget(QWidget):
 
         # Create layout and add GUI elements (input fields, buttons, ...)
         layout = QVBoxLayout(self)
-        # layout.setMargin(10)
-        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
         self.setLayout(layout)
         min_label_width = 120
 
@@ -270,12 +269,12 @@ class SnapshotAdvancedSaveSettings(QGroupBox):
         # self.toggled.connect(self.toggle)
 
         layout = QVBoxLayout()
-        # layout.setMargin(0)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.frame)
         self.setLayout(layout)
 
         self.frame_layout = QVBoxLayout()
-        # self.frame_layout.setMargin(0)
+        self.frame_layout.setContentsMargins(0, 0, 0, 0)
         self.frame.setLayout(self.frame_layout)
 
         # Make a field to enable user adding a comment

@@ -143,8 +143,7 @@ class SnapshotCompareWidget(QWidget):
 
         # ------- Build main layout ---------
         layout = QVBoxLayout(self)
-        # layout.setMargin(10)
-        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
         layout.addLayout(filter_layout)
         layout.addWidget(self.view)
         self.setLayout(layout)
@@ -231,7 +230,7 @@ class SnapshotPvTableView(QTableView):
         self.setSortingEnabled(True)
         self.sortByColumn(0, Qt.AscendingOrder)  # default sorting
         self.verticalHeader().setVisible(False)
-        # self.horizontalHeader().setMovable(True)
+        self.horizontalHeader().setSectionsMovable(True)
         self.horizontalHeader().setDefaultAlignment(QtCore.Qt.AlignLeft)
         self.verticalHeader().setDefaultSectionSize(20)
         self.horizontalHeader().setDefaultSectionSize(200)
@@ -289,9 +288,9 @@ class SnapshotPvTableView(QTableView):
         i = 0
         for i in range(self.model().columnCount()):
             self.setColumnWidth(i, 200)
-            # self.horizontalHeader().setResizeMode(i, QHeaderView.Interactive)
+            self.horizontalHeader().setSectionResizeMode(i, QHeaderView.Interactive)
 
-        # self.horizontalHeader().setResizeMode(i, QHeaderView.Stretch)
+        self.horizontalHeader().setSectionResizeMode(i, QHeaderView.Stretch)
         self.resizeColumnToContents(0)
         self.setColumnWidth(1, 200)
         self.setColumnWidth(2, 30)
@@ -307,14 +306,14 @@ class SnapshotPvTableView(QTableView):
         i = 0
         if n_columns > 3:
             self.setColumnWidth(2, 30)
-            # self.horizontalHeader().setResizeMode(2, QHeaderView.Interactive)
+            self.horizontalHeader().setSectionResizeMode(2, QHeaderView.Interactive)
             for i in range(3, self.model().columnCount()):
                 self.setColumnWidth(i, 200)
-                # self.horizontalHeader().setResizeMode(i, QHeaderView.Interactive)
+                self.horizontalHeader().setSectionResizeMode(i, QHeaderView.Interactive)
         else:
             i = 2
 
-        # self.horizontalHeader().setResizeMode(i, QHeaderView.Stretch)
+        self.horizontalHeader().setSectionResizeMode(i, QHeaderView.Stretch)
 
         self._apply_selection_to_full_row()
 
