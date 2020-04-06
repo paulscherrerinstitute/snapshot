@@ -128,8 +128,8 @@ class SnapshotGui(QMainWindow):
         sr_splitter = QSplitter(self)
         sr_splitter.addWidget(self.save_widget)
         sr_splitter.addWidget(self.restore_widget)
-        element_size = (self.save_widget.sizeHint().width() + self.restore_widget.sizeHint().width()) / 2
-        sr_splitter.setSizes([element_size, element_size])
+        sr_splitter.setStretchFactor(0, 1)
+        sr_splitter.setStretchFactor(1, 2)
 
         main_splitter = QSplitter(self)
         main_splitter.addWidget(sr_splitter)
