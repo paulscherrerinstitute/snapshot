@@ -8,6 +8,7 @@ import copy
 import datetime
 import os
 import time
+import enum
 
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt
@@ -20,6 +21,13 @@ from ..core import background_workers
 from ..parser import get_save_files, parse_from_save_file
 from .utils import SnapshotKeywordSelectorWidget, SnapshotEditMetadataDialog, \
     DetailedMsgBox, show_snapshot_parse_errors
+
+
+@enum.unique
+class FileSelectorColumns(enum.IntEnum):
+    filename = 0
+    comment = enum.auto()
+    labels = enum.auto()
 
 
 class SnapshotRestoreWidget(QWidget):
@@ -305,23 +313,23 @@ class SnapshotRestoreFileSelector(QWidget):
         self.file_selector = QTreeWidget(self)
         self.file_selector.setRootIsDecorated(False)
         self.file_selector.setIndentation(0)
-        self.file_selector.setColumnCount(4)
-        self.file_selector.setHeaderLabels(["", "File", "Comment", "Labels"])
-        self.file_selector.headerItem().setIcon(0, QIcon(
-            os.path.join(os.path.dirname(os.path.realpath(__file__)), "images/clock.png")))
+        self.file_selector.setColumnCount(len(FileSelectorColumns))
+        column_labels = ["File", "Comment", "Labels"]
+        assert(len(column_labels) == len(FileSelectorColumns))
+        self.file_selector.setHeaderLabels(column_labels)
         self.file_selector.setAllColumnsShowFocus(True)
         self.file_selector.setSortingEnabled(True)
         # Sort by file name (alphabetical order)
-        self.file_selector.sortItems(0, Qt.DescendingOrder)
+        self.file_selector.sortItems(FileSelectorColumns.filename,
+                                     Qt.DescendingOrder)
 
         self.file_selector.itemSelectionChanged.connect(self.select_files)
         self.file_selector.setContextMenuPolicy(Qt.CustomContextMenu)
         self.file_selector.customContextMenuRequested.connect(self.open_menu)
 
         # Set column sizes
-        self.file_selector.resizeColumnToContents(1)
-        self.file_selector.setColumnWidth(0, 140)
-        self.file_selector.setColumnWidth(2, 350)
+        self.file_selector.resizeColumnToContents(FileSelectorColumns.filename)
+        self.file_selector.setColumnWidth(FileSelectorColumns.comment, 350)
 
         # Applies following behavior for multi select:
         #   click            selects only current file
@@ -375,12 +383,13 @@ class SnapshotRestoreFileSelector(QWidget):
             meta_data = modified_data["meta_data"]
             labels = meta_data.get("labels", list())
             comment = meta_data.get("comment", "")
-            time_ = datetime.datetime.fromtimestamp(modified_data.get("modif_time", 0)).strftime('%Y/%m/%d %H:%M:%S')
 
             # check if already on list (was just modified) and modify file
             # selector
             if modified_file not in self.file_list:
-                selector_item = QTreeWidgetItem([time_, modified_file, comment, " ".join(labels)])
+                row = [modified_file, comment, " ".join(labels)]
+                assert(len(row) == len(FileSelectorColumns))
+                selector_item = QTreeWidgetItem(row)
                 self.file_selector.addTopLevelItem(selector_item)
                 self.file_list[modified_file] = modified_data
                 self.file_list[modified_file]["file_selector"] = selector_item
@@ -424,13 +433,13 @@ class SnapshotRestoreFileSelector(QWidget):
 
                 # Modify visual representation
                 item_to_modify = modified_file_ref["file_selector"]
-                item_to_modify.setText(0, time_)
-                item_to_modify.setText(2, comment)
-                item_to_modify.setText(3, " ".join(labels))
+                item_to_modify.setText(FileSelectorColumns.comment, comment)
+                item_to_modify.setText(FileSelectorColumns.labels,
+                                       " ".join(labels))
         self.filter_input.update_labels()
 
         # Set column sizes
-        self.file_selector.resizeColumnToContents(1)
+        self.file_selector.resizeColumnToContents(FileSelectorColumns.filename)
         return modif_file_list
 
     def filter_file_list_selector(self):
@@ -483,7 +492,8 @@ class SnapshotRestoreFileSelector(QWidget):
         self.selected_files = list()
         if self.file_selector.selectedItems():
             for item in self.file_selector.selectedItems():
-                self.selected_files.append(item.text(1))
+                self.selected_files.append(
+                    item.text(FileSelectorColumns.filename))
 
         self.files_selected.emit(self.selected_files)
 

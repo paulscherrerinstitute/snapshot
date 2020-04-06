@@ -53,20 +53,9 @@ class SnapshotSaveWidget(QWidget):
         self.setLayout(layout)
         min_label_width = 120
 
-        # Make a field to select file extension (has a read-back)
-        extension_layout = QHBoxLayout()
-        extension_layout.setSpacing(10)
-        extension_label = QLabel("Name extension:", self)
-        extension_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
-        extension_label.setMinimumWidth(min_label_width)
-        self.extension_input = QLineEdit(self)
-        extension_layout.addWidget(extension_label)
-        extension_layout.addWidget(self.extension_input)
-
         # "Monitor" any name changes (by user, or by other methods)
-        extension_rb_layout = QHBoxLayout()
-        extension_rb_layout.setSpacing(10)
-        self.extension_input.textChanged.connect(self.update_name)
+        filename_layout = QHBoxLayout()
+        filename_layout.setSpacing(10)
 
         file_name_label = QLabel("File name: ", self)
         file_name_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
@@ -80,9 +69,9 @@ class SnapshotSaveWidget(QWidget):
         self.name_extension = ''
         self.update_name()
 
-        extension_rb_layout.addWidget(file_name_label)
-        extension_rb_layout.addWidget(self.file_name_rb)
-        extension_rb_layout.addStretch()
+        filename_layout.addWidget(file_name_label)
+        filename_layout.addWidget(self.file_name_rb)
+        filename_layout.addStretch()
 
         # Make Save button
         save_layout = QHBoxLayout()
@@ -97,15 +86,13 @@ class SnapshotSaveWidget(QWidget):
         self.sts_info = self.common_settings["sts_info"]
 
         # Add to main layout
-        layout.addLayout(extension_layout)
-        layout.addLayout(extension_rb_layout)
+        layout.addLayout(filename_layout)
         layout.addWidget(self.advanced)
         layout.addLayout(save_layout)
         layout.addStretch()
 
     def handle_new_snapshot_instance(self, snapshot):
         self.snapshot = snapshot
-        self.extension_input.setText('')
         self.update_name()
         self.update_labels()
         self.advanced.labels_input.clear_keywords()
@@ -123,13 +110,8 @@ class SnapshotSaveWidget(QWidget):
             self.sts_log.log_msgs("Save started.", time.time())
             self.sts_info.set_status("Saving ...", 0, "orange")
 
-            # Use advanced settings only if selected
-            # if self.advanced.isChecked():
             labels = self.advanced.labels_input.get_keywords()
             comment = self.advanced.comment_input.text()
-            # else:
-            #     labels = list()
-            #     comment = ""
 
             force = self.common_settings["force"]
             # Start saving process with default "force" flag and notify when finished
@@ -212,28 +194,18 @@ class SnapshotSaveWidget(QWidget):
         self.saved.emit()
 
     def update_name(self):
-        # When file extension is changed, update all corresponding variables
-        name_extension_inp = self.extension_input.text()
-        if not name_extension_inp:
-            name_extension_rb = "{TIMESTAMP}" + save_file_suffix
-            self.name_extension = datetime.datetime.fromtimestamp(
-                time.time()).strftime('%Y%m%d_%H%M%S')
-        else:
-            self.name_extension = name_extension_inp
-            name_extension_rb = name_extension_inp + save_file_suffix
+        name_extension_rb = "{TIMESTAMP}" + save_file_suffix
+        self.name_extension = datetime.datetime.fromtimestamp(
+            time.time()).strftime('%Y%m%d_%H%M%S')
 
-        # Use manually entered prefix only if advanced options are selected
-        if self.advanced.file_prefix_input.text() and self.advanced.isChecked():
-            self.common_settings["save_file_prefix"] = self.advanced.file_prefix_input.text()
-        else:
-            self.common_settings["save_file_prefix"] = os.path.split(self.common_settings
-                                                                     ["req_file_path"])[1].split(".")[0] + "_"
+        self.common_settings["save_file_prefix"] = os.path.split(
+            self.common_settings["req_file_path"])[1].split(".")[0] + "_"
 
         self.file_path = os.path.join(self.common_settings["save_dir"],
-                                      self.common_settings["save_file_prefix"] +
-                                      self.name_extension + save_file_suffix)
-        self.file_name_rb.setText(self.common_settings["save_file_prefix"] +
-                                  name_extension_rb)
+                                      self.common_settings["save_file_prefix"]
+                                      + self.name_extension + save_file_suffix)
+        self.file_name_rb.setText(self.common_settings["save_file_prefix"]
+                                  + name_extension_rb)
 
     def check_file_name_available(self):
         # If file exists, user must decide whether to overwrite it or not
@@ -263,10 +235,8 @@ class SnapshotAdvancedSaveSettings(QGroupBox):
         self.frame = QFrame(self)
         self.frame.setContentsMargins(0, 20, 0, 0)
         self.frame.setStyleSheet("background-color: None")
-        # self.setCheckable(True)
         self.frame.setVisible(True)
         self.setChecked(True)
-        # self.toggled.connect(self.toggle)
 
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
@@ -302,23 +272,9 @@ class SnapshotAdvancedSaveSettings(QGroupBox):
         labels_layout.addWidget(labels_label)
         labels_layout.addWidget(self.labels_input)
 
-        # Make field for specifying save file prefix
-        file_prefix_layout = QHBoxLayout()
-        file_prefix_layout.setSpacing(10)
-        file_prefix_label = QLabel("File name prefix:", self.frame)
-        file_prefix_label.setStyleSheet("background-color: None")
-        file_prefix_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
-        file_prefix_label.setMinimumWidth(min_label_width)
-        self.file_prefix_input = QLineEdit(self.frame)
-        file_prefix_layout.addWidget(file_prefix_label)
-        file_prefix_layout.addWidget(self.file_prefix_input)
-        self.file_prefix_input.textChanged.connect(
-            self.parent.update_name)
-
         # self.frame_layout.addStretch()
         self.frame_layout.addLayout(comment_layout)
         self.frame_layout.addLayout(labels_layout)
-        self.frame_layout.addLayout(file_prefix_layout)
 
     def update_labels(self):
         self.labels_input.update_suggested_keywords()
