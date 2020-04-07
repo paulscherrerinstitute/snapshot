@@ -139,7 +139,7 @@ class SnapshotPv(PV):
         value = self._last_value  # it could be updated in the background
         if not self._initialized:
             self._initialized = True
-            value = self.get(use_monitor=False)
+            value = self.get(use_monitor=False, with_ctrlvars=True)
             self._last_value = value
         return value
 
@@ -489,12 +489,39 @@ class PvUpdater:
                     continue
 
                 since_start("Started getting PV values")
+
+                report_init_timeout = False
+                report = "Some connected PVs are timing out while " \
+                    "fetching ctrlvars, causing slowdowns."
                 for pv in self._pvs:
                     pv._pvget_lock.acquire()
+                    if not pv._initialized:
+                        # Units and precision will be needed in the GUI. Fetch
+                        # them now and cache them, so that GUI won't need to.
+                        if pv.connected:
+                            ctrl = pv.get_ctrlvars()
+                            # It can timeout, so don't rely on it.
+                            if ctrl:
+                                pv._initialized = True
+                            else:
+                                if not report_init_timeout:
+                                    retport_init_timeout = True
+                                    logging.debug(report)
+                    # get_ctrlvars() does not fetch the value, so we still need
+                    # to do it. It is safe to do even in the case of timeout
+                    # because the ctrl and value requests are orthogonal in
+                    # pyepics. There is a very slim chance that pv._last_value
+                    # remains none even if it when pv._initialized is True
+                    # if the value get times out, but that's no different from
+                    # what pyepics itself does. <rant>pyepics is quite bad at
+                    # handling timeouts</rant>.
                     self._get_start(pv)
+
                 vals = [self._get_complete(pv) for pv in self._pvs]
+
                 for pv in self._pvs:
                     pv._pvget_lock.release()
+
                 since_start("Finished getting PV values")
 
             self._callback(vals)
