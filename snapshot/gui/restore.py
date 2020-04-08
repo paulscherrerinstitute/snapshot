@@ -12,7 +12,7 @@ import enum
 
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QIcon, QCursor
+from PyQt5.QtGui import QIcon, QCursor, QGuiApplication
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QHBoxLayout, QMessageBox, QTreeWidget, QTreeWidgetItem, \
     QMenu, QLineEdit, QLabel
 
@@ -488,8 +488,13 @@ class SnapshotRestoreFileSelector(QWidget):
                     not (name_status and keys_status and comment_status))
 
     def open_menu(self, point):
-                # Context menu
+        item_idx = self.file_selector.indexAt(point)
+        text = item_idx.data()
+        field = self.file_selector.model().headerData(item_idx.column(),
+                                                      Qt.Horizontal)
+        clipboard = QGuiApplication.clipboard()
         menu = QMenu(self)
+        menu.addAction(f"Copy {field.lower()}", lambda: clipboard.setText(text))
         menu.addAction("Delete selected files", self.delete_files)
         menu.addAction("Edit file meta-data", self.update_file_metadata)
         menu.exec(QCursor.pos())
