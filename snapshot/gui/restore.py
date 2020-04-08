@@ -493,11 +493,14 @@ class SnapshotRestoreFileSelector(QWidget):
         field = self.file_selector.model().headerData(item_idx.column(),
                                                       Qt.Horizontal)
         clipboard = QGuiApplication.clipboard()
+
         menu = QMenu(self)
         menu.addAction(f"Copy {field.lower()}", lambda: clipboard.setText(text))
         menu.addAction("Delete selected files", self.delete_files)
         menu.addAction("Edit file meta-data", self.update_file_metadata)
+
         menu.exec(QCursor.pos())
+        menu.deleteLater()
 
     def select_files(self):
         # Pre-process selected items, to a list of files

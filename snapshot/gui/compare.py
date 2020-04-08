@@ -341,6 +341,7 @@ class SnapshotPvTableView(QTableView):
 
         self._menu_click_pos = point
         menu.exec(QCursor.pos())
+        menu.deleteLater()
 
     def _restore_selected_pvs(self):
         pvs = list()
