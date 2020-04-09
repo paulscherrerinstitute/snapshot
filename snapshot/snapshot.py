@@ -38,8 +38,10 @@ def restore(args):
 
 def gui(args):
     from .gui import start_gui
-    start_gui(args.FILE, args.macro, save_dir=args.dir, force=args.force, default_labels=args.labels,
-              force_default_labels=args.force_labels, init_path=args.base, config_path=args.config)
+    start_gui(req_file_path=args.FILE, req_file_macros=args.macro,
+              save_dir=args.dir, force=args.force, default_labels=args.labels,
+              force_default_labels=args.force_labels, init_path=args.base,
+              config_path=args.config, trace_execution=args.trace_execution)
 
 
 def main():
@@ -65,6 +67,7 @@ def main():
                           help="list of comma separated predefined labels e.g.: \"label_1,label_2\"")
     gui_pars.add_argument('--force_labels', help="force predefined labels", action='store_true')
     gui_pars.add_argument('--config', help="path to configuration file")
+    gui_pars.add_argument('--trace-execution', help="print info during long-running tasks", action='store_true')
 
     # Save
     save_pars = subparsers.add_parser('save', help='save current state of PVs to file without using GUI')

@@ -8,17 +8,26 @@ import copy
 import datetime
 import os
 import time
+import enum
 
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QIcon, QCursor
+from PyQt5.QtGui import QIcon, QCursor, QGuiApplication
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QHBoxLayout, QMessageBox, QTreeWidget, QTreeWidgetItem, \
     QMenu, QLineEdit, QLabel
 
 from ..ca_core import PvStatus, ActionStatus, SnapshotPv
-from ..core import backgroundWorkers
+from ..core import background_workers
+from ..parser import get_save_files, parse_from_save_file
 from .utils import SnapshotKeywordSelectorWidget, SnapshotEditMetadataDialog, \
     DetailedMsgBox, show_snapshot_parse_errors
+
+
+@enum.unique
+class FileSelectorColumns(enum.IntEnum):
+    filename = 0
+    comment = enum.auto()
+    labels = enum.auto()
 
 
 class SnapshotRestoreWidget(QWidget):
@@ -49,8 +58,7 @@ class SnapshotRestoreWidget(QWidget):
 
         # Create main layout
         layout = QVBoxLayout(self)
-        # layout.setMargin(10)
-        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
         self.setLayout(layout)
 
         # Create list with: file names, comment, labels
@@ -90,10 +98,10 @@ class SnapshotRestoreWidget(QWidget):
 
         self.restored_callback.connect(self.restore_done)
 
-    def handle_new_snapshot_instance(self, snapshot):
+    def handle_new_snapshot_instance(self, snapshot, already_parsed_files):
         self.file_selector.handle_new_snapshot_instance(snapshot)
         self.snapshot = snapshot
-        self.clear_update_files()
+        self.clear_update_files(already_parsed_files)
 
     def start_refresh(self):
         # print('Refresh')
@@ -112,6 +120,13 @@ class SnapshotRestoreWidget(QWidget):
             # Do not start a restore if nothing to restore
 
     def do_restore(self, pvs_list=None):
+        num_pvs = len(pvs_list) if pvs_list else "ALL"
+        response = QMessageBox.question(self, "Confirm restore",
+                                        "Do you wish to restore "
+                                        f"{num_pvs} PVs?")
+        if response != QMessageBox.StandardButton.Yes:
+            return
+
         # Restore can be done only if specific file is selected
         if len(self.file_selector.selected_files) == 1:
             file_data = self.file_selector.file_list.get(self.file_selector.selected_files[0])
@@ -121,7 +136,7 @@ class SnapshotRestoreWidget(QWidget):
                 # Ignore parsing errors: the user has already seen them when
                 # when opening the snapshot.
                 pvs_in_file, _, _ = \
-                    self.snapshot.parse_from_save_file(file_data['file_path'])
+                    parse_from_save_file(file_data['file_path'])
                 pvs_to_restore = copy.copy(pvs_in_file)  # is actually a dict
                 macros = self.snapshot.macros
 
@@ -261,12 +276,14 @@ class SnapshotRestoreWidget(QWidget):
         # First update other GUI components (compare widget) and then pass pvs to compare to the snapshot core
         self.files_selected.emit(selected_data)
 
-    def update_files(self):
-        self.files_updated.emit(self.file_selector.start_file_list_update())
+    def update_files(self, already_parsed_files=None):
+        self.files_updated.emit(
+            self.file_selector.start_file_list_update(
+                already_parsed_files))
 
-    def clear_update_files(self):
+    def clear_update_files(self, already_parsed_files=None):
         self.file_selector.clear_file_selector()
-        self.update_files()
+        self.update_files(already_parsed_files)
 
 
 class SnapshotRestoreFileSelector(QWidget):
@@ -277,7 +294,7 @@ class SnapshotRestoreFileSelector(QWidget):
 
     files_selected = QtCore.pyqtSignal(list)
 
-    def __init__(self, snapshot, common_settings, parent=None, save_file_sufix=".snap", **kw):
+    def __init__(self, snapshot, common_settings, parent=None, **kw):
         QWidget.__init__(self, parent, **kw)
 
         self.parent = parent
@@ -285,7 +302,6 @@ class SnapshotRestoreFileSelector(QWidget):
         self.snapshot = snapshot
         self.selected_files = list()
         self.common_settings = common_settings
-        self.save_file_sufix = save_file_sufix
 
         self.file_list = dict()
         self.pvs = dict()
@@ -304,23 +320,23 @@ class SnapshotRestoreFileSelector(QWidget):
         self.file_selector = QTreeWidget(self)
         self.file_selector.setRootIsDecorated(False)
         self.file_selector.setIndentation(0)
-        self.file_selector.setColumnCount(4)
-        self.file_selector.setHeaderLabels(["", "File", "Comment", "Labels"])
-        self.file_selector.headerItem().setIcon(0, QIcon(
-            os.path.join(os.path.dirname(os.path.realpath(__file__)), "images/clock.png")))
+        self.file_selector.setColumnCount(len(FileSelectorColumns))
+        column_labels = ["File", "Comment", "Labels"]
+        assert(len(column_labels) == len(FileSelectorColumns))
+        self.file_selector.setHeaderLabels(column_labels)
         self.file_selector.setAllColumnsShowFocus(True)
         self.file_selector.setSortingEnabled(True)
         # Sort by file name (alphabetical order)
-        self.file_selector.sortItems(0, Qt.DescendingOrder)
+        self.file_selector.sortItems(FileSelectorColumns.filename,
+                                     Qt.DescendingOrder)
 
         self.file_selector.itemSelectionChanged.connect(self.select_files)
         self.file_selector.setContextMenuPolicy(Qt.CustomContextMenu)
         self.file_selector.customContextMenuRequested.connect(self.open_menu)
 
         # Set column sizes
-        self.file_selector.resizeColumnToContents(1)
-        self.file_selector.setColumnWidth(0, 140)
-        self.file_selector.setColumnWidth(2, 350)
+        self.file_selector.resizeColumnToContents(FileSelectorColumns.filename)
+        self.file_selector.setColumnWidth(FileSelectorColumns.comment, 350)
 
         # Applies following behavior for multi select:
         #   click            selects only current file
@@ -333,7 +349,7 @@ class SnapshotRestoreFileSelector(QWidget):
 
         # Add to main layout
         layout = QVBoxLayout(self)
-        # layout.setMargin(0)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.filter_input)
         layout.addWidget(self.file_selector)
 
@@ -342,11 +358,19 @@ class SnapshotRestoreFileSelector(QWidget):
         self.filter_input.clear()
         self.snapshot = snapshot
 
-    def start_file_list_update(self):
+    def start_file_list_update(self, already_parsed_files=None):
         self.file_selector.setSortingEnabled(False)
-        # Rescans directory and adds new/modified files and removes none
-        # existing ones from the list.
-        save_files, err_to_report = self.get_save_files(self.common_settings["save_dir"], self.file_list)
+        if already_parsed_files:
+            save_files, err_to_report = already_parsed_files
+        else:
+            # Rescans directory and adds new/modified files and removes
+            # non-existing ones from the list.
+            background_workers.suspend()
+            save_dir = self.common_settings["save_dir"]
+            req_file_path = self.common_settings["req_file_path"]
+            save_files, err_to_report = get_save_files(save_dir, req_file_path,
+                                                       self.file_list)
+            background_workers.resume()
 
         updated_files = self.update_file_list_selector(save_files)
         self.filter_file_list_selector()
@@ -358,53 +382,6 @@ class SnapshotRestoreFileSelector(QWidget):
         self.file_selector.setSortingEnabled(True)
         return updated_files
 
-    def get_save_files(self, save_dir, current_files):
-        # Parses all new or modified files. Parsed files are returned as a
-        # dictionary.
-        import glob
-        backgroundWorkers.suspend()
-        parsed_save_files = dict()
-        err_to_report = list()
-        req_file_name = os.path.basename(self.common_settings["req_file_path"])
-        # Check if any file added or modified (time of modification)
-        for file_path in glob.glob(os.path.join(save_dir, os.path.splitext(req_file_name)[0])+'*'+self.save_file_sufix):
-            file_name=os.path.basename(file_path)
-            if os.path.isfile(file_path):
-                if (file_name not in current_files) or \
-                        (current_files[file_name]["modif_time"] != os.path.getmtime(file_path)):
-
-                    _, meta_data, err = \
-                        self.snapshot.parse_from_save_file(file_path,
-                                                           metadata_only=True)
-
-                    # check if we have req_file metadata. This is used to determine which
-                    # request file the save file belongs to.
-                    # If there is no metadata (or no req_file specified in the metadata)
-                    # we search using a prefix of the request file.
-                    # The latter is less robust, but is backwards compatible.
-                    if ("req_file_name" in meta_data
-                        and meta_data["req_file_name"] == req_file_name) \
-                            or file_name.startswith(req_file_name.split(".")[0] + "_"):
-                        # we really should have basic meta data
-                        # (or filters and some other stuff will silently fail)
-                        if "comment" not in meta_data:
-                            meta_data["comment"] = ""
-                        if "labels" not in meta_data:
-                            meta_data["labels"] = []
-
-                        parsed_save_files[file_name] = {
-                            'file_name': file_name,
-                            'file_path': file_path,
-                            'meta_data': meta_data,
-                            'modif_time': os.path.getmtime(file_path)
-                        }
-
-                        if err:  # report errors only for matching saved files
-                            err_to_report.append((file_name, err))
-
-        backgroundWorkers.resume()
-        return parsed_save_files, err_to_report
-
     def update_file_list_selector(self, modif_file_list):
 
         existing_labels = self.common_settings["existing_labels"]
@@ -413,12 +390,13 @@ class SnapshotRestoreFileSelector(QWidget):
             meta_data = modified_data["meta_data"]
             labels = meta_data.get("labels", list())
             comment = meta_data.get("comment", "")
-            time_ = datetime.datetime.fromtimestamp(modified_data.get("modif_time", 0)).strftime('%Y/%m/%d %H:%M:%S')
 
             # check if already on list (was just modified) and modify file
             # selector
             if modified_file not in self.file_list:
-                selector_item = QTreeWidgetItem([time_, modified_file, comment, " ".join(labels)])
+                row = [modified_file, comment, " ".join(labels)]
+                assert(len(row) == len(FileSelectorColumns))
+                selector_item = QTreeWidgetItem(row)
                 self.file_selector.addTopLevelItem(selector_item)
                 self.file_list[modified_file] = modified_data
                 self.file_list[modified_file]["file_selector"] = selector_item
@@ -462,13 +440,13 @@ class SnapshotRestoreFileSelector(QWidget):
 
                 # Modify visual representation
                 item_to_modify = modified_file_ref["file_selector"]
-                item_to_modify.setText(0, time_)
-                item_to_modify.setText(2, comment)
-                item_to_modify.setText(3, " ".join(labels))
+                item_to_modify.setText(FileSelectorColumns.comment, comment)
+                item_to_modify.setText(FileSelectorColumns.labels,
+                                       " ".join(labels))
         self.filter_input.update_labels()
 
         # Set column sizes
-        self.file_selector.resizeColumnToContents(1)
+        self.file_selector.resizeColumnToContents(FileSelectorColumns.filename)
         return modif_file_list
 
     def filter_file_list_selector(self):
@@ -510,18 +488,27 @@ class SnapshotRestoreFileSelector(QWidget):
                     not (name_status and keys_status and comment_status))
 
     def open_menu(self, point):
-                # Context menu
+        item_idx = self.file_selector.indexAt(point)
+        text = item_idx.data()
+        field = self.file_selector.model().headerData(item_idx.column(),
+                                                      Qt.Horizontal)
+        clipboard = QGuiApplication.clipboard()
+
         menu = QMenu(self)
+        menu.addAction(f"Copy {field.lower()}", lambda: clipboard.setText(text))
         menu.addAction("Delete selected files", self.delete_files)
         menu.addAction("Edit file meta-data", self.update_file_metadata)
+
         menu.exec(QCursor.pos())
+        menu.deleteLater()
 
     def select_files(self):
         # Pre-process selected items, to a list of files
         self.selected_files = list()
         if self.file_selector.selectedItems():
             for item in self.file_selector.selectedItems():
-                self.selected_files.append(item.text(1))
+                self.selected_files.append(
+                    item.text(FileSelectorColumns.filename))
 
         self.files_selected.emit(self.selected_files)
 
@@ -590,8 +577,7 @@ class SnapshotFileFilterWidget(QWidget):
         self.common_settings = common_settings
         # Create main layout
         layout = QHBoxLayout(self)
-        # layout.setMargin(0)
-        layout.setSpacing(10)
+        layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
         # Create filter selectors (with readbacks)

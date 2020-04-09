@@ -41,8 +41,7 @@ class SnapshotConfigureDialog(QDialog):
     def __init__(self, parent=None, init_path=None, init_macros=None, **kw):
         QDialog.__init__(self, parent, **kw)
         layout = QVBoxLayout()
-        # layout.setMargin(10)
-        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
         self.setLayout(layout)
 
         # This Dialog consists of file selector and buttons to apply
@@ -108,128 +107,6 @@ class SnapshotConfigureDialog(QDialog):
         self.file_selector.setFocus()
 
 
-class SnapshotSettingsDialog(QWidget):
-    new_config = QtCore.pyqtSignal(dict)
-
-    def __init__(self, common_settings, parent=None):
-        self.common_settings = common_settings
-        QWidget.__init__(self, parent)
-        group_box = QGroupBox("General Snapshot Settings", self)
-        group_box.setFlat(False)
-        layout = QVBoxLayout()
-        form_layout = QFormLayout()
-        form_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-        form_layout.setMargin(10)
-        form_layout.setSpacing(10)
-        form_layout.setLabelAlignment(Qt.AlignRight)
-
-        # get current values
-        self.curr_macros = self.common_settings["req_file_macros"]
-        self.curr_save_dir = self.common_settings["save_dir"]
-        self.curr_forced = self.common_settings["force"]
-        # Macros
-        self.macro_input = QLineEdit(self)
-        self.macro_input.setText(parse_dict_macros_to_text(self.curr_macros))
-        self.macro_input.textChanged.connect(self.monitor_changes)
-        form_layout.addRow("Macros:", self.macro_input)
-
-        # Snapshot directory
-        self.save_dir_input = SnapshotFileSelector(self, label_text="", show_files=False)
-        self.save_dir_input.setText(self.curr_save_dir)
-        self.save_dir_input.path_changed.connect(self.monitor_changes)
-        form_layout.addRow("Saved files directory:", self.save_dir_input)
-
-        # Force
-        self.force_input = QCheckBox(self)
-        self.force_input.setChecked(self.curr_forced)
-        self.force_input.stateChanged.connect(self.monitor_changes)
-        form_layout.addRow("Force mode:", self.force_input)
-
-        self.button_box = QDialogButtonBox(
-            QDialogButtonBox.Ok | QDialogButtonBox.Apply | QDialogButtonBox.Cancel, parent=self)
-
-        self.apply_button = self.button_box.button(QDialogButtonBox.Apply)
-        self.ok_button = self.button_box.button(QDialogButtonBox.Ok)
-        self.cancel_button = self.button_box.button(QDialogButtonBox.Cancel)
-
-        self.ok_button.setDisabled(True)
-        self.apply_button.setDisabled(True)
-
-        self.button_box.clicked.connect(self.handle_click)
-        group_box.setLayout(form_layout)
-        layout.addWidget(group_box)
-        layout.addWidget(self.button_box)
-
-        self.setLayout(layout)
-
-        # Widget as window
-        self.setWindowTitle("Snapshot Settings")
-        self.setWindowFlags(Qt.Window | Qt.Tool)
-        self.setAttribute(Qt.WA_DeleteOnClose, True)
-        self.setAttribute(Qt.WA_X11NetWmWindowTypeMenu, True)
-        self.setEnabled(True)
-
-    def handle_click(self, button):
-        if button == self.apply_button:
-            self.apply_config()
-        elif button == self.ok_button:
-            self.apply_config()
-            self.close()
-        elif button == self.cancel_button:
-            self.close()
-
-    def monitor_changes(self):
-        try:
-            parsed_macros = parse_macros(self.macro_input.text())
-        except MacroError:
-            # Ignore exception since this does not apply settings
-            parsed_macros = dict()
-
-        if (parsed_macros != self.curr_macros) or (self.save_dir_input.text() != self.curr_save_dir) or \
-                (self.force_input.isChecked() != self.curr_forced):
-            self.ok_button.setDisabled(False)
-            self.apply_button.setDisabled(False)
-        else:
-            self.ok_button.setDisabled(True)
-            self.apply_button.setDisabled(True)
-
-    def apply_config(self):
-        # Return only changed settings
-        config = dict()
-        try:
-            parsed_macros = parse_macros(self.macro_input.text())
-        except MacroError as e:
-            # Show error message and finish with applying config
-            QMessageBox.warning(self, "Warning", str(e),
-                                      QMessageBox.Ok,
-                                      QMessageBox.NoButton)
-            return
-
-        if self.save_dir_input.text() != self.curr_save_dir:
-            if os.path.isdir(self.save_dir_input.text()):
-                config["save_dir"] = self.save_dir_input.text()
-                self.curr_save_dir = self.save_dir_input.text()
-            else:
-                # Prompt user that path is not valid
-                warn = "Cannot set saved files directory to: \"" + self.save_dir_input.text() + \
-                       "\". Check if it is valid path to directory."
-                QMessageBox.warning(self, "Warning", warn,
-                                          QMessageBox.Ok)
-                self.save_dir_input.setText(self.curr_save_dir)
-
-        if parsed_macros != self.curr_macros:
-            config["macros"] = parsed_macros
-            self.curr_macros = parsed_macros
-
-        if self.force_input.isChecked() != self.curr_forced:
-            config["force"] = self.force_input.isChecked()
-            self.curr_forced = self.force_input.isChecked()
-
-        self.monitor_changes()  # To update buttons state
-
-        self.new_config.emit(config)
-
-
 class SnapshotFileSelector(QWidget):
     """ Widget to select file with dialog box. """
 
@@ -243,8 +120,7 @@ class SnapshotFileSelector(QWidget):
         self.show_files = show_files
         # Create main layout
         layout = QHBoxLayout(self)
-        # layout.setMargin(0)
-        layout.setSpacing(10)
+        layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
         # This widget has 3 parts:
@@ -513,8 +389,7 @@ class SnapshotEditMetadataDialog(QDialog):
         layout = QVBoxLayout()
         form_layout = QFormLayout()
         form_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-        # form_layout.setMargin(10)
-        form_layout.setSpacing(10)
+        form_layout.setContentsMargins(10, 10, 10, 10)
         form_layout.setLabelAlignment(Qt.AlignRight)
 
         # Make a field to enable user adding a comment
