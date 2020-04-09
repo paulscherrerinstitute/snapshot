@@ -6,6 +6,7 @@ import time
 
 from snapshot.ca_core import PvStatus, ActionStatus, Snapshot
 from snapshot.core import SnapshotError
+from snapshot.parser import parse_from_save_file
 
 
 def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10, labels_str=None, comment=None):
@@ -64,7 +65,7 @@ def restore(saved_file_path, force=False, timeout=10):
 
     try:
         # Preparse file to check for any problems in the snapshot file.
-        saved_pvs, meta_data, err = Snapshot.parse_from_save_file(saved_file_path)
+        saved_pvs, meta_data, err = parse_from_save_file(saved_file_path)
 
         if err:
             logging.warning('While loading file following problems were detected:\n * ' + '\n * '.join(err))

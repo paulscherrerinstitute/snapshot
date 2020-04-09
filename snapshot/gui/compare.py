@@ -7,7 +7,7 @@
 import json
 import os
 import re
-from enum import Enum
+import enum
 
 import numpy
 from PyQt5 import QtCore
@@ -18,12 +18,13 @@ from PyQt5.QtWidgets import QApplication, QHeaderView, QAbstractItemView, QMenu,
 
 from ..ca_core import Snapshot
 from ..core import SnapshotPv, PvUpdater
+from ..parser import parse_from_save_file
 from .utils import show_snapshot_parse_errors
 
 import time
 
 
-class PvCompareFilter(Enum):
+class PvCompareFilter(enum.Enum):
     show_all = 0
     show_neq = 1
     show_eq = 2
@@ -83,9 +84,10 @@ class SnapshotCompareWidget(QWidget):
 
             # Add filters
             self.pv_filter_sel.addItem(None)
+            icon = QIcon(os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                      "images/rgx.png")), rgx
             for rgx in predefined_filters.get('rgx-filters', list()):
-                self.pv_filter_sel.addItem(QIcon(os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                                                    "images/rgx.png")), rgx)
+                self.pv_filter_sel.addItem(icon)
             self.pv_filter_sel.addItems(predefined_filters.get('filters', list()))
             self.pv_filter_sel.currentIndexChanged.connect(self._predefined_filter_selected)
 
@@ -141,8 +143,7 @@ class SnapshotCompareWidget(QWidget):
 
         # ------- Build main layout ---------
         layout = QVBoxLayout(self)
-        # layout.setMargin(10)
-        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
         layout.addLayout(filter_layout)
         layout.addWidget(self.view)
         self.setLayout(layout)
@@ -216,6 +217,18 @@ class SnapshotCompareWidget(QWidget):
         self._proxy.apply_filter()
 
 
+class PvTableColumns(enum.IntEnum):
+    name = 0
+    unit = enum.auto()
+    value = enum.auto()
+    compare = enum.auto()
+    snapshots = enum.auto()
+
+    @staticmethod
+    def snap_index(idx):
+        return PvTableColumns.snapshots + idx
+
+
 class SnapshotPvTableView(QTableView):
     """
     Default visualization of the PV model.
@@ -227,12 +240,13 @@ class SnapshotPvTableView(QTableView):
         super().__init__(parent)
         # -------- Visualization ----------
         self.setSortingEnabled(True)
-        self.sortByColumn(0, Qt.AscendingOrder)  # default sorting
+        self.sortByColumn(PvTableColumns.name, Qt.AscendingOrder)  # default sorting
         self.verticalHeader().setVisible(False)
-        # self.horizontalHeader().setMovable(True)
+        self.horizontalHeader().setSectionsMovable(True)
         self.horizontalHeader().setDefaultAlignment(QtCore.Qt.AlignLeft)
         self.verticalHeader().setDefaultSectionSize(20)
         self.horizontalHeader().setDefaultSectionSize(200)
+        self._compare_col_size = 30
 
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
 
@@ -252,8 +266,9 @@ class SnapshotPvTableView(QTableView):
         super().setModel(model)
         self.model().sourceModel().columnsInserted.connect(self.set_snap_visualization)
         self.model().sourceModel().columnsRemoved.connect(self.set_snap_visualization)
+        self.model().sourceModel().modelReset.connect(self.set_default_visualization)
         self.set_default_visualization()
-        self.sortByColumn(0, Qt.AscendingOrder)  # default sorting
+        self.sortByColumn(PvTableColumns.name, Qt.AscendingOrder)  # default sorting
 
     def dataChanged(self, mode_idx, mode_idx1, roles):
         """
@@ -284,35 +299,31 @@ class SnapshotPvTableView(QTableView):
                                      QItemSelectionModel.Rows | QItemSelectionModel.ClearAndSelect)
 
     def set_default_visualization(self):
-        i = 0
-        for i in range(self.model().columnCount()):
-            self.setColumnWidth(i, 200)
-            # self.horizontalHeader().setResizeMode(i, QHeaderView.Interactive)
-
-        # self.horizontalHeader().setResizeMode(i, QHeaderView.Stretch)
-        self.resizeColumnToContents(0)
-        self.setColumnWidth(1, 200)
-        self.setColumnWidth(2, 30)
+        setResizeMode = self.horizontalHeader().setSectionResizeMode
+        setResizeMode(PvTableColumns.name, QHeaderView.ResizeToContents)
+        setResizeMode(PvTableColumns.unit, QHeaderView.ResizeToContents)
+        setResizeMode(PvTableColumns.value, QHeaderView.Interactive)
+        self.setColumnWidth(PvTableColumns.value, 200)
+        setResizeMode(PvTableColumns.compare, QHeaderView.Fixed)
+        self.setColumnWidth(PvTableColumns.compare, self._compare_col_size)
 
         self._apply_selection_to_full_row()
 
     def set_snap_visualization(self):
         """
-        Whenever the view is updated with new columns with snap values to 200, and extend last one
+        Whenever the view is updated with new columns with snap values to 200,
+        and extend last one
         :return:
         """
+        self.setColumnWidth(PvTableColumns.compare, self._compare_col_size)
         n_columns = self.model().columnCount()
-        i = 0
-        if n_columns > 3:
-            self.setColumnWidth(2, 30)
-            # self.horizontalHeader().setResizeMode(2, QHeaderView.Interactive)
-            for i in range(3, self.model().columnCount()):
+        if n_columns >= PvTableColumns.snapshots:
+            last_col = self.model().columnCount() - 1
+            header = self.horizontalHeader()
+            for i in range(PvTableColumns.snapshots, last_col):
                 self.setColumnWidth(i, 200)
-                # self.horizontalHeader().setResizeMode(i, QHeaderView.Interactive)
-        else:
-            i = 2
-
-        # self.horizontalHeader().setResizeMode(i, QHeaderView.Stretch)
+                header.setSectionResizeMode(i, QHeaderView.Interactive)
+            header.setSectionResizeMode(last_col, QHeaderView.Stretch)
 
         self._apply_selection_to_full_row()
 
@@ -330,6 +341,7 @@ class SnapshotPvTableView(QTableView):
 
         self._menu_click_pos = point
         menu.exec(QCursor.pos())
+        menu.deleteLater()
 
     def _restore_selected_pvs(self):
         pvs = list()
@@ -391,8 +403,13 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         super().__init__(parent)
         self.snapshot = snapshot
         self._data = list()
-        self._headers = ['PV', 'Current value', '']
         self._file_names = list()
+
+        self._headers = [''] * PvTableColumns.snapshots
+        self._headers[PvTableColumns.name] = 'PV'
+        self._headers[PvTableColumns.unit] = 'Unit'
+        self._headers[PvTableColumns.value] = 'Current value'
+        self._headers[PvTableColumns.compare] = ''
 
         self._updater = ModelUpdater(self)
         self._updater.update_complete.connect(self._handle_pv_update)
@@ -456,19 +473,20 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
 
     def clear_snap_files(self):
         self._file_names = list()
-        self.beginRemoveColumns(QtCore.QModelIndex(), 3, self.columnCount(self.createIndex(-1, -1)) - 1)
+        self.beginRemoveColumns(QtCore.QModelIndex(), PvTableColumns.snapshots,
+                                self.columnCount(self.createIndex(-1, -1)) - 1)
         # remove all snap files
         for pv_line in self._data:
             pv_line.clear_snap_values()
 
-        self._headers = self._headers[0:3]
+        self._headers = self._headers[0:PvTableColumns.snapshots]
         self.endRemoveColumns()
 
     def update_snap_files(self, updated_files):
         # Check if one of updated files is currently selected, and update
         # the values if it is.
         errors = []
-        for file_name in self._headers:
+        for file_name in self._headers[PvTableColumns.snapshots:]:
             file_data = updated_files.get(file_name, None)
             if file_data is not None:
                 saved_pvs, err = self._replace_macros_on_file_data(file_data)
@@ -490,7 +508,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             macros = file_data["meta_data"].get("macros", dict())
 
         pvs_list_full_names = dict()  # PVS data mapped to real pvs names (no macros)
-        pvs_list, _, errors = self.snapshot.parse_from_save_file(file_data['file_path'])
+        pvs_list, _, errors = parse_from_save_file(file_data['file_path'])
 
         for pv_name_raw, pv_data in pvs_list.items():
             pvs_list_full_names[SnapshotPv.macros_substitution(pv_name_raw, macros)] = pv_data
@@ -518,8 +536,9 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
                 line.update_pv_value(value)
 
         # Only update the value and comparison columns.
-        self.dataChanged.emit(self.createIndex(0, 1),
-                              self.createIndex(len(self._data), 2))
+        self.dataChanged.emit(self.createIndex(0, PvTableColumns.value),
+                              self.createIndex(len(self._data),
+                                               PvTableColumns.compare))
 
     def handle_pv_connection_status(self, line_model):
         row = self._data.index(line_model)
@@ -541,17 +560,26 @@ class SnapshotPvTableLine(QtCore.QObject):
     connectionStatusChanged = QtCore.pyqtSignal('PyQt_PyObject')
     _pv_conn_changed = QtCore.pyqtSignal(dict)
     _DIR_PATH = os.path.dirname(os.path.realpath(__file__))
+    _WARN_ICON = None
+    _NEQ_ICON = None
 
     def __init__(self, pv_ref, parent=None):
         super().__init__(parent)
-        self._WARN_ICON = QIcon(os.path.join(self._DIR_PATH, "images/warn.png"))
-        self._NEQ_ICON = QIcon(os.path.join(self._DIR_PATH, "images/neq.png"))
+
+        if SnapshotPvTableLine._WARN_ICON is None:
+            SnapshotPvTableLine._WARN_ICON = \
+                QIcon(os.path.join(self._DIR_PATH, "images/warn.png"))
+            SnapshotPvTableLine._NEQ_ICON = \
+                QIcon(os.path.join(self._DIR_PATH, "images/neq.png"))
 
         self._pv_ref = pv_ref
         self.pvname = pv_ref.pvname
-        self.data = [{'data': pv_ref.pvname},
-                     {'data': 'PV disconnected', 'icon': self._WARN_ICON},  # current value
-                     {'icon': None}]  # Compare result
+        self.data = [None] * PvTableColumns.snapshots
+        self.data[PvTableColumns.name] = {'data': pv_ref.pvname}
+        self.data[PvTableColumns.unit] = {'data': 'UNDEF', 'icon': None}
+        self.data[PvTableColumns.value] = {'data': 'PV disconnected',
+                                           'icon': self._WARN_ICON}
+        self.data[PvTableColumns.compare] = {'icon': None}
 
         self.connectionStatusChanged \
             .connect(parent.handle_pv_connection_status)
@@ -562,8 +590,8 @@ class SnapshotPvTableLine(QtCore.QObject):
 
         if pv_ref.connected:
             self.conn = pv_ref.connected
-            self.data[1]['data'] = ''
-            self.data[1]['icon'] = None
+            self.data[PvTableColumns.value]['data'] = ''
+            self.data[PvTableColumns.value]['icon'] = None
 
         else:
             self.conn = False
@@ -584,41 +612,44 @@ class SnapshotPvTableLine(QtCore.QObject):
         # Do compare
         self._compare()
 
-    def change_snap_value(self, idx, value):
+    def change_snap_value(self, column_idx, value):
         if value is not None:
-            self.data[idx]['data'] = SnapshotPvTableLine.string_repr_snap_value(value)
-            self.data[idx]['raw_value'] = value
+            self.data[column_idx]['data'] = SnapshotPvTableLine.string_repr_snap_value(value)
+            self.data[column_idx]['raw_value'] = value
         else:
-            self.data[idx]['data'] = ''
-            self.data[idx]['raw_value'] = value
+            self.data[column_idx]['data'] = ''
+            self.data[column_idx]['raw_value'] = value
 
         # Do compare
         self._compare()
 
     def clear_snap_values(self):
-        self.data = self.data[0:3]
+        self.data = self.data[0:PvTableColumns.snapshots]
         self._compare()
 
     def are_snap_values_eq(self):
-        n_files = len(self.data) - 3  # 3 "fixed columns"
+        n_files = self.get_snap_count()
         if n_files < 2:
             return True
         else:
-            first_data = self.data[3]['raw_value']
-            for data in self.data[4:]:
-                if not SnapshotPv.compare(first_data, data['raw_value'], self._pv_ref.is_array):
+            first_data = self.data[PvTableColumns.snapshots]['raw_value']
+            for data in self.data[PvTableColumns.snapshots + 1:]:
+                if not SnapshotPv.compare(first_data, data['raw_value'],
+                                          self._pv_ref.is_array):
                     return False
             return True
 
     def is_snap_eq_to_pv(self, idx):
-        idx += 3
+        idx = PvTableColumns.snap_index(idx)
         if self._pv_ref.connected:
-            return SnapshotPv.compare(self._pv_ref.value, self.data[idx]['raw_value'], self._pv_ref.is_array)
+            return SnapshotPv.compare(self._pv_ref.value,
+                                      self.data[idx]['raw_value'],
+                                      self._pv_ref.is_array)
         else:
             return False
 
     def get_snap_count(self):
-        return len(self.data) - 3
+        return len(self.data[PvTableColumns.snapshots:])
 
     def _compare(self, pv_value=None, get_missing=True):
         if pv_value is None and self._pv_ref.connected and get_missing:
@@ -631,9 +662,9 @@ class SnapshotPvTableLine(QtCore.QObject):
                                             self._pv_ref.is_array)
 
         if n_files == 1 and self._pv_ref.connected and not comparison:
-            self.data[2]['icon'] = self._NEQ_ICON
+            self.data[PvTableColumns.compare]['icon'] = self._NEQ_ICON
         else:
-            self.data[2]['icon'] = None
+            self.data[PvTableColumns.compare]['icon'] = None
 
     @staticmethod
     def string_repr_snap_value(value):
@@ -649,14 +680,16 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     def update_pv_value(self, pv_value):
         if pv_value is None:
-            self.data[1]['data'] = ''
+            self.data[PvTableColumns.value]['data'] = ''
             self._compare(None, get_missing=False)
             return True
         new_value = SnapshotPv.value_to_str(pv_value, self._pv_ref.is_array)
-        if self.data[1]['data'] == new_value:
+        if self.data[PvTableColumns.unit]['data'] == 'UNDEF':
+            self.data[PvTableColumns.unit]['data'] = self._pv_ref.units
+        if self.data[PvTableColumns.value]['data'] == new_value:
             return False
         else:
-            self.data[1]['data'] = new_value
+            self.data[PvTableColumns.value]['data'] = new_value
             self._compare(pv_value)
             return True
 
@@ -666,10 +699,11 @@ class SnapshotPvTableLine(QtCore.QObject):
     def _handle_conn_callback(self, data):
         self.conn = data.get('conn')
         if not self.conn:
-            self.data[1] = {'data': 'PV disconnected', 'icon': self._WARN_ICON}
-            self.data[2]['icon'] = None
+            self.data[PvTableColumns.value] = {'data': 'PV disconnected',
+                                               'icon': self._WARN_ICON}
+            self.data[PvTableColumns.compare]['icon'] = None
         else:
-            self.data[1] = {'data': '', 'icon': None}
+            self.data[PvTableColumns.value] = {'data': '', 'icon': None}
         self.connectionStatusChanged.emit(self)
 
 

@@ -13,10 +13,12 @@ from enum import Enum
 
 from epics import PV, ca, dbr
 
-from snapshot.core import SnapshotPv, PvStatus, backgroundWorkers
-from snapshot.parser import SnapshotReqFile, parse_macros
+from snapshot.core import SnapshotPv, PvStatus, background_workers
+from snapshot.parser import SnapshotReqFile, parse_macros, parse_from_save_file
 
 import logging
+
+from snapshot.core import since_start
 
 ca.AUTO_CLEANUP = True  # For pyepics versions older than 3.2.4, this was set to True only for
                         # python 2 but not for python 3, which resulted in errors when closing
@@ -41,7 +43,7 @@ class ActionStatus(Enum):
 
 
 class Snapshot(object):
-    def __init__(self, req_file_path, macros=None):
+    def __init__(self, req_file_path=None, macros=None):
         """
         Main snapshot class. Provides methods to handle PVs from request or snapshot files and to create, delete, etc
         snap (saved) files
@@ -57,11 +59,9 @@ class Snapshot(object):
         elif macros is None:
             macros = dict()
 
-        # holds path to the req_file_path as this is sort of identifier
-        self.req_file_path = os.path.normpath(os.path.abspath(req_file_path))
-
         self.pvs = dict()
         self.macros = macros
+        self.req_file_path = ''
 
         # Other important states
         self._restore_started = False
@@ -73,10 +73,17 @@ class Snapshot(object):
         self.restored_pvs_list = list()
         self.restore_callback = None
 
-        req_f = SnapshotReqFile(self.req_file_path, changeable_macros=list(macros.keys()))
-        pvs = req_f.read()
+        if req_file_path:
+            since_start("Started parsing reqfile")
+            # holds path to the req_file_path as this is sort of identifier
+            self.req_file_path = \
+                os.path.normpath(os.path.abspath(req_file_path))
+            req_f = SnapshotReqFile(self.req_file_path,
+                                    changeable_macros=list(macros.keys()))
+            pvs = req_f.read()
+            since_start("Finished parsing reqfile")
 
-        self.add_pvs(pvs)
+            self.add_pvs(pvs)
 
     def add_pvs(self, pv_list):
         """
@@ -86,6 +93,8 @@ class Snapshot(object):
 
         :return:
         """
+
+        since_start("Started adding PVs")
 
         # pyepics will handle PVs to have only one connection per PV.
         # If pv not yet on list add it.
@@ -98,6 +107,8 @@ class Snapshot(object):
 
             # if not self.pvs.get(pv_ref.pvname):
                 self.pvs[pv_ref.pvname] = pv_ref
+
+        since_start("Finished adding PVs")
 
     def remove_pvs(self, pv_list):
         """
@@ -116,28 +127,6 @@ class Snapshot(object):
 
     def clear_pvs(self):
         self.remove_pvs(list(self.pvs.keys()))
-
-    def change_macros(self, macros=None):
-        """
-        Check existing PVs if they have macros in their "raw name". If macros to be replaced remove existing PVs and
-        create new PVs.
-
-        :param macros: Dictionary of macros {'macro': 'value' }
-
-        :return:
-        """
-        macros = macros or {}
-        if self.macros != macros:
-            self.macros = macros
-            pvs_to_change = list()
-            pvs_to_remove = list()
-            for pvname, pv_ref in self.pvs.items():
-                if "$" in pv_ref.pvname_raw:
-                    pvs_to_change.append(pv_ref.pvname_raw)
-                    pvs_to_remove.append(pvname)
-
-            self.remove_pvs(pvs_to_remove)
-            self.add_pvs(pvs_to_change)
 
     def save_pvs(self, save_file_path, force=False, symlink_path=None, **kw):
         """
@@ -173,7 +162,7 @@ class Snapshot(object):
         kw["save_time"] = time.time()
         kw["req_file_name"] = os.path.basename(self.req_file_path)
 
-        backgroundWorkers.suspend()
+        background_workers.suspend()
         pvs_data = dict()
         logging.debug("Create snapshot for %d channels" % len(self.pvs.items()))
         for pvname, pv_ref in self.pvs.items():
@@ -188,7 +177,7 @@ class Snapshot(object):
         logging.debug("Writing snapshot to file")
         self.parse_to_save_file(pvs_data, save_file_path, self.macros, symlink_path, **kw)
         logging.debug("Snapshot done")
-        backgroundWorkers.resume()
+        background_workers.resume()
 
         return ActionStatus.ok, pvs_status
 
@@ -222,7 +211,7 @@ class Snapshot(object):
             custom_macros = dict()
 
         if isinstance(pvs_raw, str):
-            pvs_raw, meta_data, err = self.parse_from_save_file(pvs_raw)
+            pvs_raw, meta_data, err = parse_from_save_file(pvs_raw)
             custom_macros = meta_data.get('macros', dict())  # if no self.macros use ones from file
 
         pvs = dict()
@@ -259,29 +248,34 @@ class Snapshot(object):
             self._restore_started = False
             return ActionStatus.no_conn, pvs_status
 
-        # Do a restore
-        backgroundWorkers.suspend()
+        # Do a restore. It is started here, but is completed
+        # in _check_restore_complete()
+        background_workers.suspend()
         self.restored_pvs_list = list()
         self.restore_callback = callback
         for pvname, pv_ref in self.pvs.items():
             save_data = pvs.get(pvname)  # Check if this pv is to be restored
             if save_data:
-                pv_ref.restore_pv(save_data.get('value', None), callback=self._check_restore_complete)
+                pv_ref.restore_pv(save_data.get('value', None),
+                                  callback=self._check_restore_complete)
             else:
-                # pv is not in subset in the "selected only" mode
-                # checking algorithm should think this one was successfully restored
+                # pv is not in subset in the "selected only" mode checking
+                # algorithm should think this one was successfully restored
                 self._check_restore_complete(pvname, PvStatus.ok)
 
         # PVs status will be returned in callback
         return ActionStatus.ok, dict()
 
     def _check_restore_complete(self, pvname, status, **kw):
+        # Collect all results and proceed when everything is done
         self.restored_pvs_list.append((pvname, status))
-        if len(self.restored_pvs_list) == len(self.pvs) and self.restore_callback:
+        if len(self.restored_pvs_list) == len(self.pvs):
+            if self.restore_callback:
+                self.restore_callback(status=dict(self.restored_pvs_list),
+                                      forced=self._current_restore_forced)
+                self.restore_callback = None
             self._restore_started = False
-            self.restore_callback(status=dict(self.restored_pvs_list), forced=self._current_restore_forced)
-            self.restore_callback = None
-            backgroundWorkers.resume()
+            background_workers.resume()
 
     def restore_pvs_blocking(self, pvs_raw=None, force=False, timeout=10, custom_macros=None):
         """
@@ -427,76 +421,3 @@ class Snapshot(object):
                 time.sleep(0.5)
 
                 counter -= 1
-
-
-
-    @staticmethod
-    def parse_from_save_file(save_file_path, metadata_only=False):
-        """
-        Parses save file to dict {'pvname': {'data': {'value': <value>, 'raw_name': <name_with_macros>}}}
-
-        :param save_file_path: Path to save file.
-
-        :return: (saved_pvs, meta_data, err)
-
-            saved_pvs: in format {'pvname': {'data': {'value': <value>, 'raw_name': <name_with_macros>}}}
-
-            meta_data: as dictionary
-
-            err: list of strings (each entry one error)
-        """
-
-        saved_pvs = dict()
-        meta_data = dict()  # If macros were used they will be saved in meta_data
-        err = list()
-        saved_file = open(save_file_path)
-        meta_loaded = False
-
-        for line in saved_file:
-            # first line with # is metadata (as json dump of dict)
-            if line.startswith('#') and not meta_loaded:
-                line = line[1:]
-                try:
-                    meta_data = json.loads(line)
-                except json.JSONDecodeError:
-                    # Problem reading metadata
-                    err.append('Meta data could not be decoded. Must be in JSON format.')
-                meta_loaded = True
-                if metadata_only:
-                    break
-            # skip empty lines and all rest with #
-            elif (not metadata_only
-                  and line.strip()
-                  and not line.startswith('#')):
-                split_line = line.strip().split(',', 1)
-                pvname = split_line[0]
-                if len(split_line) > 1:
-                    pv_value_str = split_line[1]
-                    # In case of array it will return a list, otherwise value
-                    # of proper type
-                    try:
-                        pv_value = json.loads(pv_value_str)
-                    except json.JSONDecodeError:
-                        pv_value = None
-                        err.append('Value of \'{}\' cannot be decoded. Will be ignored.'.format(pvname))
-
-                    if isinstance(pv_value, list):
-                        # arrays as numpy array, because pyepics returns
-                        # as numpy array
-                        pv_value = numpy.asarray(pv_value)
-                else:
-                    pv_value = None
-
-                saved_pvs[pvname] = dict()
-                saved_pvs[pvname]['value'] = pv_value
-
-        if not meta_loaded:
-            err.insert(0, 'No meta data in the file.')
-
-        saved_file.close()
-        return saved_pvs, meta_data, err
-
-
-
-
-

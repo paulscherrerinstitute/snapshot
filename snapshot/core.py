@@ -3,13 +3,40 @@ import numpy
 from enum import Enum
 import json
 import logging
-from time import monotonic, sleep
+from time import monotonic, sleep, time
 from threading import Thread, Lock
+from concurrent.futures import ThreadPoolExecutor
+
+
+_start_time = time()
+_print_trace = False
+
+
+def since_start(message=None):
+    seconds = '{:.2f}'.format(time() - _start_time)
+    if message and _print_trace:
+        print(message, "at", seconds, 's.')
+    else:
+        return seconds
+
+
+def enable_tracing(enable=True):
+    global _print_trace
+    _print_trace = enable
+
+
+# A shared thread pool that can be used from anywhere for tasks that
+# should run in background, but not indefinitely.
+global_thread_pool = ThreadPoolExecutor(16)
 
 
 class _BackgroundWorkers:
     """
-    A simple interface to suspend, resume and register background threads.
+    A simple interface to suspend, resume and register background threads for
+    tasks that run for the lifetime of the program, e.g. updating of PV values.
+    These tasks should be suspended when they are not needed and when their CPU
+    usage would needlessly prolong execution of other functions. Examples are
+    saving and restoring PVs, and reading a request file.
     """
 
     def __init__(self):
@@ -38,7 +65,7 @@ class _BackgroundWorkers:
         del self._workers[idx]
 
 
-backgroundWorkers = _BackgroundWorkers()
+background_workers = _BackgroundWorkers()
 
 
 # Exceptions
@@ -85,13 +112,6 @@ class SnapshotPv(PV):
     """
 
     def __init__(self, pvname, connection_callback=None, **kw):
-        # Store the origin
-        # self.pvname_raw = pvname
-        # self.macros = macros
-
-        # if macros:
-        #     pvname = SnapshotPv.macros_substitution(pvname, macros)
-
         self.conn_callbacks = dict()  # dict {idx: callback}
         if connection_callback:
             self.add_conn_callback(connection_callback)
@@ -119,7 +139,7 @@ class SnapshotPv(PV):
         value = self._last_value  # it could be updated in the background
         if not self._initialized:
             self._initialized = True
-            value = self.get(use_monitor=False)
+            value = self.get(use_monitor=False, with_ctrlvars=True)
             self._last_value = value
         return value
 
@@ -400,10 +420,10 @@ class PvUpdater:
         self._quit = False
         self._suspend = False
         self._thread = Thread(target=self._run)
-        backgroundWorkers.register(self)
+        background_workers.register(self)
 
     def __del__(self):
-        backgroundWorkers.unregister(self)
+        background_workers.unregister(self)
         self.stop()
 
     def start(self):
@@ -468,11 +488,40 @@ class PvUpdater:
                 if self._suspend:  # this check needs the lock
                     continue
 
+                since_start("Started getting PV values")
+
+                report_init_timeout = False
+                report = "Some connected PVs are timing out while " \
+                    "fetching ctrlvars, causing slowdowns."
                 for pv in self._pvs:
                     pv._pvget_lock.acquire()
+                    if not pv._initialized:
+                        # Units and precision will be needed in the GUI. Fetch
+                        # them now and cache them, so that GUI won't need to.
+                        if pv.connected:
+                            ctrl = pv.get_ctrlvars()
+                            # It can timeout, so don't rely on it.
+                            if ctrl:
+                                pv._initialized = True
+                            else:
+                                if not report_init_timeout:
+                                    retport_init_timeout = True
+                                    logging.debug(report)
+                    # get_ctrlvars() does not fetch the value, so we still need
+                    # to do it. It is safe to do even in the case of timeout
+                    # because the ctrl and value requests are orthogonal in
+                    # pyepics. There is a very slim chance that pv._last_value
+                    # remains none even if it when pv._initialized is True
+                    # if the value get times out, but that's no different from
+                    # what pyepics itself does. <rant>pyepics is quite bad at
+                    # handling timeouts</rant>.
                     self._get_start(pv)
+
                 vals = [self._get_complete(pv) for pv in self._pvs]
+
                 for pv in self._pvs:
                     pv._pvget_lock.release()
+
+                since_start("Finished getting PV values")
 
             self._callback(vals)
