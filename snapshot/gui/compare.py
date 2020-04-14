@@ -84,10 +84,10 @@ class SnapshotCompareWidget(QWidget):
 
             # Add filters
             self.pv_filter_sel.addItem(None)
-
+            icon = QIcon(os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                      "images/rgx.png"))
             for rgx in predefined_filters.get('rgx-filters', list()):
-                icon = QIcon(os.path.join(os.path.dirname(os.path.realpath(__file__)), "images/rgx.png"), rgx)
-                self.pv_filter_sel.addItem(icon)
+                self.pv_filter_sel.addItem(icon, rgx)
             self.pv_filter_sel.addItems(predefined_filters.get('filters', list()))
             self.pv_filter_sel.currentIndexChanged.connect(self._predefined_filter_selected)
 
