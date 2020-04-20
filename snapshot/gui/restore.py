@@ -524,9 +524,11 @@ class SnapshotRestoreFileSelector(QWidget):
                         os.remove(file_path)
                         self.file_list.pop(selected_file)
                         self.pvs = dict()
+                        items = self.file_selector.findItems(
+                            selected_file, Qt.MatchCaseSensitive,
+                            FileSelectorColumns.filename)
                         self.file_selector.takeTopLevelItem(
-                            self.file_selector.indexOfTopLevelItem(self.file_selector.findItems(
-                                selected_file, Qt.MatchCaseSensitive, 1)[0]))
+                            self.file_selector.indexOfTopLevelItem(items[0]))
 
                     except OSError as e:
                         warn = "Problem deleting file:\n" + str(e)
