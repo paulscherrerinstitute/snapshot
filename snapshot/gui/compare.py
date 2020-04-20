@@ -315,10 +315,9 @@ class SnapshotPvTableView(QTableView):
         and extend last one
         :return:
         """
-        self.setColumnWidth(PvTableColumns.compare, self._compare_col_size)
         n_columns = self.model().columnCount()
-        if n_columns >= PvTableColumns.snapshots:
-            last_col = self.model().columnCount() - 1
+        if n_columns > PvTableColumns.snapshots:
+            last_col = n_columns - 1
             header = self.horizontalHeader()
             for i in range(PvTableColumns.snapshots, last_col):
                 self.setColumnWidth(i, 200)
@@ -450,8 +449,12 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         :param files: dict of files with their data
         :return:
         """
+        if not files:
+            return
         self._file_names += list(files.keys())
-        self.beginInsertColumns(QtCore.QModelIndex(), 3, len(files) + 2)
+        parent_idx = QtCore.QModelIndex()
+        self.beginInsertColumns(parent_idx, self.columnCount(parent_idx),
+                                len(files) + self.columnCount(parent_idx) - 1)
         errors = []
         for file_name, file_data in files.items():
             pvs_list_full_names, err = \
@@ -459,15 +462,16 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             if err:
                 errors.append((file_data['file_name'], err))
 
-            # To get a proper update, need to go through all existing pvs. Otherwise values of PVs listed in request
-            # but not in the saved file are not cleared (value from previous file is seen on the screen)
+            # To get a proper update, need to go through all existing pvs.
+            # Otherwise values of PVs listed in request but not in the saved
+            # file are not cleared (value from previous file is seen on the
+            # screen)
             self._headers.append(file_name)
             for pv_line in self._data:
                 pvname = pv_line.pvname
                 pv_data = pvs_list_full_names.get(pvname, {"value": None})
                 pv_line.append_snap_value(pv_data.get("value", None))
         self.endInsertColumns()
-        self.insertColumns(1, 1, QtCore.QModelIndex())
         if errors:
             self.file_parse_errors.emit(errors)
 
