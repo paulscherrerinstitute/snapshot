@@ -227,7 +227,7 @@ class SnapshotRestoreWidget(QWidget):
         for pvname, sts in status.items():
             if sts == PvStatus.access_err:
                 error = not forced  # if here and not in force mode, then this is error state
-                msgs.append("WARNING: {}: Not restored (no connection or no read access).".format(pvname))
+                msgs.append("WARNING: {}: Not restored (no connection or no write access).".format(pvname))
                 msg_times.append(time.time())
                 status_txt = "Restore error"
                 status_background = "#F06464"
