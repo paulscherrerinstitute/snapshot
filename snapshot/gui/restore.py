@@ -124,7 +124,7 @@ class SnapshotRestoreWidget(QWidget):
         response = QMessageBox.question(self, "Confirm restore",
                                         "Do you wish to restore "
                                         f"{num_pvs} PVs?")
-        if response != QMessageBox.StandardButton.Yes:
+        if response != QMessageBox.Yes:
             return
 
         # Restore can be done only if specific file is selected
