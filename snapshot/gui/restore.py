@@ -321,7 +321,7 @@ class SnapshotRestoreFileSelector(QWidget):
         self.file_selector.setRootIsDecorated(False)
         self.file_selector.setIndentation(0)
         self.file_selector.setColumnCount(len(FileSelectorColumns))
-        column_labels = ["File", "Comment", "Labels"]
+        column_labels = ["File name", "Comment", "Labels"]
         assert(len(column_labels) == len(FileSelectorColumns))
         self.file_selector.setHeaderLabels(column_labels)
         self.file_selector.setAllColumnsShowFocus(True)
