@@ -687,15 +687,18 @@ class SnapshotPvTableLine(QtCore.QObject):
             self.data[PvTableColumns.value]['data'] = ''
             self._compare(None, get_missing=False)
             return True
+
         new_value = SnapshotPv.value_to_str(pv_value, self._pv_ref.is_array)
+
         if self.data[PvTableColumns.unit]['data'] == 'UNDEF':
             self.data[PvTableColumns.unit]['data'] = self._pv_ref.units
+
         if self.data[PvTableColumns.value]['data'] == new_value:
             return False
-        else:
-            self.data[PvTableColumns.value]['data'] = new_value
-            self._compare(pv_value)
-            return True
+
+        self.data[PvTableColumns.value]['data'] = new_value
+        self._compare(pv_value)
+        return True
 
     def _conn_callback(self, **kwargs):
         self._pv_conn_changed.emit(kwargs)
