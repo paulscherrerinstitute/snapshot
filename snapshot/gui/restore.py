@@ -18,7 +18,7 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QHBoxLayout, QMes
 
 from ..ca_core import PvStatus, ActionStatus, SnapshotPv
 from ..core import background_workers
-from ..parser import get_save_files, parse_from_save_file
+from ..parser import get_save_files, parse_from_save_file, save_file_suffix
 from .utils import SnapshotKeywordSelectorWidget, SnapshotEditMetadataDialog, \
     DetailedMsgBox, show_snapshot_parse_errors
 
@@ -517,10 +517,24 @@ class SnapshotRestoreFileSelector(QWidget):
             msg = "Do you want to delete selected files?"
             reply = QMessageBox.question(self, 'Message', msg, QMessageBox.Yes, QMessageBox.No)
             if reply == QMessageBox.Yes:
-                for selected_file in self.selected_files:
+                symlink_file = self.common_settings["save_file_prefix"] \
+                    + 'latest' + save_file_suffix
+                symlink_path = os.path.join(self.common_settings["save_dir"],
+                                            symlink_file)
+                symlink_target = os.path.realpath(symlink_path)
+
+                files = self.selected_files[:]
+                paths = [os.path.join(self.common_settings["save_dir"],
+                                      selected_file)
+                         for selected_file in self.selected_files]
+
+                if any((path == symlink_target for path in paths)) \
+                   and symlink_file not in files:
+                    files.append(symlink_file)
+                    paths.append(symlink_path)
+
+                for selected_file, file_path in zip(files, paths):
                     try:
-                        file_path = os.path.join(self.common_settings["save_dir"],
-                                                 selected_file)
                         os.remove(file_path)
                         self.file_list.pop(selected_file)
                         self.pvs = dict()
