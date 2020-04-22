@@ -609,7 +609,9 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     def append_snap_value(self, value):
         if value is not None:
-            self.data.append({'data': SnapshotPvTableLine.string_repr_snap_value(value), 'raw_value': value})
+            precision = self._pv_ref.precision
+            sval = SnapshotPvTableLine.string_repr_snap_value(value, precision)
+            self.data.append({'data': sval, 'raw_value': value})
         else:
             self.data.append({'data': '', 'raw_value': None})
 
@@ -618,7 +620,9 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     def change_snap_value(self, column_idx, value):
         if value is not None:
-            self.data[column_idx]['data'] = SnapshotPvTableLine.string_repr_snap_value(value)
+            precision = self._pv_ref.precision
+            sval = SnapshotPvTableLine.string_repr_snap_value(value, precision)
+            self.data[column_idx]['data'] = sval
             self.data[column_idx]['raw_value'] = value
         else:
             self.data[column_idx]['data'] = ''
@@ -671,14 +675,14 @@ class SnapshotPvTableLine(QtCore.QObject):
             self.data[PvTableColumns.compare]['icon'] = None
 
     @staticmethod
-    def string_repr_snap_value(value):
+    def string_repr_snap_value(value, precision):
         if isinstance(value, str):
             # If string do not dump it will add "" to a string
             return value
         else:
             # dump other values
             is_array = isinstance(value, numpy.ndarray)
-            return SnapshotPv.value_to_display_str(value, is_array)
+            return SnapshotPv.value_to_display_str(value, is_array, precision)
 
     def update_pv_value(self, pv_value):
         if pv_value is None:
@@ -686,7 +690,9 @@ class SnapshotPvTableLine(QtCore.QObject):
             self._compare(None, get_missing=False)
             return True
 
-        new_value = SnapshotPv.value_to_display_str(pv_value, self._pv_ref.is_array)
+        new_value = SnapshotPv.value_to_display_str(pv_value,
+                                                    self._pv_ref.is_array,
+                                                    self._pv_ref.precision)
 
         if self.data[PvTableColumns.unit]['data'] == 'UNDEF':
             self.data[PvTableColumns.unit]['data'] = self._pv_ref.units

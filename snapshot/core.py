@@ -221,19 +221,21 @@ class SnapshotPv(PV):
         elif callback:
             callback(pvname=self.pvname, status=PvStatus.access_err)
 
-    def _str_formatter(val):
+    def _str_formatter(val, prec):
         "Auxilliary function that formats floats and arrays."
-        with numpy.printoptions(threshold=4, edgeitems=1):
-            return str(numpy.asarray(val))
+        return numpy.array2string(numpy.asarray(val),
+                                  threshold=4, edgeitems=1,
+                                  precision=(prec or None))
 
     @staticmethod
-    def value_to_display_str(value, is_array):
+    def value_to_display_str(value, is_array, precision):
         """
         Get snapshot style string representation of provided value. For display
         purposes only!
 
         :param value: Value to be represented as string.
         :param is_array: Should be treated as an array.
+        :param precision: display precision for floats
 
         :return: String representation of value
         """
@@ -245,15 +247,15 @@ class SnapshotPv(PV):
             elif numpy.size(value) == 1 \
                  and not isinstance(value, numpy.ndarray):
                 # make scalars as arrays
-                return SnapshotPv._str_formatter([value])
+                return SnapshotPv._str_formatter([value], precision)
             else:
-                return SnapshotPv._str_formatter(value)
+                return SnapshotPv._str_formatter(value, precision)
 
         elif isinstance(value, str):
             # visualize without ""
             return value
         else:
-            return SnapshotPv._str_formatter(value)
+            return SnapshotPv._str_formatter(value, precision)
 
     def compare_to_curr(self, value):
         """
