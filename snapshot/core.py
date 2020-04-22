@@ -249,15 +249,6 @@ class SnapshotPv(PV):
         elif callback:
             callback(pvname=self.pvname, status=PvStatus.access_err)
 
-    def value_as_str(self):
-        """
-        Get current PV value as snapshot style string (handling of array same way as for restore)
-
-        :return: String representation of current PV value.
-        """
-        if self.connected and self.value is not None:
-            return SnapshotPv.value_to_str(self.value, self.is_array)
-
     @staticmethod
     def value_to_str(value: str, is_array: bool):
         """
