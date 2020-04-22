@@ -672,15 +672,13 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     @staticmethod
     def string_repr_snap_value(value):
-        if isinstance(value, numpy.ndarray):
-            # Handle arrays
-            return json.dumps(value.tolist())
-        elif isinstance(value, str):
+        if isinstance(value, str):
             # If string do not dump it will add "" to a string
             return value
         else:
             # dump other values
-            return json.dumps(value)
+            is_array = isinstance(value, numpy.ndarray)
+            return SnapshotPv.value_to_display_str(value, is_array)
 
     def update_pv_value(self, pv_value):
         if pv_value is None:
@@ -688,7 +686,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             self._compare(None, get_missing=False)
             return True
 
-        new_value = SnapshotPv.value_to_str(pv_value, self._pv_ref.is_array)
+        new_value = SnapshotPv.value_to_display_str(pv_value, self._pv_ref.is_array)
 
         if self.data[PvTableColumns.unit]['data'] == 'UNDEF':
             self.data[PvTableColumns.unit]['data'] = self._pv_ref.units

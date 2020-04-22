@@ -75,17 +75,6 @@ class SnapshotError(Exception):
     """
     pass
 
-class _bytesSnap(bytes):
-    """
-    Because of bug in pyepics, ca.put() doesn't work when a single element is put to waveform of stings.
-    Bug is due to a ca.put() function uses len(value) to determine weather it is an array or a single value, but
-    len(bytes) gives you a number of characters len(b'abc') --> 3.
-    To work properly with pyepics len should return 1 indicating there is only one element.
-    """
-
-    def __len__(self):
-        return 1
-
 class PvStatus(Enum):
     """
     Returned by SnapshotPv on save_pv() and restore_pv() methods. Possible states:
@@ -216,23 +205,6 @@ class SnapshotPv(PV):
                     callback(pvname=self.pvname, status=PvStatus.no_value)
 
                 elif not self.compare_to_curr(value):
-                    if isinstance(value, str):
-                        # pyepics needs value as bytes not as string
-                        value = str.encode(value)
-
-                    elif self.is_array and len(value) and isinstance(value[0], str):
-                        # Waveform of strings. Bytes expected to be put.
-                        n_value = list()
-                        for item in value:
-                            n_value.append(item.encode())
-
-                        if len(n_value) == 1:
-                            # Special case to overcome the pypeics bug. Use _bytesSnap instead of bytes, since
-                            # len(_bytesSnap('abcd')) is always 1.
-                            value = _bytesSnap(n_value[0])
-                        else:
-                            value = n_value
-
                     try:
                         self.put(value, wait=False, callback=callback, callback_data={"status": PvStatus.ok})
 
@@ -249,36 +221,39 @@ class SnapshotPv(PV):
         elif callback:
             callback(pvname=self.pvname, status=PvStatus.access_err)
 
+    def _str_formatter(val):
+        "Auxilliary function that formats floats and arrays."
+        with numpy.printoptions(threshold=4, edgeitems=1):
+            return str(numpy.asarray(val))
+
     @staticmethod
-    def value_to_str(value: str, is_array: bool):
+    def value_to_display_str(value, is_array):
         """
-        Get snapshot style string representation of provided value.
+        Get snapshot style string representation of provided value. For display
+        purposes only!
 
         :param value: Value to be represented as string.
         :param is_array: Should be treated as an array.
 
         :return: String representation of value
         """
+
         if is_array:
             if numpy.size(value) == 0:
                 # Empty array is equal to "None" scalar value
                 return None
-            elif numpy.size(value) == 1:
+            elif numpy.size(value) == 1 \
+                 and not isinstance(value, numpy.ndarray):
                 # make scalars as arrays
-                return json.dumps(numpy.asarray([value]).tolist())
-
-            elif not isinstance(value, list):
-                return json.dumps(value.tolist())
-
+                return SnapshotPv._str_formatter([value])
             else:
-                # Is list of strings. This is returned by pyepics when using waveform of string
-                return json.dumps(value)
+                return SnapshotPv._str_formatter(value)
 
         elif isinstance(value, str):
             # visualize without ""
             return value
         else:
-            return json.dumps(value)
+            return SnapshotPv._str_formatter(value)
 
     def compare_to_curr(self, value):
         """
