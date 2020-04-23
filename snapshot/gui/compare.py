@@ -11,10 +11,12 @@ import enum
 
 import numpy
 from PyQt5 import QtCore
-from PyQt5.QtCore import Qt, QSortFilterProxyModel, QItemSelectionModel, QItemSelectionRange, QItemSelection
+from PyQt5.QtCore import Qt, QSortFilterProxyModel, QItemSelectionModel, \
+    QItemSelectionRange, QItemSelection
 from PyQt5.QtGui import QIcon, QCursor, QPalette, QColor
-from PyQt5.QtWidgets import QApplication, QHeaderView, QAbstractItemView, QMenu, QTableView, QVBoxLayout, QFrame, \
-    QHBoxLayout, QCheckBox, QComboBox, QLineEdit, QLabel, QSizePolicy, QWidget
+from PyQt5.QtWidgets import QApplication, QHeaderView, QAbstractItemView, \
+    QMenu, QTableView, QVBoxLayout, QFrame, QHBoxLayout, QCheckBox, \
+    QComboBox, QLineEdit, QLabel, QSizePolicy, QWidget, QSpinBox
 
 from ..ca_core import Snapshot
 from ..core import SnapshotPv, PvUpdater
@@ -126,14 +128,29 @@ class SnapshotCompareWidget(QWidget):
         self.show_disconn_inp.stateChanged.connect(self._proxy.set_disconn_filter)
         self.show_disconn_inp.setMaximumWidth(500)
 
-        # ### Put all filter selectors in one layout
+        # Tolerance setting
+        tol_label = QLabel("Tolerance f:")
+        tol = QSpinBox()
+        tol.setRange(1, 1000)
+        tol.setValue(1)
+        tol.valueChanged[int].connect(self.model.change_tolerance)
+        self.model.change_tolerance(tol.value())
+
+        # ### Put all tolerance and filter selectors in one layout
+        def make_separator():
+            sep = QFrame(self)
+            sep.setFrameShape(QFrame.VLine)
+            return sep
+
         filter_layout = QHBoxLayout()
+        filter_layout.addWidget(tol_label)
+        filter_layout.addWidget(tol)
+        filter_layout.addWidget(make_separator())
+
         filter_layout.addLayout(pv_filter_layout)
         filter_layout.addWidget(self.regex)
 
-        sep = QFrame(self)
-        sep.setFrameShape(QFrame.VLine)
-        filter_layout.addWidget(sep)
+        filter_layout.addWidget(make_separator())
 
         filter_layout.addWidget(self.compare_filter_inp)
 
@@ -403,6 +420,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self.snapshot = snapshot
         self._data = list()
         self._file_names = list()
+        self._tolerance_f = 1
 
         self._headers = [''] * PvTableColumns.snapshots
         self._headers[PvTableColumns.name] = 'PV'
@@ -439,7 +457,8 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self.beginResetModel()
         for line in self._data:
             line.disconnect_callbacks()
-        self._data = [SnapshotPvTableLine(pv, self) for pv in pvs]
+        self._data = [SnapshotPvTableLine(pv, self._tolerance_f, self)
+                      for pv in pvs]
         self.endResetModel()
 
     def add_snap_files(self, files: dict):
@@ -539,6 +558,9 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             if line.conn:
                 line.update_pv_value(value)
 
+        self._emit_dataChanged()
+
+    def _emit_dataChanged(self):
         # Only update the value and comparison columns.
         self.dataChanged.emit(self.createIndex(0, PvTableColumns.value),
                               self.createIndex(len(self._data),
@@ -554,6 +576,13 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         if role == QtCore.Qt.DisplayRole:
             return self._headers[section]
 
+    def change_tolerance(self, tol_f):
+        self._tolerance_f = tol_f
+        for line in self._data:
+            line.change_tolerance(tol_f)
+
+        self._emit_dataChanged()
+
 
 class SnapshotPvTableLine(QtCore.QObject):
     """
@@ -567,7 +596,7 @@ class SnapshotPvTableLine(QtCore.QObject):
     _WARN_ICON = None
     _NEQ_ICON = None
 
-    def __init__(self, pv_ref, parent=None):
+    def __init__(self, pv_ref, tolerance_f, parent=None):
         super().__init__(parent)
 
         if SnapshotPvTableLine._WARN_ICON is None:
@@ -576,6 +605,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             SnapshotPvTableLine._NEQ_ICON = \
                 QIcon(os.path.join(self._DIR_PATH, "images/neq.png"))
 
+        self._tolerance_f = tolerance_f
         self._pv_ref = pv_ref
         self.pvname = pv_ref.pvname
         self.data = [None] * PvTableColumns.snapshots
@@ -606,6 +636,10 @@ class SnapshotPvTableLine(QtCore.QObject):
         :return:
         """
         self._pv_ref.remove_conn_callback(self._conn_clb_id)
+
+    def change_tolerance(self, tol_f):
+        self._tolerance_f = tol_f
+        self._compare()
 
     def append_snap_value(self, value):
         if value is not None:
@@ -643,7 +677,8 @@ class SnapshotPvTableLine(QtCore.QObject):
             first_data = self.data[PvTableColumns.snapshots]['raw_value']
             for data in self.data[PvTableColumns.snapshots + 1:]:
                 if not SnapshotPv.compare(first_data, data['raw_value'],
-                                          self._pv_ref.is_array):
+                                          self._pv_ref.is_array,
+                                          self.tolerance_from_precision()):
                     return False
             return True
 
@@ -652,7 +687,8 @@ class SnapshotPvTableLine(QtCore.QObject):
         if self._pv_ref.connected:
             return SnapshotPv.compare(self._pv_ref.value,
                                       self.data[idx]['raw_value'],
-                                      self._pv_ref.is_array)
+                                      self._pv_ref.is_array,
+                                      self.tolerance_from_precision())
         else:
             return False
 
@@ -667,12 +703,19 @@ class SnapshotPvTableLine(QtCore.QObject):
         if n_files == 1:
             comparison = SnapshotPv.compare(pv_value,
                                             self.data[-1]['raw_value'],
-                                            self._pv_ref.is_array)
+                                            self._pv_ref.is_array,
+                                            self.tolerance_from_precision())
 
         if n_files == 1 and self._pv_ref.connected and not comparison:
             self.data[PvTableColumns.compare]['icon'] = self._NEQ_ICON
         else:
             self.data[PvTableColumns.compare]['icon'] = None
+
+    def tolerance_from_precision(self):
+        prec = self._pv_ref.precision
+        if not prec or prec < 0:
+            prec = numpy.inf
+        return self._tolerance_f * 10**(-prec)
 
     @staticmethod
     def string_repr_snap_value(value, precision):

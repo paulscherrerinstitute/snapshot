@@ -223,9 +223,12 @@ class SnapshotPv(PV):
 
     def _str_formatter(val, prec):
         "Auxilliary function that formats floats and arrays."
+
+        if not prec or prec < 0:
+            prec = None
         return numpy.array2string(numpy.asarray(val),
                                   threshold=4, edgeitems=1,
-                                  precision=(prec or None))
+                                  precision=prec)
 
     @staticmethod
     def value_to_display_str(value, is_array, precision):
@@ -259,22 +262,23 @@ class SnapshotPv(PV):
 
     def compare_to_curr(self, value):
         """
-        Compare value to current PV value.
+        Compare value to current PV value with zero tolerance.
 
         :param value: Value to be compared.
 
         :return: Result of comparison.
         """
-        return SnapshotPv.compare(value, self.value, self.is_array)
+        return SnapshotPv.compare(value, self.value, self.is_array, 0.)
 
     @staticmethod
-    def compare(value1, value2, is_array=False):
+    def compare(value1, value2, is_array, tolerance):
         """
         Compare two values snapshot style (handling numpy arrays) for waveforms.
 
         :param value1: Value to be compared to value2.
         :param value2: Value to be compared to value1.
         :param is_array: Are values to be compared arrays?
+        :param tolerance: Comparison is done as |v1 - v2| <= tolerance
 
         :return: Result of comparison.
         """
@@ -295,10 +299,14 @@ class SnapshotPv(PV):
             elif numpy.size(value2) == 0:
                 value2 = None
 
-            return numpy.array_equal(value1, value2)
+        if value1 is None or value2 is None:
+            return value1 is value2
 
-        else:
-            return value1 == value2
+        try:
+            return numpy.allclose(value1, value2, atol=tolerance, rtol=0)
+        except TypeError:
+            # Non-numeric array (i.e. strings)
+            return numpy.array_equal(value1, value2)
 
     def add_conn_callback(self, callback):
         """
