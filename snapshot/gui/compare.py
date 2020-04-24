@@ -19,7 +19,7 @@ from PyQt5.QtWidgets import QApplication, QHeaderView, QAbstractItemView, \
     QComboBox, QLineEdit, QLabel, QSizePolicy, QWidget, QSpinBox
 
 from ..ca_core import Snapshot
-from ..core import SnapshotPv, PvUpdater
+from ..core import SnapshotPv, PvUpdater, process_record
 from ..parser import parse_from_save_file
 from .utils import show_snapshot_parse_errors
 
@@ -355,21 +355,18 @@ class SnapshotPvTableView(QTableView):
             elif len(self.model().sourceModel().get_snap_file_names()) == 1:
                 menu.addAction("Restore selected PVs", self._restore_selected_pvs)
 
+            menu.addAction("Process records of selected PVs",
+                           self._process_selected_records)
+
         self._menu_click_pos = point
         menu.exec(QCursor.pos())
         menu.deleteLater()
 
     def _restore_selected_pvs(self):
-        pvs = list()
-        for idx in self.selectedIndexes():
-            pvname = self._get_pvname_with_selection_model_idx(idx)
-
-            if pvname not in pvs:
-                pvs.append(pvname)
-
-        # Pass restore request to main widget (window). It will use an existing mechanism in restore widget.
-        # This way all buttons, statuses etc are handled same way as with "normal" restore.
-        self.restore_requested.emit(pvs)
+        # Pass restore request to main widget (window). It will use an existing
+        # mechanism in restore widget. This way all buttons, statuses etc are
+        # handled same way as with "normal" restore.
+        self.restore_requested.emit(self._selected_pvnames())
 
     def _copy_pv_name(self):
         cb = QApplication.clipboard()
@@ -377,11 +374,20 @@ class SnapshotPvTableView(QTableView):
         idx = self.indexAt(self._menu_click_pos)
         cb.setText(self._get_pvname_with_selection_model_idx(idx), mode=cb.Clipboard)
 
+    def _selected_pvnames(self):
+        names = (self._get_pvname_with_selection_model_idx(idx)
+                 for idx in self.selectedIndexes())
+        return list(set(names))
+
     def _get_pvname_with_selection_model_idx(self, idx: QtCore.QModelIndex):
         # Map index from selection model to original model
         # Access original model through proxy model and get pv name.
         # Doing it this way is safer than just reading row content, since in future visualization can change.
         return self.model().sourceModel().get_pvname(self.selectionModel().model().mapToSource(idx).row())
+
+    def _process_selected_records(self):
+        for pvname in self._selected_pvnames():
+            process_record(pvname)
 
 
 # Wrap PvUpdater into QObject for threadsafe signalling

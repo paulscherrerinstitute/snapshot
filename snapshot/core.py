@@ -1,4 +1,4 @@
-from epics import PV, ca
+from epics import PV, ca, caput
 import numpy
 from enum import Enum
 import json
@@ -28,6 +28,12 @@ def enable_tracing(enable=True):
 # A shared thread pool that can be used from anywhere for tasks that
 # should run in background, but not indefinitely.
 global_thread_pool = ThreadPoolExecutor(16)
+
+
+def process_record(pvname):
+    "Assuming 'pvname' is part of an EPICS record, write to its PROC field."
+    record = pvname.split('.')[0]
+    caput(record + '.PROC', 1)
 
 
 class _BackgroundWorkers:
