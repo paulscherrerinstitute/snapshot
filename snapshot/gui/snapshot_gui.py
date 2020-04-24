@@ -136,6 +136,8 @@ class SnapshotGui(QMainWindow):
         main_splitter.addWidget(self.compare_widget)
         main_splitter.addWidget(self.status_log)
         main_splitter.setOrientation(Qt.Vertical)
+        main_splitter.setStretchFactor(0, 1)
+        main_splitter.setStretchFactor(1, 3)
 
         # Set default widget and add status bar
         self.setCentralWidget(main_splitter)

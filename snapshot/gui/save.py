@@ -64,7 +64,7 @@ class SnapshotSaveWidget(QWidget):
 
         # Create collapsible group with advanced options,
         # then update output file name and finish adding widgets to layout
-        self.advanced = SnapshotAdvancedSaveSettings("Advanced", self.common_settings, self)
+        self.advanced = SnapshotAdvancedSaveSettings(self.common_settings, self)
 
         self.name_extension = ''
         self.update_name()
@@ -224,44 +224,31 @@ class SnapshotSaveWidget(QWidget):
         self.advanced.update_labels()
 
 
-class SnapshotAdvancedSaveSettings(QGroupBox):
-    def __init__(self, text, common_settings, parent=None):
-        self.parent = parent
+class SnapshotAdvancedSaveSettings(QWidget):
+    def __init__(self, common_settings, parent=None):
+        super().__init__(parent)
 
-        QGroupBox.__init__(self, text, parent)
-        self.setStyleSheet("background-color: rgba(0, 0, 0, 15)")
         min_label_width = 120
-        # frame is a container with all widgets, tat should be collapsed
-        self.frame = QFrame(self)
-        self.frame.setContentsMargins(0, 20, 0, 0)
-        self.frame.setStyleSheet("background-color: None")
-        self.frame.setVisible(True)
-        self.setChecked(True)
 
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.frame)
         self.setLayout(layout)
-
-        self.frame_layout = QVBoxLayout()
-        self.frame_layout.setContentsMargins(0, 0, 0, 0)
-        self.frame.setLayout(self.frame_layout)
 
         # Make a field to enable user adding a comment
         comment_layout = QHBoxLayout()
         comment_layout.setSpacing(10)
-        comment_label = QLabel("Comment:", self.frame)
+        comment_label = QLabel("Comment:")
         comment_label.setStyleSheet("background-color: None")
         comment_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
         comment_label.setMinimumWidth(min_label_width)
-        self.comment_input = QLineEdit(self.frame)
+        self.comment_input = QLineEdit()
         comment_layout.addWidget(comment_label)
         comment_layout.addWidget(self.comment_input)
 
         # Make field for labels
         labels_layout = QHBoxLayout()
         labels_layout.setSpacing(10)
-        labels_label = QLabel("Labels:", self.frame)
+        labels_label = QLabel("Labels:")
         labels_label.setStyleSheet("background-color: None")
         labels_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
         labels_label.setMinimumWidth(min_label_width)
@@ -272,13 +259,8 @@ class SnapshotAdvancedSaveSettings(QGroupBox):
         labels_layout.addWidget(labels_label)
         labels_layout.addWidget(self.labels_input)
 
-        # self.frame_layout.addStretch()
-        self.frame_layout.addLayout(comment_layout)
-        self.frame_layout.addLayout(labels_layout)
+        layout.addLayout(comment_layout)
+        layout.addLayout(labels_layout)
 
     def update_labels(self):
         self.labels_input.update_suggested_keywords()
-
-    def toggle(self):
-        self.frame.setVisible(self.isChecked())
-        self.parent.update_name()

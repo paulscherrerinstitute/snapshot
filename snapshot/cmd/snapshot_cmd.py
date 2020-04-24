@@ -88,7 +88,7 @@ def restore(saved_file_path, force=False, timeout=10):
     if status == ActionStatus.ok:
         for pv_name, pv_status in pvs_status.items():
             if pv_status == PvStatus.access_err:
-                logging.warning('\"{}\": Not restored. No connection or no read access.'.format(pv_name))
+                logging.warning('\"{}\": Not restored. No connection or no write access.'.format(pv_name))
 
         logging.info('Snapshot file was restored.')
 
@@ -96,7 +96,7 @@ def restore(saved_file_path, force=False, timeout=10):
         # In case when no response from some PVs after values were pushed.
         for pv_name, pv_status in pvs_status.items():
             if pv_status == PvStatus.access_err:
-                logging.warning('\"{}\": Not restored. No connection or no read access.'.format(pv_name))
+                logging.warning('\"{}\": Not restored. No connection or no write access.'.format(pv_name))
 
         logging.error('Not finished in timeout: {} s. Some PVs may not be restored. Try to increase'
                       ' timeout.'.format(timeout))
@@ -104,6 +104,6 @@ def restore(saved_file_path, force=False, timeout=10):
     else:
         for pv_name, pv_status in pvs_status.items():
             if pv_status == PvStatus.access_err:
-                logging.error('\"{}\": No connection or no read access.'.format(pv_name))
+                logging.error('\"{}\": No connection or no write access.'.format(pv_name))
 
         logging.error('Snapshot file was not restored.')

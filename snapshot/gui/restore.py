@@ -18,7 +18,7 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QHBoxLayout, QMes
 
 from ..ca_core import PvStatus, ActionStatus, SnapshotPv
 from ..core import background_workers
-from ..parser import get_save_files, parse_from_save_file
+from ..parser import get_save_files, parse_from_save_file, save_file_suffix
 from .utils import SnapshotKeywordSelectorWidget, SnapshotEditMetadataDialog, \
     DetailedMsgBox, show_snapshot_parse_errors
 
@@ -124,7 +124,7 @@ class SnapshotRestoreWidget(QWidget):
         response = QMessageBox.question(self, "Confirm restore",
                                         "Do you wish to restore "
                                         f"{num_pvs} PVs?")
-        if response != QMessageBox.StandardButton.Yes:
+        if response != QMessageBox.Yes:
             return
 
         # Restore can be done only if specific file is selected
@@ -227,7 +227,7 @@ class SnapshotRestoreWidget(QWidget):
         for pvname, sts in status.items():
             if sts == PvStatus.access_err:
                 error = not forced  # if here and not in force mode, then this is error state
-                msgs.append("WARNING: {}: Not restored (no connection or no read access).".format(pvname))
+                msgs.append("WARNING: {}: Not restored (no connection or no write access).".format(pvname))
                 msg_times.append(time.time())
                 status_txt = "Restore error"
                 status_background = "#F06464"
@@ -321,7 +321,7 @@ class SnapshotRestoreFileSelector(QWidget):
         self.file_selector.setRootIsDecorated(False)
         self.file_selector.setIndentation(0)
         self.file_selector.setColumnCount(len(FileSelectorColumns))
-        column_labels = ["File", "Comment", "Labels"]
+        column_labels = ["File name", "Comment", "Labels"]
         assert(len(column_labels) == len(FileSelectorColumns))
         self.file_selector.setHeaderLabels(column_labels)
         self.file_selector.setAllColumnsShowFocus(True)
@@ -517,16 +517,32 @@ class SnapshotRestoreFileSelector(QWidget):
             msg = "Do you want to delete selected files?"
             reply = QMessageBox.question(self, 'Message', msg, QMessageBox.Yes, QMessageBox.No)
             if reply == QMessageBox.Yes:
-                for selected_file in self.selected_files:
+                symlink_file = self.common_settings["save_file_prefix"] \
+                    + 'latest' + save_file_suffix
+                symlink_path = os.path.join(self.common_settings["save_dir"],
+                                            symlink_file)
+                symlink_target = os.path.realpath(symlink_path)
+
+                files = self.selected_files[:]
+                paths = [os.path.join(self.common_settings["save_dir"],
+                                      selected_file)
+                         for selected_file in self.selected_files]
+
+                if any((path == symlink_target for path in paths)) \
+                   and symlink_file not in files:
+                    files.append(symlink_file)
+                    paths.append(symlink_path)
+
+                for selected_file, file_path in zip(files, paths):
                     try:
-                        file_path = os.path.join(self.common_settings["save_dir"],
-                                                 selected_file)
                         os.remove(file_path)
                         self.file_list.pop(selected_file)
                         self.pvs = dict()
+                        items = self.file_selector.findItems(
+                            selected_file, Qt.MatchCaseSensitive,
+                            FileSelectorColumns.filename)
                         self.file_selector.takeTopLevelItem(
-                            self.file_selector.indexOfTopLevelItem(self.file_selector.findItems(
-                                selected_file, Qt.MatchCaseSensitive, 1)[0]))
+                            self.file_selector.indexOfTopLevelItem(items[0]))
 
                     except OSError as e:
                         warn = "Problem deleting file:\n" + str(e)
