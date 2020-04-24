@@ -4,6 +4,8 @@ import re
 import json
 import glob
 import numpy
+import time
+import logging
 
 
 save_file_suffix = '.snap'
@@ -402,6 +404,65 @@ def parse_from_save_file(save_file_path, metadata_only=False):
 
     saved_file.close()
     return saved_pvs, meta_data, err
+
+
+def parse_to_save_file(pvs, save_file_path, macros=None,
+                       symlink_path=None, **kw):
+    """
+    This function is called at each save of PV values. This is a parser
+    which generates save file from pvs. All parameters in **kw are packed
+    as meta data
+
+    :param pvs: Dict with pvs data to be saved. pvs = {pvname: {'value': value, ...}}
+    :param save_file_path: Path of the saved file.
+    :param macros: Macros
+    :param symlink_path: Optional path to the symlink to be created.
+    :param kw: Additional meta data.
+
+    :return:
+    """
+    # This function is called at each save of PV values.
+    # This is a parser which generates save file from pvs
+    # All parameters in **kw are packed as meta data
+
+    save_file_path = os.path.abspath(save_file_path)
+    with open(save_file_path, 'w') as save_file:
+        # Save meta data
+        if macros:
+            kw['macros'] = macros
+        save_file.write("#" + json.dumps(kw) + "\n")
+
+        for pvname, data in pvs.items():
+            save_file.write(data.get('raw_name'))
+            value = data.get('val')
+            if value is not None:
+                save_file.write(',')
+                if isinstance(value, numpy.ndarray):
+                    data['val'] = value.tolist()
+                del data['raw_name']  # do not duplicate
+                json.dump(data, save_file)
+            save_file.write('\n')
+
+    # Create symlink _latest.snap
+    if symlink_path:
+        if os.path.isfile(symlink_path):
+            os.remove(symlink_path)
+
+        counter = 5
+        while counter > 0:
+            no_error = True
+            try:
+                os.symlink(save_file_path, symlink_path)
+            except:
+                logging.warning("unable to create link")
+                no_error = False
+
+            if no_error:
+                break
+
+            time.sleep(0.5)
+
+            counter -= 1
 
 
 def get_save_files(save_dir, req_file_path, current_files):

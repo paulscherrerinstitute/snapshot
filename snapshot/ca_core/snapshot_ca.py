@@ -15,7 +15,8 @@ from collections import OrderedDict
 from epics import PV, ca, dbr
 
 from snapshot.core import SnapshotPv, PvStatus, background_workers
-from snapshot.parser import SnapshotReqFile, parse_macros, parse_from_save_file
+from snapshot.parser import SnapshotReqFile, parse_macros, \
+    parse_from_save_file, parse_to_save_file
 
 import logging
 
@@ -178,7 +179,7 @@ class Snapshot(object):
             pvs_data[pvname]['val'] = value
 
         logging.debug("Writing snapshot to file")
-        self.parse_to_save_file(pvs_data, save_file_path, self.macros, symlink_path, **kw)
+        parse_to_save_file(pvs_data, save_file_path, self.macros, symlink_path, **kw)
         logging.debug("Snapshot done")
         background_workers.resume()
 
@@ -363,62 +364,3 @@ class Snapshot(object):
 
             with open(save_file_path, 'w') as save_file_write:
                 save_file_write.writelines(lines)
-
-    # Parser functions
-
-    def parse_to_save_file(self, pvs, save_file_path, macros=None, symlink_path=None, **kw):
-        """
-        This function is called at each save of PV values. This is a parser
-        which generates save file from pvs. All parameters in **kw are packed
-        as meta data
-
-        :param pvs: Dict with pvs data to be saved. pvs = {pvname: {'value': value, ...}}
-        :param save_file_path: Path of the saved file.
-        :param macros: Macros
-        :param symlink_path: Optional path to the symlink to be created.
-        :param kw: Additional meta data.
-
-        :return:
-        """
-        # This function is called at each save of PV values.
-        # This is a parser which generates save file from pvs
-        # All parameters in **kw are packed as meta data
-
-        save_file_path = os.path.abspath(save_file_path)
-        with open(save_file_path, 'w') as save_file:
-            # Save meta data
-            if macros:
-                kw['macros'] = macros
-            save_file.write("#" + json.dumps(kw) + "\n")
-
-            for pvname, data in pvs.items():
-                save_file.write(data.get('raw_name'))
-                value = data.get('val')
-                if value is not None:
-                    save_file.write(',')
-                    if isinstance(value, numpy.ndarray):
-                        data['val'] = value.tolist()
-                    del data['raw_name']  # do not duplicate
-                    json.dump(data, save_file)
-                save_file.write('\n')
-
-        # Create symlink _latest.snap
-        if symlink_path:
-            if os.path.isfile(symlink_path):
-                os.remove(symlink_path)
-
-            counter = 5
-            while counter > 0:
-                no_error = True
-                try:
-                    os.symlink(save_file_path, symlink_path)
-                except:
-                    logging.warning("unable to create link")
-                    no_error = False
-
-                if no_error:
-                    break
-
-                time.sleep(0.5)
-
-                counter -= 1
