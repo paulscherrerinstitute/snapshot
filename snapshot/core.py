@@ -228,7 +228,7 @@ class SnapshotPv(PV):
             prec = None
         return numpy.array2string(numpy.asarray(val),
                                   threshold=4, edgeitems=1,
-                                  precision=prec)
+                                  precision=prec, floatmode='fixed')
 
     @staticmethod
     def value_to_display_str(value, is_array, precision):
