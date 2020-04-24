@@ -49,7 +49,7 @@ class SnapshotGui(QMainWindow):
             reply = msg_window.exec_()
 
             if reply == QMessageBox.No:
-                self.close()
+                QTimer.singleShot(0, lambda: self.close())
                 return
 
         self.common_settings = config
@@ -64,9 +64,8 @@ class SnapshotGui(QMainWindow):
                                         init_path=os.path.join(init_path,
                                                                req_file_path))
             configure_dialog.accepted.connect(self.set_request_file)
-            self.hide()
             if configure_dialog.exec_() == QDialog.Rejected:
-                self.close()
+                QTimer.singleShot(0, lambda: self.close())
                 return
 
         # Before creating GUI, snapshot must be initialized.
