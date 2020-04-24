@@ -10,6 +10,7 @@ import json
 import os
 import time
 from enum import Enum
+from collections import OrderedDict
 
 from epics import PV, ca, dbr
 
@@ -170,9 +171,11 @@ class Snapshot(object):
             value, pvs_status[pvname] = pv_ref.save_pv()
 
             # Make data structure with data to be saved
-            pvs_data[pvname] = dict()
-            pvs_data[pvname]['value'] = value
+            pvs_data[pvname] = OrderedDict()
             pvs_data[pvname]['raw_name'] = pv_ref.pvname
+            pvs_data[pvname]['egu'] = pv_ref.units
+            pvs_data[pvname]['prec'] = pv_ref.precision
+            pvs_data[pvname]['val'] = value
 
         logging.debug("Writing snapshot to file")
         self.parse_to_save_file(pvs_data, save_file_path, self.macros, symlink_path, **kw)
@@ -365,10 +368,11 @@ class Snapshot(object):
 
     def parse_to_save_file(self, pvs, save_file_path, macros=None, symlink_path=None, **kw):
         """
-        This function is called at each save of PV values. This is a parser which generates save file from pvs. All
-        parameters in **kw are packed as meta data
+        This function is called at each save of PV values. This is a parser
+        which generates save file from pvs. All parameters in **kw are packed
+        as meta data
 
-        :param pvs: Dict with pvs data to be saved. pvs = {pvname: {'value': value}}
+        :param pvs: Dict with pvs data to be saved. pvs = {pvname: {'value': value, ...}}
         :param save_file_path: Path of the saved file.
         :param macros: Macros
         :param symlink_path: Optional path to the symlink to be created.
@@ -381,25 +385,22 @@ class Snapshot(object):
         # All parameters in **kw are packed as meta data
 
         save_file_path = os.path.abspath(save_file_path)
-        save_file = open(save_file_path, 'w')
+        with open(save_file_path, 'w') as save_file:
+            # Save meta data
+            if macros:
+                kw['macros'] = macros
+            save_file.write("#" + json.dumps(kw) + "\n")
 
-        # Save meta data
-        if macros:
-            kw['macros'] = macros
-        save_file.write("#" + json.dumps(kw) + "\n")
-
-        for pvname, data in pvs.items():
-            value = data.get("value")
-            pvname_raw = data.get("raw_name")
-            if value is not None:
-                if isinstance(value, numpy.ndarray):
-                    save_file.write("{},{}\n".format(pvname_raw, json.dumps(value.tolist())))
-                else:
-                    save_file.write("{},{}\n".format(pvname_raw, json.dumps(value)))
-            else:
-                save_file.write("{}\n".format(pvname_raw))
-
-        save_file.close()
+            for pvname, data in pvs.items():
+                save_file.write(data.get('raw_name'))
+                value = data.get('val')
+                if value is not None:
+                    save_file.write(',')
+                    if isinstance(value, numpy.ndarray):
+                        data['val'] = value.tolist()
+                    del data['raw_name']  # do not duplicate
+                    json.dump(data, save_file)
+                save_file.write('\n')
 
         # Create symlink _latest.snap
         if symlink_path:

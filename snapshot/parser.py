@@ -371,28 +371,31 @@ def parse_from_save_file(save_file_path, metadata_only=False):
         elif (not metadata_only
                 and line.strip()
                 and not line.startswith('#')):
+
             split_line = line.strip().split(',', 1)
             pvname = split_line[0]
-            if len(split_line) > 1:
-                pv_value_str = split_line[1]
-                # In case of array it will return a list, otherwise value
-                # of proper type
-                try:
-                    pv_value = json.loads(pv_value_str)
-                except json.JSONDecodeError:
+
+            try:
+                if len(split_line) < 2:
                     pv_value = None
-                    err.append('Value of \'{}\' cannot be decoded. '
-                               'Will be ignored.'.format(pvname))
-
-                if isinstance(pv_value, list):
-                    # arrays as numpy array, because pyepics returns
-                    # as numpy array
-                    pv_value = numpy.asarray(pv_value)
-            else:
+                elif split_line[1].startswith('{'):
+                    # The new JSON value format
+                    data = json.loads(split_line[1])
+                    pv_value = data['val']
+                    # EGU and PREC are ignored, only stored for information.
+                else:
+                    # The legacy "name,value" format
+                    pv_value_str = split_line[1]
+                    pv_value = json.loads(pv_value_str)
+                    if isinstance(pv_value, list):
+                        # arrays as numpy array, because pyepics returns
+                        # as numpy array
+                        pv_value = numpy.asarray(pv_value)
+            except json.JSONDecodeError:
                 pv_value = None
+                err.append(f"Value of '{pvname}' cannot be decoded, ignored.")
 
-            saved_pvs[pvname] = dict()
-            saved_pvs[pvname]['value'] = pv_value
+            saved_pvs[pvname] = {'value': pv_value}
 
     if not meta_loaded:
         err.insert(0, 'No meta data in the file.')
