@@ -702,17 +702,23 @@ class SnapshotPvTableLine(QtCore.QObject):
         if pv_value is None and self._pv_ref.connected and get_missing:
             pv_value = self._pv_ref.value
 
+        # Compare each snapshot to the one on its left (or the PV value in the
+        # case of the leftmost snapshot).
         n_files = self.get_snap_count()
-        if n_files == 1:
-            comparison = SnapshotPv.compare(pv_value,
-                                            self.data[-1]['raw_value'],
-                                            self._pv_ref.is_array,
-                                            self.tolerance_from_precision())
-
-        if n_files == 1 and self._pv_ref.connected and not comparison:
-            self.data[-1]['icon'] = self._NEQ_ICON
-        else:
-            self.data[-1]['icon'] = self._EQ_ICON
+        if n_files > 0:
+            values = [pv_value] + [x['raw_value'] for x in
+                                   self.data[PvTableColumns.snapshots:]]
+            is_array = self._pv_ref.is_array
+            tolerance = self.tolerance_from_precision()
+            connected = self._pv_ref.connected
+            for i in range(1, len(values)):
+                comparison = SnapshotPv.compare(values[i-1], values[i],
+                                                is_array, tolerance)
+                snap = self.data[PvTableColumns.snapshots + i - 1]
+                if connected and not comparison:
+                    snap['icon'] = self._NEQ_ICON
+                else:
+                    snap['icon'] = self._EQ_ICON
 
     def tolerance_from_precision(self):
         prec = self._pv_ref.precision
