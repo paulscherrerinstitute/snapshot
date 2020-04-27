@@ -238,7 +238,6 @@ class PvTableColumns(enum.IntEnum):
     name = 0
     unit = enum.auto()
     value = enum.auto()
-    compare = enum.auto()
     snapshots = enum.auto()
 
     @staticmethod
@@ -263,7 +262,6 @@ class SnapshotPvTableView(QTableView):
         self.horizontalHeader().setDefaultAlignment(QtCore.Qt.AlignLeft)
         self.verticalHeader().setDefaultSectionSize(20)
         self.horizontalHeader().setDefaultSectionSize(200)
-        self._compare_col_size = 30
 
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
 
@@ -321,8 +319,6 @@ class SnapshotPvTableView(QTableView):
         setResizeMode(PvTableColumns.unit, QHeaderView.ResizeToContents)
         setResizeMode(PvTableColumns.value, QHeaderView.Interactive)
         self.setColumnWidth(PvTableColumns.value, 200)
-        setResizeMode(PvTableColumns.compare, QHeaderView.Fixed)
-        self.setColumnWidth(PvTableColumns.compare, self._compare_col_size)
 
         self._apply_selection_to_full_row()
 
@@ -432,7 +428,6 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self._headers[PvTableColumns.name] = 'PV'
         self._headers[PvTableColumns.unit] = 'Unit'
         self._headers[PvTableColumns.value] = 'Current value'
-        self._headers[PvTableColumns.compare] = ''
 
         self._updater = ModelUpdater(self)
         self._updater.update_complete.connect(self._handle_pv_update)
@@ -548,7 +543,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
     def rowCount(self, parent):
         return len(self._data)
 
-    def columnCount(self, parent):
+    def columnCount(self, parent=None):
         return len(self._headers)
 
     def data(self, index, role):
@@ -567,10 +562,10 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self._emit_dataChanged()
 
     def _emit_dataChanged(self):
-        # Only update the value and comparison columns.
+        # No need to update PV names and units.
         self.dataChanged.emit(self.createIndex(0, PvTableColumns.value),
                               self.createIndex(len(self._data),
-                                               PvTableColumns.compare))
+                                               self.columnCount() - 1))
 
     def handle_pv_connection_status(self, line_model):
         row = self._data.index(line_model)
@@ -619,7 +614,6 @@ class SnapshotPvTableLine(QtCore.QObject):
         self.data[PvTableColumns.unit] = {'data': 'UNDEF', 'icon': None}
         self.data[PvTableColumns.value] = {'data': 'PV disconnected',
                                            'icon': self._WARN_ICON}
-        self.data[PvTableColumns.compare] = {'icon': None}
 
         self.connectionStatusChanged \
             .connect(parent.handle_pv_connection_status)
@@ -713,9 +707,9 @@ class SnapshotPvTableLine(QtCore.QObject):
                                             self.tolerance_from_precision())
 
         if n_files == 1 and self._pv_ref.connected and not comparison:
-            self.data[PvTableColumns.compare]['icon'] = self._NEQ_ICON
+            self.data[-1]['icon'] = self._NEQ_ICON
         else:
-            self.data[PvTableColumns.compare]['icon'] = None
+            self.data[-1]['icon'] = None
 
     def tolerance_from_precision(self):
         prec = self._pv_ref.precision
@@ -761,7 +755,6 @@ class SnapshotPvTableLine(QtCore.QObject):
         if not self.conn:
             self.data[PvTableColumns.value] = {'data': 'PV disconnected',
                                                'icon': self._WARN_ICON}
-            self.data[PvTableColumns.compare]['icon'] = None
         else:
             self.data[PvTableColumns.value] = {'data': '', 'icon': None}
         self.connectionStatusChanged.emit(self)
