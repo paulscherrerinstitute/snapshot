@@ -756,8 +756,11 @@ class SnapshotPvTableLine(QtCore.QObject):
             return SnapshotPv.value_to_display_str(value, is_array, precision)
 
     def update_pv_value(self, pv_value):
+        value_col = self.data[PvTableColumns.value]
+        unit_col = self.data[PvTableColumns.unit]
+
         if pv_value is None:
-            self.data[PvTableColumns.value]['data'] = ''
+            value_col['data'] = ''
             self._compare(None, get_missing=False)
             return True
 
@@ -765,13 +768,13 @@ class SnapshotPvTableLine(QtCore.QObject):
                                                     self.is_array,
                                                     self.precision)
 
-        if self.data[PvTableColumns.unit]['data'] == 'UNDEF':
-            self.data[PvTableColumns.unit]['data'] = self._pv_ref.units
+        if unit_col['data'] == 'UNDEF':
+            unit_col['data'] = self._pv_ref.units
 
-        if self.data[PvTableColumns.value]['data'] == new_value:
+        if value_col['data'] == new_value:
             return False
 
-        self.data[PvTableColumns.value]['data'] = new_value
+        value_col['data'] = new_value
         self._compare(pv_value)
         return True
 
