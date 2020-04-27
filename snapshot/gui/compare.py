@@ -733,7 +733,8 @@ class SnapshotPvTableLine(QtCore.QObject):
             return value
         else:
             # dump other values
-            is_array = isinstance(value, numpy.ndarray)
+            is_array = isinstance(value, numpy.ndarray) \
+                or isinstance(value, list)
             return SnapshotPv.value_to_display_str(value, is_array, precision)
 
     def update_pv_value(self, pv_value):

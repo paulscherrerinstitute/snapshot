@@ -227,15 +227,6 @@ class SnapshotPv(PV):
         elif callback:
             callback(pvname=self.pvname, status=PvStatus.access_err)
 
-    def _str_formatter(val, prec):
-        "Auxilliary function that formats floats and arrays."
-
-        if not prec or prec < 0:
-            prec = None
-        return numpy.array2string(numpy.asarray(val),
-                                  threshold=4, edgeitems=1,
-                                  precision=prec, floatmode='fixed')
-
     @staticmethod
     def value_to_display_str(value, is_array, precision):
         """
@@ -249,22 +240,32 @@ class SnapshotPv(PV):
         :return: String representation of value
         """
 
+        if isinstance(value, str):
+            return value
+
+        value = numpy.asarray(value)
+        if value.dtype.kind == 'f':
+            if precision and precision > 0:
+                fmt = f'{{:.{precision}f}}'
+            else:
+                fmt = '{:f}'
+        else:
+            fmt = '{}'
+
         if is_array:
             if numpy.size(value) == 0:
                 # Empty array is equal to "None" scalar value
                 return None
-            elif numpy.size(value) == 1 \
-                 and not isinstance(value, numpy.ndarray):
+            elif value.shape == tuple():
                 # make scalars as arrays
-                return SnapshotPv._str_formatter([value], precision)
+                return f'[{fmt}]'.format(value)
+            elif numpy.size(value) > 3:
+                # abbreviate long arrays
+                return f'[{fmt} ... {fmt}]'.format(value[0], value[-1])
             else:
-                return SnapshotPv._str_formatter(value, precision)
-
-        elif isinstance(value, str):
-            # visualize without ""
-            return value
+                return '[' + ' '.join([fmt.format(x) for x in value]) + ']'
         else:
-            return SnapshotPv._str_formatter(value, precision)
+            return fmt.format(value)
 
     def compare_to_curr(self, value):
         """
