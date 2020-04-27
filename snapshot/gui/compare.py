@@ -596,6 +596,7 @@ class SnapshotPvTableLine(QtCore.QObject):
     _DIR_PATH = os.path.dirname(os.path.realpath(__file__))
     _WARN_ICON = None
     _NEQ_ICON = None
+    _EQ_ICON = None
 
     def __init__(self, pv_ref, tolerance_f, parent=None):
         super().__init__(parent)
@@ -605,6 +606,8 @@ class SnapshotPvTableLine(QtCore.QObject):
                 QIcon(os.path.join(self._DIR_PATH, "images/warn.png"))
             SnapshotPvTableLine._NEQ_ICON = \
                 QIcon(os.path.join(self._DIR_PATH, "images/neq.png"))
+            SnapshotPvTableLine._EQ_ICON = \
+                QIcon(os.path.join(self._DIR_PATH, "images/eq.png"))
 
         self._tolerance_f = tolerance_f
         self._pv_ref = pv_ref
@@ -709,7 +712,7 @@ class SnapshotPvTableLine(QtCore.QObject):
         if n_files == 1 and self._pv_ref.connected and not comparison:
             self.data[-1]['icon'] = self._NEQ_ICON
         else:
-            self.data[-1]['icon'] = None
+            self.data[-1]['icon'] = self._EQ_ICON
 
     def tolerance_from_precision(self):
         prec = self._pv_ref.precision
