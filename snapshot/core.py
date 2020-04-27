@@ -240,9 +240,20 @@ class SnapshotPv(PV):
         :return: String representation of value
         """
 
-        if isinstance(value, str):
-            return value
+        # First, check for the most common stuff
+        if not is_array:
+            if isinstance(value, float):
+                if precision and precision > 0:
+                    fmt = f'{{:.{precision}f}}'
+                else:
+                    fmt = '{:f}'
+                return fmt.format(value)
+            elif isinstance(value, str):
+                return value
+            else:
+                return str(value)
 
+        # Use numpy to handle the rest
         value = numpy.asarray(value)
         if value.dtype.kind == 'f':
             if precision and precision > 0:
