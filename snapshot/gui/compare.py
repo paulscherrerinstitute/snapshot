@@ -612,6 +612,13 @@ class SnapshotPvTableLine(QtCore.QObject):
         self._tolerance_f = tolerance_f
         self._pv_ref = pv_ref
         self.pvname = pv_ref.pvname
+
+        # Prepare to cache some values, calling into pv_ref takes longer.
+        # These values are read when the first value update comes in or when
+        # first needed. They are exposed as properties.
+        self._is_array = None
+        self._precision = None
+
         self.data = [None] * PvTableColumns.snapshots
         self.data[PvTableColumns.name] = {'data': pv_ref.pvname}
         self.data[PvTableColumns.unit] = {'data': 'UNDEF', 'icon': None}
@@ -633,6 +640,18 @@ class SnapshotPvTableLine(QtCore.QObject):
         else:
             self.conn = False
 
+    @property
+    def is_array(self):
+        if self._is_array is None and self._pv_ref.connected:
+            self._is_array = self._pv_ref.is_array
+            self._precision = self._pv_ref.precision
+        return self._is_array
+
+    @property
+    def precision(self):
+        self.is_array  # precision is cached by is_array
+        return self._precision
+
     def disconnect_callbacks(self):
         """
         Disconnect from SnapshotPv object. Should be called before removing line from model.
@@ -646,8 +665,8 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     def append_snap_value(self, value):
         if value is not None:
-            precision = self._pv_ref.precision
-            sval = SnapshotPvTableLine.string_repr_snap_value(value, precision)
+            sval = SnapshotPvTableLine.string_repr_snap_value(value,
+                                                              self.precision)
             self.data.append({'data': sval, 'raw_value': value})
         else:
             self.data.append({'data': '', 'raw_value': None})
@@ -657,8 +676,8 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     def change_snap_value(self, column_idx, value):
         if value is not None:
-            precision = self._pv_ref.precision
-            sval = SnapshotPvTableLine.string_repr_snap_value(value, precision)
+            sval = SnapshotPvTableLine.string_repr_snap_value(value,
+                                                              self.precision)
             self.data[column_idx]['data'] = sval
             self.data[column_idx]['raw_value'] = value
         else:
@@ -680,7 +699,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             first_data = self.data[PvTableColumns.snapshots]['raw_value']
             for data in self.data[PvTableColumns.snapshots + 1:]:
                 if not SnapshotPv.compare(first_data, data['raw_value'],
-                                          self._pv_ref.is_array,
+                                          self.is_array,
                                           self.tolerance_from_precision()):
                     return False
             return True
@@ -690,7 +709,7 @@ class SnapshotPvTableLine(QtCore.QObject):
         if self._pv_ref.connected:
             return SnapshotPv.compare(self._pv_ref.value,
                                       self.data[idx]['raw_value'],
-                                      self._pv_ref.is_array,
+                                      self.is_array,
                                       self.tolerance_from_precision())
         else:
             return False
@@ -708,12 +727,11 @@ class SnapshotPvTableLine(QtCore.QObject):
         if n_files > 0:
             values = [pv_value] + [x['raw_value'] for x in
                                    self.data[PvTableColumns.snapshots:]]
-            is_array = self._pv_ref.is_array
             tolerance = self.tolerance_from_precision()
             connected = self._pv_ref.connected
             for i in range(1, len(values)):
                 comparison = SnapshotPv.compare(values[i-1], values[i],
-                                                is_array, tolerance)
+                                                self.is_array, tolerance)
                 snap = self.data[PvTableColumns.snapshots + i - 1]
                 if connected and not comparison:
                     snap['icon'] = self._NEQ_ICON
@@ -721,7 +739,7 @@ class SnapshotPvTableLine(QtCore.QObject):
                     snap['icon'] = self._EQ_ICON
 
     def tolerance_from_precision(self):
-        prec = self._pv_ref.precision
+        prec = self.precision
         if not prec or prec < 0:
             prec = numpy.inf
         return self._tolerance_f * 10**(-prec)
@@ -744,8 +762,8 @@ class SnapshotPvTableLine(QtCore.QObject):
             return True
 
         new_value = SnapshotPv.value_to_display_str(pv_value,
-                                                    self._pv_ref.is_array,
-                                                    self._pv_ref.precision)
+                                                    self.is_array,
+                                                    self.precision)
 
         if self.data[PvTableColumns.unit]['data'] == 'UNDEF':
             self.data[PvTableColumns.unit]['data'] = self._pv_ref.units
