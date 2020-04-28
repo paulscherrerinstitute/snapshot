@@ -258,10 +258,12 @@ class SnapshotPvTableView(QTableView):
         self.setSortingEnabled(True)
         self.sortByColumn(PvTableColumns.name, Qt.AscendingOrder)  # default sorting
         self.verticalHeader().setVisible(False)
-        self.horizontalHeader().setSectionsMovable(True)
         self.horizontalHeader().setDefaultAlignment(QtCore.Qt.AlignLeft)
         self.verticalHeader().setDefaultSectionSize(20)
         self.horizontalHeader().setDefaultSectionSize(200)
+
+        # Comparison doesn't make sense if columns are moved.
+        self.horizontalHeader().setSectionsMovable(False)
 
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
 
