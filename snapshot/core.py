@@ -499,7 +499,7 @@ class PvUpdater:
                                 pv._initialized = True
                             else:
                                 if not report_init_timeout:
-                                    retport_init_timeout = True
+                                    report_init_timeout = True
                                     logging.debug(report)
                     # get_ctrlvars() does not fetch the value, so we still need
                     # to do it. It is safe to do even in the case of timeout
