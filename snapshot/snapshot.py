@@ -1,6 +1,7 @@
 import argparse
 import re
 import sys
+import epics.utils3
 
 # from .ca_core import parse_macros, MacroError
 # close with ctrl+C
@@ -46,6 +47,14 @@ def gui(args):
 
 def main():
     """ Main creates Qt application and handles arguments """
+
+    # A workaround for inconsistent string encodings, needed because PSI does
+    # not enforce a particular encoding. With this setting, pyepics will
+    # backslash-escape all non-latin1 characters read from CA and reencode them
+    # back to whatever they were when writing to CA. This also allows
+    # transparent (de)serialization of arbitrary encodings. Display is broken,
+    # of course, because you can't display a string with undefined encoding.
+    epics.utils3.EPICS_STR_ENCODING = 'raw_unicode_escape'
 
     args_pars = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
     args_pars.set_defaults(macro=None)

@@ -489,6 +489,9 @@ class SnapshotRestoreFileSelector(QWidget):
 
     def open_menu(self, point):
         item_idx = self.file_selector.indexAt(point)
+        if not item_idx.isValid():
+            return
+
         text = item_idx.data()
         field = self.file_selector.model().headerData(item_idx.column(),
                                                       Qt.Horizontal)

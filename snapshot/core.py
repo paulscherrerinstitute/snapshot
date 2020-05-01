@@ -1,4 +1,4 @@
-from epics import PV, ca
+from epics import PV, ca, caput
 import numpy
 from enum import Enum
 import json
@@ -28,6 +28,12 @@ def enable_tracing(enable=True):
 # A shared thread pool that can be used from anywhere for tasks that
 # should run in background, but not indefinitely.
 global_thread_pool = ThreadPoolExecutor(16)
+
+
+def process_record(pvname):
+    "Assuming 'pvname' is part of an EPICS record, write to its PROC field."
+    record = pvname.split('.')[0]
+    caput(record + '.PROC', 1)
 
 
 class _BackgroundWorkers:
@@ -74,17 +80,6 @@ class SnapshotError(Exception):
     Parent exception class of all snapshot exceptions.
     """
     pass
-
-class _bytesSnap(bytes):
-    """
-    Because of bug in pyepics, ca.put() doesn't work when a single element is put to waveform of stings.
-    Bug is due to a ca.put() function uses len(value) to determine weather it is an array or a single value, but
-    len(bytes) gives you a number of characters len(b'abc') --> 3.
-    To work properly with pyepics len should return 1 indicating there is only one element.
-    """
-
-    def __len__(self):
-        return 1
 
 class PvStatus(Enum):
     """
@@ -216,23 +211,6 @@ class SnapshotPv(PV):
                     callback(pvname=self.pvname, status=PvStatus.no_value)
 
                 elif not self.compare_to_curr(value):
-                    if isinstance(value, str):
-                        # pyepics needs value as bytes not as string
-                        value = str.encode(value)
-
-                    elif self.is_array and len(value) and isinstance(value[0], str):
-                        # Waveform of strings. Bytes expected to be put.
-                        n_value = list()
-                        for item in value:
-                            n_value.append(item.encode())
-
-                        if len(n_value) == 1:
-                            # Special case to overcome the pypeics bug. Use _bytesSnap instead of bytes, since
-                            # len(_bytesSnap('abcd')) is always 1.
-                            value = _bytesSnap(n_value[0])
-                        else:
-                            value = n_value
-
                     try:
                         self.put(value, wait=False, callback=callback, callback_data={"status": PvStatus.ok})
 
@@ -249,64 +227,76 @@ class SnapshotPv(PV):
         elif callback:
             callback(pvname=self.pvname, status=PvStatus.access_err)
 
-    def value_as_str(self):
-        """
-        Get current PV value as snapshot style string (handling of array same way as for restore)
-
-        :return: String representation of current PV value.
-        """
-        if self.connected and self.value is not None:
-            return SnapshotPv.value_to_str(self.value, self.is_array)
-
     @staticmethod
-    def value_to_str(value: str, is_array: bool):
+    def value_to_display_str(value, is_array, precision):
         """
-        Get snapshot style string representation of provided value.
+        Get snapshot style string representation of provided value. For display
+        purposes only!
 
         :param value: Value to be represented as string.
         :param is_array: Should be treated as an array.
+        :param precision: display precision for floats
 
         :return: String representation of value
         """
+
+        # First, check for the most common stuff
+        if not is_array:
+            if isinstance(value, float):
+                if precision and precision > 0:
+                    fmt = f'{{:.{precision}f}}'
+                else:
+                    fmt = '{:f}'
+                return fmt.format(value)
+            elif isinstance(value, str):
+                return value
+            else:
+                return str(value)
+
+        # Use numpy to handle the rest
+        value = numpy.asarray(value)
+        if value.dtype.kind == 'f':
+            if precision and precision > 0:
+                fmt = f'{{:.{precision}f}}'
+            else:
+                fmt = '{:f}'
+        else:
+            fmt = '{}'
+
         if is_array:
             if numpy.size(value) == 0:
                 # Empty array is equal to "None" scalar value
                 return None
-            elif numpy.size(value) == 1:
+            elif value.shape == tuple():
                 # make scalars as arrays
-                return json.dumps(numpy.asarray([value]).tolist())
-
-            elif not isinstance(value, list):
-                return json.dumps(value.tolist())
-
+                return f'[{fmt}]'.format(value)
+            elif numpy.size(value) > 3:
+                # abbreviate long arrays
+                return f'[{fmt} ... {fmt}]'.format(value[0], value[-1])
             else:
-                # Is list of strings. This is returned by pyepics when using waveform of string
-                return json.dumps(value)
-
-        elif isinstance(value, str):
-            # visualize without ""
-            return value
+                return '[' + ' '.join([fmt.format(x) for x in value]) + ']'
         else:
-            return json.dumps(value)
+            return fmt.format(value)
 
     def compare_to_curr(self, value):
         """
-        Compare value to current PV value.
+        Compare value to current PV value with zero tolerance.
 
         :param value: Value to be compared.
 
         :return: Result of comparison.
         """
-        return SnapshotPv.compare(value, self.value, self.is_array)
+        return SnapshotPv.compare(value, self.value, self.is_array, 0.)
 
     @staticmethod
-    def compare(value1, value2, is_array=False):
+    def compare(value1, value2, is_array, tolerance):
         """
         Compare two values snapshot style (handling numpy arrays) for waveforms.
 
         :param value1: Value to be compared to value2.
         :param value2: Value to be compared to value1.
         :param is_array: Are values to be compared arrays?
+        :param tolerance: Comparison is done as |v1 - v2| <= tolerance
 
         :return: Result of comparison.
         """
@@ -327,10 +317,14 @@ class SnapshotPv(PV):
             elif numpy.size(value2) == 0:
                 value2 = None
 
-            return numpy.array_equal(value1, value2)
+        if value1 is None or value2 is None:
+            return value1 is value2
 
-        else:
-            return value1 == value2
+        try:
+            return numpy.allclose(value1, value2, atol=tolerance, rtol=0)
+        except TypeError:
+            # Non-numeric array (i.e. strings)
+            return numpy.array_equal(value1, value2)
 
     def add_conn_callback(self, callback):
         """
@@ -505,7 +499,7 @@ class PvUpdater:
                                 pv._initialized = True
                             else:
                                 if not report_init_timeout:
-                                    retport_init_timeout = True
+                                    report_init_timeout = True
                                     logging.debug(report)
                     # get_ctrlvars() does not fetch the value, so we still need
                     # to do it. It is safe to do even in the case of timeout

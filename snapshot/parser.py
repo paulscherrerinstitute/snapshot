@@ -4,6 +4,8 @@ import re
 import json
 import glob
 import numpy
+import time
+import logging
 
 
 save_file_suffix = '.snap'
@@ -371,34 +373,96 @@ def parse_from_save_file(save_file_path, metadata_only=False):
         elif (not metadata_only
                 and line.strip()
                 and not line.startswith('#')):
+
             split_line = line.strip().split(',', 1)
             pvname = split_line[0]
-            if len(split_line) > 1:
-                pv_value_str = split_line[1]
-                # In case of array it will return a list, otherwise value
-                # of proper type
-                try:
-                    pv_value = json.loads(pv_value_str)
-                except json.JSONDecodeError:
+
+            try:
+                if len(split_line) < 2:
                     pv_value = None
-                    err.append('Value of \'{}\' cannot be decoded. '
-                               'Will be ignored.'.format(pvname))
-
-                if isinstance(pv_value, list):
-                    # arrays as numpy array, because pyepics returns
-                    # as numpy array
-                    pv_value = numpy.asarray(pv_value)
-            else:
+                elif split_line[1].startswith('{'):
+                    # The new JSON value format
+                    data = json.loads(split_line[1])
+                    pv_value = data['val']
+                    # EGU and PREC are ignored, only stored for information.
+                else:
+                    # The legacy "name,value" format
+                    pv_value_str = split_line[1]
+                    pv_value = json.loads(pv_value_str)
+                    if isinstance(pv_value, list):
+                        # arrays as numpy array, because pyepics returns
+                        # as numpy array
+                        pv_value = numpy.asarray(pv_value)
+            except json.JSONDecodeError:
                 pv_value = None
+                err.append(f"Value of '{pvname}' cannot be decoded, ignored.")
 
-            saved_pvs[pvname] = dict()
-            saved_pvs[pvname]['value'] = pv_value
+            saved_pvs[pvname] = {'value': pv_value}
 
     if not meta_loaded:
         err.insert(0, 'No meta data in the file.')
 
     saved_file.close()
     return saved_pvs, meta_data, err
+
+
+def parse_to_save_file(pvs, save_file_path, macros=None,
+                       symlink_path=None, **kw):
+    """
+    This function is called at each save of PV values. This is a parser
+    which generates save file from pvs. All parameters in **kw are packed
+    as meta data
+
+    :param pvs: Dict with pvs data to be saved. pvs = {pvname: {'value': value, ...}}
+    :param save_file_path: Path of the saved file.
+    :param macros: Macros
+    :param symlink_path: Optional path to the symlink to be created.
+    :param kw: Additional meta data.
+
+    :return:
+    """
+    # This function is called at each save of PV values.
+    # This is a parser which generates save file from pvs
+    # All parameters in **kw are packed as meta data
+
+    save_file_path = os.path.abspath(save_file_path)
+    with open(save_file_path, 'w') as save_file:
+        # Save meta data
+        if macros:
+            kw['macros'] = macros
+        save_file.write("#" + json.dumps(kw) + "\n")
+
+        for pvname, data in pvs.items():
+            save_file.write(data.get('raw_name'))
+            value = data.get('val')
+            if value is not None:
+                save_file.write(',')
+                if isinstance(value, numpy.ndarray):
+                    data['val'] = value.tolist()
+                del data['raw_name']  # do not duplicate
+                json.dump(data, save_file)
+            save_file.write('\n')
+
+    # Create symlink _latest.snap
+    if symlink_path:
+        if os.path.isfile(symlink_path):
+            os.remove(symlink_path)
+
+        counter = 5
+        while counter > 0:
+            no_error = True
+            try:
+                os.symlink(save_file_path, symlink_path)
+            except:
+                logging.warning("unable to create link")
+                no_error = False
+
+            if no_error:
+                break
+
+            time.sleep(0.5)
+
+            counter -= 1
 
 
 def get_save_files(save_dir, req_file_path, current_files):
