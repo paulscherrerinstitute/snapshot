@@ -15,7 +15,7 @@ _print_trace = False
 def since_start(message=None):
     seconds = '{:.2f}'.format(time() - _start_time)
     if message and _print_trace:
-        print(message, "at", seconds, 's.')
+        print(seconds, message)
     else:
         return seconds
 
