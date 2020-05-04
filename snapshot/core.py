@@ -323,11 +323,16 @@ class SnapshotPv(PV):
         if value1 is None or value2 is None:
             return value1 is value2
 
-        try:
-            return numpy.allclose(value1, value2, atol=tolerance, rtol=0)
-        except TypeError:
-            # Non-numeric array (i.e. strings)
-            return numpy.array_equal(value1, value2)
+        if is_array:
+            try:
+                return numpy.allclose(value1, value2, atol=tolerance, rtol=0)
+            except TypeError:
+                # Non-numeric array (i.e. strings)
+                return numpy.array_equal(value1, value2)
+        elif isinstance(value1, float) and isinstance(value2, float):
+            return abs(value1 - value2) <= tolerance
+        else:
+            return value1 == value2
 
     def add_conn_callback(self, callback):
         """
