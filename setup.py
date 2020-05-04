@@ -7,7 +7,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 README = open(os.path.join(here, 'Readme.md')).read()
 
 setup(name='snapshot',
-      version='2.0.22',
+      version='2.0.23',
       description="Tool for saving and restoring snapshots of EPICS channels",
       long_description=README,
       author='Paul Scherrer Institute',
@@ -18,5 +18,6 @@ setup(name='snapshot',
       #              'snapshot.cmd': 'src/cmd'},
       package_data={'snapshot': ['gui/images/*.png', 'gui/qss/*.qss']},
       platforms=["any"],
+      zip_safe=False
       # requires=['pyepics', 'pyqt', 'numpy'],
       )
