@@ -51,14 +51,17 @@ class _BackgroundWorkers:
 
     def suspend(self):
         if self._count == 0:
+            since_start("Pausing background threads")
             for w in self._workers:
                 w.suspend()
+            since_start("Background threads suspended")
         self._count += 1
 
     def resume(self):
         if self._count > 0:
             self._count -= 1
             if self._count == 0:
+                since_start("Resuming background threads")
                 for w in self._workers:
                     w.resume()
 
