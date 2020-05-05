@@ -1,4 +1,5 @@
-from snapshot.core import SnapshotError, SnapshotPv, global_thread_pool
+from snapshot.core import SnapshotError, SnapshotPv, global_thread_pool, \
+    since_start
 import os
 import re
 import json
@@ -470,6 +471,7 @@ def get_save_files(save_dir, req_file_path, current_files):
     Parses all new or modified files. Parsed files are returned as a
     dictionary.
     """
+    since_start("Started parsing snaps")
     req_file_name = os.path.basename(req_file_path)
     # Check if any file added or modified (time of modification)
     file_dir = os.path.join(save_dir, os.path.splitext(req_file_name)[0])
@@ -520,4 +522,5 @@ def get_save_files(save_dir, req_file_path, current_files):
             if err:
                 err_to_report.append((file_name, err))
 
+    since_start("Finished parsing snaps")
     return parsed_save_files, err_to_report

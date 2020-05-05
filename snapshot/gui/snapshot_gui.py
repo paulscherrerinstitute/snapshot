@@ -174,11 +174,9 @@ class SnapshotGui(QMainWindow):
 
         # Read snapshots and instantiate PVs in parallel
         def getfiles(*args):
-            since_start("Started parsing snaps")
-            get_save_files(*args)
-            since_start("Finished parsing snaps")
+            return get_save_files(*args)
         future_files = global_thread_pool.submit(getfiles, save_dir,
-                                               req_file_path, {})
+                                                 req_file_path, {})
         self.init_snapshot(req_file_path, macros)
         if self.common_settings['save_dir'] == save_dir:
             already_parsed_files = future_files.result()
