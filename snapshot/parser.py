@@ -466,17 +466,28 @@ def parse_to_save_file(pvs, save_file_path, macros=None,
             counter -= 1
 
 
+def list_save_files(save_dir, req_file_path):
+    "Returns a list of save files and a list of their modification times."
+
+    req_file_name = os.path.basename(req_file_path)
+    file_dir = os.path.join(save_dir, os.path.splitext(req_file_name)[0])
+    file_paths = [path for path in glob.glob(file_dir + '*' + save_file_suffix)
+                  if os.path.isfile(path)]
+    modif_times = [os.path.getmtime(path) for path in file_paths]
+    return file_paths, modif_times
+
+
 def get_save_files(save_dir, req_file_path):
     """
     Parses all new or modified files. Parsed files are returned as a
     dictionary.
     """
-    since_start("Started parsing snaps")
-    req_file_name = os.path.basename(req_file_path)
-    file_dir = os.path.join(save_dir, os.path.splitext(req_file_name)[0])
-    file_list = glob.glob(file_dir + '*' + save_file_suffix)
 
-    def process_file(file_path):
+    since_start("Started parsing snaps")
+    file_paths, modif_times = list_save_files(save_dir, req_file_path)
+    req_file_name = os.path.basename(req_file_path)
+
+    def process_file(file_path, modif_time):
         file_name = os.path.basename(file_path)
         if os.path.isfile(file_path):
             _, meta_data, err = parse_from_save_file(file_path,
@@ -503,10 +514,10 @@ def get_save_files(save_dir, req_file_path):
                         {'file_name': file_name,
                             'file_path': file_path,
                             'meta_data': meta_data,
-                            'modif_time': os.path.getmtime(file_path)},
+                            'modif_time': modif_time},
                         err)
 
-    results = global_thread_pool.map(process_file, file_list)
+    results = global_thread_pool.map(process_file, file_paths, modif_times)
     err_to_report = list()
     parsed_save_files = dict()
     for r in results:
