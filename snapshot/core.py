@@ -266,20 +266,17 @@ class SnapshotPv(PV):
         else:
             fmt = '{}'
 
-        if is_array:
-            if numpy.size(value) == 0:
-                # Empty array is equal to "None" scalar value
-                return None
-            elif value.shape == tuple():
-                # make scalars as arrays
-                return f'[{fmt}]'.format(value)
-            elif numpy.size(value) > 3:
-                # abbreviate long arrays
-                return f'[{fmt} ... {fmt}]'.format(value[0], value[-1])
-            else:
-                return '[' + ' '.join([fmt.format(x) for x in value]) + ']'
+        if numpy.size(value) == 0:
+            # Empty array is equal to "None" scalar value
+            return None
+        elif value.shape == tuple():
+            # make scalars as arrays
+            return f'[{fmt}]'.format(value)
+        elif numpy.size(value) > 3:
+            # abbreviate long arrays
+            return f'[{fmt} ... {fmt}]'.format(value[0], value[-1])
         else:
-            return fmt.format(value)
+            return '[' + ' '.join([fmt.format(x) for x in value]) + ']'
 
     def compare_to_curr(self, value):
         """
