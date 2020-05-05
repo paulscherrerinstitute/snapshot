@@ -295,9 +295,10 @@ class SnapshotKeywordSelectorWidget(QComboBox):
         # Method to be called when global list of existing labels (keywords)
         # is changed and widget must be updated.
         self.clear()
-        labels = list() + self.common_settings["default_labels"]
+        labels = self.common_settings['default_labels'][:]
         if not self.defaults_only:
-            labels += self.common_settings["existing_labels"]
+            labels += [l for l in self.common_settings['existing_labels']
+                       if l not in labels]
             self.addItem("")
         else:
             self.addItem("Select labels ...")

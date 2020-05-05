@@ -393,7 +393,7 @@ class SnapshotRestoreFileSelector(QWidget):
             self.file_list[new_file]["file_selector"] = selector_item
             new_labels.update(labels)
 
-        self.common_settings["existing_labels"] = new_labels
+        self.common_settings["existing_labels"] = list(new_labels)
         self.filter_input.update_labels()
 
         # Set column sizes
