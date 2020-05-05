@@ -466,51 +466,45 @@ def parse_to_save_file(pvs, save_file_path, macros=None,
             counter -= 1
 
 
-def get_save_files(save_dir, req_file_path, current_files):
+def get_save_files(save_dir, req_file_path):
     """
     Parses all new or modified files. Parsed files are returned as a
     dictionary.
     """
     since_start("Started parsing snaps")
     req_file_name = os.path.basename(req_file_path)
-    # Check if any file added or modified (time of modification)
     file_dir = os.path.join(save_dir, os.path.splitext(req_file_name)[0])
     file_list = glob.glob(file_dir + '*' + save_file_suffix)
 
     def process_file(file_path):
         file_name = os.path.basename(file_path)
         if os.path.isfile(file_path):
-            already_known = file_name in current_files
-            modif_time = os.path.getmtime(file_path)
-            if already_known:
-                modified = modif_time != current_files[file_name]["modif_time"]
-            if not already_known or modified:
-                _, meta_data, err = parse_from_save_file(file_path,
-                                                         metadata_only=True)
+            _, meta_data, err = parse_from_save_file(file_path,
+                                                     metadata_only=True)
 
-                # Check if we have req_file metadata. This is used to determine
-                # which request file the save file belongs to. If there is no
-                # metadata (or no req_file specified in the metadata) we search
-                # using a prefix of the request file. The latter is less
-                # robust, but is backwards compatible.
-                have_metadata = "req_file_name" in meta_data \
-                    and meta_data["req_file_name"] == req_file_name
-                prefix_matches = \
-                    file_name.startswith(req_file_name.split(".")[0] + "_")
-                if have_metadata or prefix_matches:
-                    # we really should have basic meta data
-                    # (or filters and some other stuff will silently fail)
-                    if "comment" not in meta_data:
-                        meta_data["comment"] = ""
-                    if "labels" not in meta_data:
-                        meta_data["labels"] = []
+            # Check if we have req_file metadata. This is used to determine
+            # which request file the save file belongs to. If there is no
+            # metadata (or no req_file specified in the metadata) we search
+            # using a prefix of the request file. The latter is less
+            # robust, but is backwards compatible.
+            have_metadata = "req_file_name" in meta_data \
+                and meta_data["req_file_name"] == req_file_name
+            prefix_matches = \
+                file_name.startswith(req_file_name.split(".")[0] + "_")
+            if have_metadata or prefix_matches:
+                # we really should have basic meta data
+                # (or filters and some other stuff will silently fail)
+                if "comment" not in meta_data:
+                    meta_data["comment"] = ""
+                if "labels" not in meta_data:
+                    meta_data["labels"] = []
 
-                    return (file_name,
-                            {'file_name': file_name,
-                             'file_path': file_path,
-                             'meta_data': meta_data,
-                             'modif_time': modif_time},
-                            err)
+                return (file_name,
+                        {'file_name': file_name,
+                            'file_path': file_path,
+                            'meta_data': meta_data,
+                            'modif_time': os.path.getmtime(file_path)},
+                        err)
 
     results = global_thread_pool.map(process_file, file_list)
     err_to_report = list()

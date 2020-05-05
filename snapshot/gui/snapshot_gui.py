@@ -176,7 +176,7 @@ class SnapshotGui(QMainWindow):
         def getfiles(*args):
             return get_save_files(*args)
         future_files = global_thread_pool.submit(getfiles, save_dir,
-                                                 req_file_path, {})
+                                                 req_file_path)
         self.init_snapshot(req_file_path, macros)
         if self.common_settings['save_dir'] == save_dir:
             already_parsed_files = future_files.result()
@@ -187,8 +187,7 @@ class SnapshotGui(QMainWindow):
             future_files.cancel()
             already_parsed_files = get_save_files(
                 self.common_settings['save_dir'],
-                self.common_settings['req_file_path'],
-                {})
+                self.common_settings['req_file_path'])
 
         # handle all gui components
         self.restore_widget.handle_new_snapshot_instance(self.snapshot,
@@ -205,7 +204,7 @@ class SnapshotGui(QMainWindow):
     def handle_saved(self):
         # When save is done, save widget is updated by itself
         # Update restore widget (new file in directory)
-        self.restore_widget.update_files()
+        self.restore_widget.rebuild_file_list()
 
     def set_request_file(self, path: str, macros: dict):
         self.common_settings["req_file_path"] = path

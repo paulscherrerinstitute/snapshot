@@ -101,11 +101,10 @@ class SnapshotRestoreWidget(QWidget):
     def handle_new_snapshot_instance(self, snapshot, already_parsed_files):
         self.file_selector.handle_new_snapshot_instance(snapshot)
         self.snapshot = snapshot
-        self.clear_update_files(already_parsed_files)
+        self.rebuild_file_list(already_parsed_files)
 
     def start_refresh(self):
-        # print('Refresh')
-        self.clear_update_files()
+        self.rebuild_file_list()
 
     def start_restore_all(self):
         self.do_restore()
@@ -276,14 +275,10 @@ class SnapshotRestoreWidget(QWidget):
         # First update other GUI components (compare widget) and then pass pvs to compare to the snapshot core
         self.files_selected.emit(selected_data)
 
-    def update_files(self, already_parsed_files=None):
+    def rebuild_file_list(self, already_parsed_files=None):
         self.files_updated.emit(
-            self.file_selector.start_file_list_update(
+            self.file_selector.rebuild_file_list(
                 already_parsed_files))
-
-    def clear_update_files(self, already_parsed_files=None):
-        self.file_selector.clear_file_selector()
-        self.update_files(already_parsed_files)
 
 
 class SnapshotRestoreFileSelector(QWidget):
@@ -358,7 +353,8 @@ class SnapshotRestoreFileSelector(QWidget):
         self.filter_input.clear()
         self.snapshot = snapshot
 
-    def start_file_list_update(self, already_parsed_files=None):
+    def rebuild_file_list(self, already_parsed_files=None):
+        self.clear_file_selector()
         self.file_selector.setSortingEnabled(False)
         if already_parsed_files:
             save_files, err_to_report = already_parsed_files
@@ -368,11 +364,10 @@ class SnapshotRestoreFileSelector(QWidget):
             background_workers.suspend()
             save_dir = self.common_settings["save_dir"]
             req_file_path = self.common_settings["req_file_path"]
-            save_files, err_to_report = get_save_files(save_dir, req_file_path,
-                                                       self.file_list)
+            save_files, err_to_report = get_save_files(save_dir, req_file_path)
             background_workers.resume()
 
-        updated_files = self.update_file_list_selector(save_files)
+        self._update_file_list_selector(save_files)
         self.filter_file_list_selector()
 
         # Report any errors with snapshot files to the user
@@ -380,74 +375,29 @@ class SnapshotRestoreFileSelector(QWidget):
             show_snapshot_parse_errors(self, err_to_report)
 
         self.file_selector.setSortingEnabled(True)
-        return updated_files
+        return save_files
 
-    def update_file_list_selector(self, modif_file_list):
-
-        existing_labels = self.common_settings["existing_labels"]
-
-        for modified_file, modified_data in modif_file_list.items():
-            meta_data = modified_data["meta_data"]
+    def _update_file_list_selector(self, file_list):
+        new_labels = set()
+        for new_file, new_data in file_list.items():
+            meta_data = new_data["meta_data"]
             labels = meta_data.get("labels", list())
             comment = meta_data.get("comment", "")
 
-            # check if already on list (was just modified) and modify file
-            # selector
-            if modified_file not in self.file_list:
-                row = [modified_file, comment, " ".join(labels)]
-                assert(len(row) == len(FileSelectorColumns))
-                selector_item = QTreeWidgetItem(row)
-                self.file_selector.addTopLevelItem(selector_item)
-                self.file_list[modified_file] = modified_data
-                self.file_list[modified_file]["file_selector"] = selector_item
-                existing_labels += list(set(labels) - set(existing_labels))
+            assert(new_file not in self.file_list)
+            row = [new_file, comment, " ".join(labels)]
+            assert(len(row) == len(FileSelectorColumns))
+            selector_item = QTreeWidgetItem(row)
+            self.file_selector.addTopLevelItem(selector_item)
+            self.file_list[new_file] = new_data
+            self.file_list[new_file]["file_selector"] = selector_item
+            new_labels.update(labels)
 
-            else:
-                # If everything ok only one file should exist in list. Update
-                # its data
-                modified_file_ref = self.file_list[modified_file]
-                old_meta_data = modified_file_ref["meta_data"]
-
-                # Before following actions, update the list of labels from
-                # which might change in the modified file. Remove unused labels
-                # and add new.
-                old_labels = old_meta_data["labels"]
-                labels_to_add = list(set(labels) - set(old_labels))
-                labels_to_remove = list(set(old_labels) - set(labels))
-
-                existing_labels += labels_to_add
-
-                # Update the global data meta_data info, before checking if
-                # labels_to_remove are used in any of the files.
-                self.file_list[modified_file]["meta_data"] = meta_data
-
-                # Check if can be removed (no other file has the same label)
-                if labels_to_remove:
-                    # Check all loaded files if label is in use
-                    in_use = [False] * len(labels_to_remove)
-                    for laoded_file in self.file_list.keys():
-                        loaded_file_labels = self.file_list[
-                            laoded_file]["meta_data"]["labels"]
-                        i = 0
-                        for label in labels_to_remove:
-                            in_use[i] = in_use[i] or label in loaded_file_labels
-                            i += 1
-                    i = 0
-                    for label in labels_to_remove:
-                        if not in_use[i]:
-                            existing_labels.remove(label)
-                        i += 1
-
-                # Modify visual representation
-                item_to_modify = modified_file_ref["file_selector"]
-                item_to_modify.setText(FileSelectorColumns.comment, comment)
-                item_to_modify.setText(FileSelectorColumns.labels,
-                                       " ".join(labels))
+        self.common_settings["existing_labels"] = new_labels
         self.filter_input.update_labels()
 
         # Set column sizes
         self.file_selector.resizeColumnToContents(FileSelectorColumns.filename)
-        return modif_file_list
 
     def filter_file_list_selector(self):
         file_filter = self.filter_input.file_filter
@@ -565,7 +515,7 @@ class SnapshotRestoreFileSelector(QWidget):
                     file_data = self.file_list.get(self.selected_files[0])
                     self.snapshot.replace_metadata(file_data['file_path'],
                                                    file_data['meta_data'])
-                    self.parent.clear_update_files()
+                    self.parent.rebuild_file_list()
             else:
                 QMessageBox.information(self, "Information", "Please select one file only",
                                               QMessageBox.Ok,
