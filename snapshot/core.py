@@ -70,8 +70,9 @@ class _BackgroundWorkers:
             self._workers.append(worker)
 
     def unregister(self, worker):
-        idx = self._workers.index(worker)
-        del self._workers[idx]
+        if worker in self._workers:
+            idx = self._workers.index(worker)
+            del self._workers[idx]
 
 
 background_workers = _BackgroundWorkers()
@@ -419,16 +420,17 @@ class PvUpdater:
         self._quit = False
         self._suspend = False
         self._thread = Thread(target=self._run)
-        background_workers.register(self)
 
     def __del__(self):
-        background_workers.unregister(self)
-        self.stop()
+        if self._thread.is_alive():
+            self.stop()
 
     def start(self):
+        background_workers.register(self)
         self._thread.start()
 
     def stop(self):
+        background_workers.unregister(self)
         self._quit = True
         if self._thread.is_alive():
             self._thread.join()
