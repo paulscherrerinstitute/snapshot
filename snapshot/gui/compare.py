@@ -213,10 +213,11 @@ class SnapshotCompareWidget(QWidget):
     def _predefined_filter_selected(self, idx):
         txt = self.pv_filter_inp.text()
         if idx == 0:
-            # First empty option
-            pass
+            # First empty option; the menu is always reset to this.
+            return
         if not self.pv_filter_sel.itemIcon(idx).isNull():
-            # Set back to first index, to get rid of the icon. Set to regex and pass text of filter to the input
+            # Set back to first index, to get rid of the icon. Set to regex and
+            # pass text of filter to the input
             self.pv_filter_sel.setCurrentIndex(0)
             self.regex.setChecked(True)
             self.pv_filter_inp.setText(txt)
@@ -225,7 +226,7 @@ class SnapshotCompareWidget(QWidget):
             self.pv_filter_sel.setCurrentIndex(0)
             self.regex.setChecked(False)
             self.pv_filter_inp.setText(txt)
-            
+
     def filter_update(self):
         self._proxy.apply_filter()
 
