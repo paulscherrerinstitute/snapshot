@@ -354,8 +354,13 @@ def parse_from_save_file(save_file_path, metadata_only=False):
     saved_pvs = dict()
     meta_data = dict()  # If macros were used they will be saved in meta_data
     err = list()
-    saved_file = open(save_file_path)
     meta_loaded = False
+
+    try:
+        saved_file = open(save_file_path)
+    except OSError:
+        err.append("File cannot be opened for reading.")
+        return saved_pvs, meta_data, err
 
     for line in saved_file:
         # first line with # is metadata (as json dump of dict)
