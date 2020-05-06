@@ -251,13 +251,17 @@ class SnapshotPvTableView(QTableView):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        # -------- Visualization ----------
+
+        # Apply fixed default sizes to columns. Autoresizing should not be used
+        # for performance reasons. It is done once when the model is reset, and
+        # once per snapshot column when it is added.
         self.setSortingEnabled(True)
         self.sortByColumn(PvTableColumns.name, Qt.AscendingOrder)  # default sorting
         self.verticalHeader().setVisible(False)
-        self.horizontalHeader().setDefaultAlignment(QtCore.Qt.AlignLeft)
         self.verticalHeader().setDefaultSectionSize(20)
+        self.horizontalHeader().setDefaultAlignment(QtCore.Qt.AlignLeft)
         self.horizontalHeader().setDefaultSectionSize(200)
+        self.horizontalHeader().setStretchLastSection(True)
 
         # Comparison doesn't make sense if columns are moved.
         self.horizontalHeader().setSectionsMovable(False)
@@ -278,11 +282,12 @@ class SnapshotPvTableView(QTableView):
         :return:
         """
         super().setModel(model)
-        self.model().sourceModel().columnsInserted.connect(self.set_snap_visualization)
-        self.model().sourceModel().columnsRemoved.connect(self.set_snap_visualization)
-        self.model().sourceModel().modelReset.connect(self.set_default_visualization)
-        self.set_default_visualization()
+        source = self.model().sourceModel()
+        source.columnsInserted.connect(self._set_single_column_width)
+        source.columnsRemoved.connect(self._apply_selection_to_full_row)
+        source.modelReset.connect(self._set_columns_width)
         self.sortByColumn(PvTableColumns.name, Qt.AscendingOrder)  # default sorting
+
 
     def dataChanged(self, mode_idx, mode_idx1, roles):
         """
@@ -299,7 +304,7 @@ class SnapshotPvTableView(QTableView):
 
     def reset(self):
         super().reset()
-        self.set_snap_visualization()
+        self._apply_selection_to_full_row()
 
     def _apply_selection_to_full_row(self):
         rows = list()
@@ -312,30 +317,13 @@ class SnapshotPvTableView(QTableView):
         self.selectionModel().select(selection,
                                      QItemSelectionModel.Rows | QItemSelectionModel.ClearAndSelect)
 
-    def set_default_visualization(self):
-        setResizeMode = self.horizontalHeader().setSectionResizeMode
-        setResizeMode(PvTableColumns.name, QHeaderView.ResizeToContents)
-        setResizeMode(PvTableColumns.unit, QHeaderView.ResizeToContents)
-        setResizeMode(PvTableColumns.value, QHeaderView.Interactive)
-        self.setColumnWidth(PvTableColumns.value, 200)
-
+    def _set_columns_width(self):
+        self.resizeColumnsToContents()
         self._apply_selection_to_full_row()
 
-    def set_snap_visualization(self):
-        """
-        Whenever the view is updated with new columns with snap values to 200,
-        and extend last one
-        :return:
-        """
-        n_columns = self.model().columnCount()
-        if n_columns > PvTableColumns.snapshots:
-            last_col = n_columns - 1
-            header = self.horizontalHeader()
-            for i in range(PvTableColumns.snapshots, last_col):
-                self.setColumnWidth(i, 200)
-                header.setSectionResizeMode(i, QHeaderView.Interactive)
-            header.setSectionResizeMode(last_col, QHeaderView.Stretch)
-
+    def _set_single_column_width(self, _, first_column, last_column):
+        for col in range(first_column, last_column + 1):
+            self.resizeColumnToContents(col)
         self._apply_selection_to_full_row()
 
     def _open_menu(self, point):
@@ -573,8 +561,11 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
                               self.createIndex(row, last_column))
 
     def headerData(self, section, orientation, role):
-        if role == QtCore.Qt.DisplayRole:
+        if role == QtCore.Qt.DisplayRole \
+           and orientation == QtCore.Qt.Horizontal:
             return self._headers[section]
+
+        return super().headerData(section, orientation, role)
 
     def change_tolerance(self, tol_f):
         self._tolerance_f = tol_f
