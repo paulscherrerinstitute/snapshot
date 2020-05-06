@@ -111,7 +111,7 @@ class SnapshotRestoreWidget(QWidget):
     part of the structure "common_settings".
     """
     files_selected = QtCore.pyqtSignal(dict)
-    files_updated = QtCore.pyqtSignal(dict)
+    files_updated = QtCore.pyqtSignal()
     restored_callback = QtCore.pyqtSignal(dict, bool)
 
     def __init__(self, snapshot, common_settings, parent=None, **kw):

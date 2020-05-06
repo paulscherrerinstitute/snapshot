@@ -197,9 +197,8 @@ class SnapshotCompareWidget(QWidget):
         self.model.add_snap_files(selected_files)
         self._proxy.apply_filter()
 
-    def update_shown_files(self, updated_files):
-        self.model.update_snap_files(updated_files)
-        self._proxy.apply_filter()
+    def clear_snap_files(self):
+        self.model.clear_snap_files()
 
     def handle_new_snapshot_instance(self, snapshot):
         self.snapshot = snapshot
@@ -492,25 +491,6 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
 
         self._headers = self._headers[0:PvTableColumns.snapshots]
         self.endRemoveColumns()
-
-    def update_snap_files(self, updated_files):
-        # Check if one of updated files is currently selected, and update
-        # the values if it is.
-        errors = []
-        for file_name in self._headers[PvTableColumns.snapshots:]:
-            file_data = updated_files.get(file_name, None)
-            if file_data is not None:
-                saved_pvs, err = self._replace_macros_on_file_data(file_data)
-                if err:
-                    errors.append((file_data['file_name'], err))
-                idx = self._headers.index(file_name)
-                for pv_line in self._data:
-                    pvname = pv_line.pvname
-                    pv_data = saved_pvs.get(pvname, {"value": None})
-                    pv_line.change_snap_value(idx, pv_data.get("value", None))
-
-        if errors:
-            self.file_parse_errors.emit(errors)
 
     def _replace_macros_on_file_data(self, file_data):
         if self.snapshot.macros:

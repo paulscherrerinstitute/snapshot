@@ -263,11 +263,9 @@ class SnapshotGui(QMainWindow):
             if configure_dialog.exec_() == QDialog.Rejected:
                 self.close()
 
-    def handle_files_updated(self, updated_files):
-        # When new save file is added, or old one has changed, this method
-        # should handle things like updating label widgets and compare widget.
+    def handle_files_updated(self):
         self.save_widget.update_labels()
-        self.compare_widget.update_shown_files(updated_files)
+        self.compare_widget.clear_snap_files()
 
     def handle_selected_files(self, selected_files):
         # selected_files is a dict() with file names as keywords and
