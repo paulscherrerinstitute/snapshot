@@ -17,8 +17,9 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QHBoxLayout, QMes
     QMenu, QLineEdit, QLabel
 
 from ..ca_core import PvStatus, ActionStatus, SnapshotPv
-from ..core import background_workers
-from ..parser import get_save_files, parse_from_save_file, save_file_suffix
+from ..core import background_workers, BackgroundThread, since_start
+from ..parser import get_save_files, list_save_files, parse_from_save_file, \
+    save_file_suffix
 from .utils import SnapshotKeywordSelectorWidget, SnapshotEditMetadataDialog, \
     DetailedMsgBox, show_snapshot_parse_errors
 
@@ -28,6 +29,73 @@ class FileSelectorColumns(enum.IntEnum):
     filename = 0
     comment = enum.auto()
     labels = enum.auto()
+
+
+class FileListScanner(QtCore.QObject, BackgroundThread):
+    """Periodically scans the snapshot files to see if any were modified. Emits
+    a signal if so."""
+
+    files_changed = QtCore.pyqtSignal()
+    _internal_sig = QtCore.pyqtSignal()
+
+    update_rate = 5.  # seconds
+
+    def __init__(self, parent=None):
+        super().__init__(parent=parent)
+
+        self._save_dir = None
+        self._req_file_name = None
+        self._existing_files = None
+        self._only_paths = None
+
+        self._internal_sig.connect(self.files_changed,
+                                   QtCore.Qt.QueuedConnection)
+
+    def change_paths(self, save_dir, req_file_path):
+        with self._lock:
+            self._save_dir = save_dir
+            self._req_file_name = os.path.basename(req_file_path)
+
+    def change_file_list(self, files):
+        # The restore widget stores files as a dict {name: metadata}.
+        # We just need full path and modification time.
+        with self._lock:
+            self._existing_files = {f['file_path']: f['modif_time']
+                                    for f in files.values()}
+            self._only_paths = set(self._existing_files.keys())
+
+    def _run(self):
+        self._periodic_loop(self.update_rate, self._task)
+
+    def _task(self):
+        if not all((self._save_dir, self._req_file_name,
+                    self._existing_files, self._only_paths)):
+            return
+
+        since_start("Started looking for changes in snapshot files")
+
+        file_paths, modif_times = list_save_files(self._save_dir,
+                                                  self._req_file_name)
+        change_detected = False
+
+        try:
+            for path, mtime in zip(file_paths, modif_times):
+                if path not in self._existing_files:
+                    change_detected = True
+                    return
+                if mtime != self._existing_files[path]:
+                    change_detected = True
+                    return
+
+            if any(self._only_paths - set(file_paths)):
+                change_detected = True
+                return
+        finally:
+            since_start("Finished looking for changes in snapshot files")
+            if change_detected:
+                # This is emitted with lock held, do not use a blocking
+                # connection or it will deadlock.
+                self._internal_sig.emit()
 
 
 class SnapshotRestoreWidget(QWidget):
@@ -98,12 +166,30 @@ class SnapshotRestoreWidget(QWidget):
 
         self.restored_callback.connect(self.restore_done)
 
+        self.scanner = FileListScanner(parent=self)
+        self.scanner.files_changed.connect(self.indicate_refresh_needed)
+
+        self.file_selector.files_updated.connect(self.scanner.change_file_list)
+        self.file_selector.files_updated.connect(self.files_updated)
+
+        # Tie starting and stopping the worker thread to starting and
+        # stopping of the application.
+        app = QtCore.QCoreApplication.instance()
+        app.aboutToQuit.connect(self.scanner.stop)
+        QtCore.QTimer.singleShot(0, self.scanner.start)
+
     def handle_new_snapshot_instance(self, snapshot, already_parsed_files):
         self.file_selector.handle_new_snapshot_instance(snapshot)
         self.snapshot = snapshot
+        self.scanner.change_paths(self.common_settings["save_dir"],
+                                  self.common_settings["req_file_path"])
         self.rebuild_file_list(already_parsed_files)
 
+    def indicate_refresh_needed(self):
+        self.refresh_button.setStyleSheet('background-color: red;')
+
     def start_refresh(self):
+        self.refresh_button.setStyleSheet('')
         self.rebuild_file_list()
 
     def start_restore_all(self):
@@ -276,9 +362,7 @@ class SnapshotRestoreWidget(QWidget):
         self.files_selected.emit(selected_data)
 
     def rebuild_file_list(self, already_parsed_files=None):
-        self.files_updated.emit(
-            self.file_selector.rebuild_file_list(
-                already_parsed_files))
+        self.file_selector.rebuild_file_list(already_parsed_files)
 
 
 class SnapshotRestoreFileSelector(QWidget):
@@ -288,11 +372,10 @@ class SnapshotRestoreFileSelector(QWidget):
     """
 
     files_selected = QtCore.pyqtSignal(list)
+    files_updated = QtCore.pyqtSignal(dict)
 
     def __init__(self, snapshot, common_settings, parent=None, **kw):
         QWidget.__init__(self, parent, **kw)
-
-        self.parent = parent
 
         self.snapshot = snapshot
         self.selected_files = list()
@@ -354,18 +437,15 @@ class SnapshotRestoreFileSelector(QWidget):
         self.snapshot = snapshot
 
     def rebuild_file_list(self, already_parsed_files=None):
+        background_workers.suspend()
         self.clear_file_selector()
         self.file_selector.setSortingEnabled(False)
         if already_parsed_files:
             save_files, err_to_report = already_parsed_files
         else:
-            # Rescans directory and adds new/modified files and removes
-            # non-existing ones from the list.
-            background_workers.suspend()
             save_dir = self.common_settings["save_dir"]
             req_file_path = self.common_settings["req_file_path"]
             save_files, err_to_report = get_save_files(save_dir, req_file_path)
-            background_workers.resume()
 
         self._update_file_list_selector(save_files)
         self.filter_file_list_selector()
@@ -375,7 +455,8 @@ class SnapshotRestoreFileSelector(QWidget):
             show_snapshot_parse_errors(self, err_to_report)
 
         self.file_selector.setSortingEnabled(True)
-        return save_files
+        self.files_updated.emit(save_files)
+        background_workers.resume()
 
     def _update_file_list_selector(self, file_list):
         new_labels = set()
@@ -470,6 +551,7 @@ class SnapshotRestoreFileSelector(QWidget):
             msg = "Do you want to delete selected files?"
             reply = QMessageBox.question(self, 'Message', msg, QMessageBox.Yes, QMessageBox.No)
             if reply == QMessageBox.Yes:
+                background_workers.suspend()
                 symlink_file = self.common_settings["save_file_prefix"] \
                     + 'latest' + save_file_suffix
                 symlink_path = os.path.join(self.common_settings["save_dir"],
@@ -502,6 +584,8 @@ class SnapshotRestoreFileSelector(QWidget):
                         QMessageBox.warning(self, "Warning", warn,
                                                   QMessageBox.Ok,
                                                   QMessageBox.NoButton)
+                self.files_updated.emit(self.file_list)
+                background_workers.resume()
 
     def update_file_metadata(self):
         if self.selected_files:
@@ -512,10 +596,12 @@ class SnapshotRestoreFileSelector(QWidget):
                 settings_window.resize(800, 200)
                 # if OK was pressed, update actual file and reflect changes in the list
                 if settings_window.exec_():
+                    background_workers.suspend()
                     file_data = self.file_list.get(self.selected_files[0])
                     self.snapshot.replace_metadata(file_data['file_path'],
                                                    file_data['meta_data'])
-                    self.parent.rebuild_file_list()
+                    self.rebuild_file_list()
+                    background_workers.resume()
             else:
                 QMessageBox.information(self, "Information", "Please select one file only",
                                               QMessageBox.Ok,

@@ -116,13 +116,14 @@ class SnapshotGui(QMainWindow):
 
         self.save_widget = SnapshotSaveWidget(self.snapshot,
                                               self.common_settings, self)
-        self.save_widget.saved.connect(self.handle_saved)
 
         self.restore_widget = SnapshotRestoreWidget(self.snapshot,
                                                     self.common_settings, self)
         self.restore_widget.files_updated.connect(self.handle_files_updated)
 
         self.restore_widget.files_selected.connect(self.handle_selected_files)
+
+        self.save_widget.saved.connect(self.restore_widget.rebuild_file_list)
 
         sr_splitter = QSplitter(self)
         sr_splitter.addWidget(self.save_widget)
@@ -200,11 +201,6 @@ class SnapshotGui(QMainWindow):
         self.status_bar.set_status("New request file loaded.", 3000, "#64C864")
         background_workers.resume()
         since_start("GUI processing finished")
-
-    def handle_saved(self):
-        # When save is done, save widget is updated by itself
-        # Update restore widget (new file in directory)
-        self.restore_widget.rebuild_file_list()
 
     def set_request_file(self, path: str, macros: dict):
         self.common_settings["req_file_path"] = path
