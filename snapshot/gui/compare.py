@@ -21,7 +21,7 @@ from PyQt5.QtWidgets import QApplication, QHeaderView, QAbstractItemView, \
 from ..ca_core import Snapshot
 from ..core import SnapshotPv, PvUpdater, process_record
 from ..parser import parse_from_save_file
-from .utils import show_snapshot_parse_errors
+from .utils import show_snapshot_parse_errors, make_separator
 
 import time
 
@@ -137,20 +137,15 @@ class SnapshotCompareWidget(QWidget):
         self.model.change_tolerance(tol.value())
 
         # ### Put all tolerance and filter selectors in one layout
-        def make_separator():
-            sep = QFrame(self)
-            sep.setFrameShape(QFrame.VLine)
-            return sep
-
         filter_layout = QHBoxLayout()
         filter_layout.addWidget(tol_label)
         filter_layout.addWidget(tol)
-        filter_layout.addWidget(make_separator())
+        filter_layout.addWidget(make_separator(self, 'vertical'))
 
         filter_layout.addLayout(pv_filter_layout)
         filter_layout.addWidget(self.regex)
 
-        filter_layout.addWidget(make_separator())
+        filter_layout.addWidget(make_separator(self, 'vertical'))
 
         filter_layout.addWidget(self.compare_filter_inp)
 

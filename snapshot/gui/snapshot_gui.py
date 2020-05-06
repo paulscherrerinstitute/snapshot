@@ -13,7 +13,7 @@ from PyQt5 import QtCore
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QStatusBar, QLabel, QVBoxLayout, \
     QPlainTextEdit, QWidget, QMessageBox, QDialog, QSplitter, QCheckBox, \
-    QAction, QMenu, QMainWindow
+    QAction, QMenu, QMainWindow, QFormLayout
 
 from snapshot.ca_core import Snapshot
 from snapshot.core import SnapshotError, background_workers, global_thread_pool
@@ -21,7 +21,7 @@ from snapshot.parser import ReqParseError, initialize_config, get_save_files
 from .compare import SnapshotCompareWidget
 from .restore import SnapshotRestoreWidget
 from .save import SnapshotSaveWidget
-from .utils import SnapshotConfigureDialog, DetailedMsgBox
+from .utils import SnapshotConfigureDialog, DetailedMsgBox, make_separator
 
 from snapshot.core import since_start, enable_tracing
 
@@ -75,6 +75,8 @@ class SnapshotGui(QMainWindow):
         #         menu bar
         #        ______________________________
         #       | save_widget | restore_widget |
+        #       |             |                |
+        #       | autorefresh |                |
         #       --------------------------------
         #       |        compare_widget        |
         #       --------------------------------
@@ -131,8 +133,20 @@ class SnapshotGui(QMainWindow):
 
         self.save_widget.saved.connect(self.restore_widget.rebuild_file_list)
 
+        self.autorefresh = QCheckBox("Automatic refresh")
+        self.autorefresh.setChecked(True)
+        self.autorefresh.toggled.connect(self.toggle_autorefresh)
+
+        left_layout = QVBoxLayout()
+        left_layout.addWidget(self.save_widget)
+        left_layout.addStretch()
+        left_layout.addWidget(make_separator(self, 'horizontal'))
+        left_layout.addWidget(self.autorefresh)
+        left_widget = QWidget()
+        left_widget.setLayout(left_layout)
+
         sr_splitter = QSplitter(self)
-        sr_splitter.addWidget(self.save_widget)
+        sr_splitter.addWidget(left_widget)
         sr_splitter.addWidget(self.restore_widget)
         sr_splitter.setStretchFactor(0, 1)
         sr_splitter.setStretchFactor(1, 2)
@@ -165,6 +179,12 @@ class SnapshotGui(QMainWindow):
             lambda: self.change_req_file(
                 self.common_settings['req_file_path'],
                 self.common_settings['req_file_macros'],))
+
+    def toggle_autorefresh(self, checked):
+        if checked:
+            background_workers.resume()
+        else:
+            background_workers.suspend()
 
     def open_new_req_file(self):
         configure_dialog = SnapshotConfigureDialog(self, init_path=self.common_settings['req_file_path'],

@@ -487,3 +487,11 @@ def show_snapshot_parse_errors(parent, file_and_error_list):
             "(see details)."
         msg_window = DetailedMsgBox(msg, err_details, 'Warning', parent, QMessageBox.Ok)
         msg_window.exec_()
+
+
+def make_separator(parent, direction='vertical'):
+    "Makes a separator line"
+    sep = QFrame(parent)
+    sep.setFrameShape(QFrame.VLine if direction == 'vertical'
+                      else QFrame.HLine)
+    return sep
