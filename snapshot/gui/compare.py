@@ -78,11 +78,12 @@ class SnapshotCompareWidget(QWidget):
             self.pv_filter_sel = QComboBox(self)
             self.pv_filter_sel.setEditable(True)
             self.pv_filter_sel.setIconSize(QtCore.QSize(35, 15))
-            sel_layout = QHBoxLayout()
-            sel_layout.addStretch()
-            self.pv_filter_sel.setLayout(sel_layout)
             self.pv_filter_inp = self.pv_filter_sel.lineEdit()
             self.pv_filter_inp.setPlaceholderText("Filter by PV name")
+
+            policy = self.pv_filter_sel.sizePolicy()
+            policy.setHorizontalPolicy(policy.Expanding)
+            self.pv_filter_sel.setSizePolicy(policy)
 
             # Add filters
             self.pv_filter_sel.addItem(None)
