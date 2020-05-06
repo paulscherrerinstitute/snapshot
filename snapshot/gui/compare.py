@@ -20,7 +20,7 @@ from PyQt5.QtWidgets import QApplication, QHeaderView, QAbstractItemView, \
 
 from ..ca_core import Snapshot
 from ..core import SnapshotPv, PvUpdater, process_record
-from ..parser import parse_from_save_file
+from ..parser import parse_from_save_file, save_file_suffix
 from .utils import show_snapshot_parse_errors, make_separator
 
 import time
@@ -472,7 +472,9 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             # Otherwise values of PVs listed in request but not in the saved
             # file are not cleared (value from previous file is seen on the
             # screen)
-            self._headers.append(file_name)
+            prefix = self.parent().common_settings['save_file_prefix']
+            short_name = file_name.lstrip(prefix).rstrip(save_file_suffix)
+            self._headers.append(short_name)
             for pv_line in self._data:
                 pvname = pv_line.pvname
                 pv_data = pvs_list_full_names.get(pvname, {"value": None})
