@@ -91,6 +91,12 @@ class SnapshotGui(QMainWindow):
         open_new_req_file_action.setMenuRole(QAction.NoRole)
         open_new_req_file_action.triggered.connect(self.open_new_req_file)
         file_menu.addAction(open_new_req_file_action)
+
+        quit_action = QAction("Quit", file_menu)
+        quit_action.setMenuRole(QAction.NoRole)
+        quit_action.triggered.connect(self.close)
+        file_menu.addAction(quit_action)
+
         menu_bar.addMenu(file_menu)
 
         # Status components are needed by other GUI elements
