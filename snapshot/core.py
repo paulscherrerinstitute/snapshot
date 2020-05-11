@@ -474,7 +474,8 @@ class PvUpdater(BackgroundThread):
     A normal python thread is used instead of a CAThread because a fresh CA
     context is needed.
     """
-    updateRate = 1.  # seconds
+    update_rate = 1.0  # seconds
+    timeout = 1.0
 
     def __init__(self, callback=lambda: None, **kwargs):
         super().__init__(**kwargs)
@@ -499,8 +500,8 @@ class PvUpdater(BackgroundThread):
     @staticmethod
     def _get_complete(pv, wait=False):
         try:
-            if pv.connected:
-                timeout = PvUpdater.updateRate if wait is False else None
+            if pv.connected and pv._pvget_completer:
+                timeout = PvUpdater.timeout if wait is False else None
                 md = ca.get_complete_with_metadata(pv.chid, as_numpy=True,
                                                    timeout=timeout)
                 if md is None:
@@ -510,12 +511,18 @@ class PvUpdater(BackgroundThread):
                 return md['value']
             else:
                 return None
-        except ca.ChannelAccessException:
+        except (ca.ChannelAccessException, ca.ChannelAccessGetFailure):
+            # The GetFailure exception happens on pyepics 3.4 if PVs reconnect
+            # between _get_start() and _get_complete(). Which is good: older
+            # versions just kept silently returning None and wouldn't reconnect
+            # properly.
+            pv._pvget_completer = None
+            pv._last_value = None
             return None
 
     def _run(self):
         ca.use_initial_context()
-        self._periodic_loop(self.updateRate, self._task)
+        self._periodic_loop(self.update_rate, self._task)
 
     def _task(self):
         since_start("Started getting PV values")
