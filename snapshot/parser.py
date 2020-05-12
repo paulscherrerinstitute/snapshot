@@ -1,4 +1,5 @@
-from snapshot.core import SnapshotError, SnapshotPv, global_thread_pool
+from snapshot.core import SnapshotError, SnapshotPv, global_thread_pool, \
+    since_start
 import os
 import re
 import json
@@ -353,8 +354,13 @@ def parse_from_save_file(save_file_path, metadata_only=False):
     saved_pvs = dict()
     meta_data = dict()  # If macros were used they will be saved in meta_data
     err = list()
-    saved_file = open(save_file_path)
     meta_loaded = False
+
+    try:
+        saved_file = open(save_file_path)
+    except OSError:
+        err.append("File cannot be opened for reading.")
+        return saved_pvs, meta_data, err
 
     for line in saved_file:
         # first line with # is metadata (as json dump of dict)
@@ -465,52 +471,58 @@ def parse_to_save_file(pvs, save_file_path, macros=None,
             counter -= 1
 
 
-def get_save_files(save_dir, req_file_path, current_files):
+def list_save_files(save_dir, req_file_path):
+    "Returns a list of save files and a list of their modification times."
+
+    req_file_name = os.path.basename(req_file_path)
+    file_dir = os.path.join(save_dir, os.path.splitext(req_file_name)[0])
+    file_paths = [path for path in glob.glob(file_dir + '*' + save_file_suffix)
+                  if os.path.isfile(path)]
+    modif_times = [os.path.getmtime(path) for path in file_paths]
+    return file_paths, modif_times
+
+
+def get_save_files(save_dir, req_file_path):
     """
     Parses all new or modified files. Parsed files are returned as a
     dictionary.
     """
-    req_file_name = os.path.basename(req_file_path)
-    # Check if any file added or modified (time of modification)
-    file_dir = os.path.join(save_dir, os.path.splitext(req_file_name)[0])
-    file_list = glob.glob(file_dir + '*' + save_file_suffix)
 
-    def process_file(file_path):
+    since_start("Started parsing snaps")
+    file_paths, modif_times = list_save_files(save_dir, req_file_path)
+    req_file_name = os.path.basename(req_file_path)
+
+    def process_file(file_path, modif_time):
         file_name = os.path.basename(file_path)
         if os.path.isfile(file_path):
-            already_known = file_name in current_files
-            modif_time = os.path.getmtime(file_path)
-            if already_known:
-                modified = modif_time != current_files[file_name]["modif_time"]
-            if not already_known or modified:
-                _, meta_data, err = parse_from_save_file(file_path,
-                                                         metadata_only=True)
+            _, meta_data, err = parse_from_save_file(file_path,
+                                                     metadata_only=True)
 
-                # Check if we have req_file metadata. This is used to determine
-                # which request file the save file belongs to. If there is no
-                # metadata (or no req_file specified in the metadata) we search
-                # using a prefix of the request file. The latter is less
-                # robust, but is backwards compatible.
-                have_metadata = "req_file_name" in meta_data \
-                    and meta_data["req_file_name"] == req_file_name
-                prefix_matches = \
-                    file_name.startswith(req_file_name.split(".")[0] + "_")
-                if have_metadata or prefix_matches:
-                    # we really should have basic meta data
-                    # (or filters and some other stuff will silently fail)
-                    if "comment" not in meta_data:
-                        meta_data["comment"] = ""
-                    if "labels" not in meta_data:
-                        meta_data["labels"] = []
+            # Check if we have req_file metadata. This is used to determine
+            # which request file the save file belongs to. If there is no
+            # metadata (or no req_file specified in the metadata) we search
+            # using a prefix of the request file. The latter is less
+            # robust, but is backwards compatible.
+            have_metadata = "req_file_name" in meta_data \
+                and meta_data["req_file_name"] == req_file_name
+            prefix_matches = \
+                file_name.startswith(req_file_name.split(".")[0] + "_")
+            if have_metadata or prefix_matches:
+                # we really should have basic meta data
+                # (or filters and some other stuff will silently fail)
+                if "comment" not in meta_data:
+                    meta_data["comment"] = ""
+                if "labels" not in meta_data:
+                    meta_data["labels"] = []
 
-                    return (file_name,
-                            {'file_name': file_name,
-                             'file_path': file_path,
-                             'meta_data': meta_data,
-                             'modif_time': modif_time},
-                            err)
+                return (file_name,
+                        {'file_name': file_name,
+                            'file_path': file_path,
+                            'meta_data': meta_data,
+                            'modif_time': modif_time},
+                        err)
 
-    results = global_thread_pool.map(process_file, file_list)
+    results = global_thread_pool.map(process_file, file_paths, modif_times)
     err_to_report = list()
     parsed_save_files = dict()
     for r in results:
@@ -520,4 +532,5 @@ def get_save_files(save_dir, req_file_path, current_files):
             if err:
                 err_to_report.append((file_name, err))
 
+    since_start("Finished parsing snaps")
     return parsed_save_files, err_to_report

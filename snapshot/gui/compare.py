@@ -20,8 +20,8 @@ from PyQt5.QtWidgets import QApplication, QHeaderView, QAbstractItemView, \
 
 from ..ca_core import Snapshot
 from ..core import SnapshotPv, PvUpdater, process_record
-from ..parser import parse_from_save_file
-from .utils import show_snapshot_parse_errors
+from ..parser import parse_from_save_file, save_file_suffix
+from .utils import show_snapshot_parse_errors, make_separator
 
 import time
 
@@ -78,11 +78,12 @@ class SnapshotCompareWidget(QWidget):
             self.pv_filter_sel = QComboBox(self)
             self.pv_filter_sel.setEditable(True)
             self.pv_filter_sel.setIconSize(QtCore.QSize(35, 15))
-            sel_layout = QHBoxLayout()
-            sel_layout.addStretch()
-            self.pv_filter_sel.setLayout(sel_layout)
             self.pv_filter_inp = self.pv_filter_sel.lineEdit()
             self.pv_filter_inp.setPlaceholderText("Filter by PV name")
+
+            policy = self.pv_filter_sel.sizePolicy()
+            policy.setHorizontalPolicy(policy.Expanding)
+            self.pv_filter_sel.setSizePolicy(policy)
 
             # Add filters
             self.pv_filter_sel.addItem(None)
@@ -137,20 +138,15 @@ class SnapshotCompareWidget(QWidget):
         self.model.change_tolerance(tol.value())
 
         # ### Put all tolerance and filter selectors in one layout
-        def make_separator():
-            sep = QFrame(self)
-            sep.setFrameShape(QFrame.VLine)
-            return sep
-
         filter_layout = QHBoxLayout()
         filter_layout.addWidget(tol_label)
         filter_layout.addWidget(tol)
-        filter_layout.addWidget(make_separator())
+        filter_layout.addWidget(make_separator(self, 'vertical'))
 
         filter_layout.addLayout(pv_filter_layout)
         filter_layout.addWidget(self.regex)
 
-        filter_layout.addWidget(make_separator())
+        filter_layout.addWidget(make_separator(self, 'vertical'))
 
         filter_layout.addWidget(self.compare_filter_inp)
 
@@ -201,9 +197,8 @@ class SnapshotCompareWidget(QWidget):
         self.model.add_snap_files(selected_files)
         self._proxy.apply_filter()
 
-    def update_shown_files(self, updated_files):
-        self.model.update_snap_files(updated_files)
-        self._proxy.apply_filter()
+    def clear_snap_files(self):
+        self.model.clear_snap_files()
 
     def handle_new_snapshot_instance(self, snapshot):
         self.snapshot = snapshot
@@ -217,10 +212,11 @@ class SnapshotCompareWidget(QWidget):
     def _predefined_filter_selected(self, idx):
         txt = self.pv_filter_inp.text()
         if idx == 0:
-            # First empty option
-            pass
+            # First empty option; the menu is always reset to this.
+            return
         if not self.pv_filter_sel.itemIcon(idx).isNull():
-            # Set back to first index, to get rid of the icon. Set to regex and pass text of filter to the input
+            # Set back to first index, to get rid of the icon. Set to regex and
+            # pass text of filter to the input
             self.pv_filter_sel.setCurrentIndex(0)
             self.regex.setChecked(True)
             self.pv_filter_inp.setText(txt)
@@ -229,7 +225,7 @@ class SnapshotCompareWidget(QWidget):
             self.pv_filter_sel.setCurrentIndex(0)
             self.regex.setChecked(False)
             self.pv_filter_inp.setText(txt)
-            
+
     def filter_update(self):
         self._proxy.apply_filter()
 
@@ -254,13 +250,17 @@ class SnapshotPvTableView(QTableView):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        # -------- Visualization ----------
+
+        # Apply fixed default sizes to columns. Autoresizing should not be used
+        # for performance reasons. It is done once when the model is reset, and
+        # once per snapshot column when it is added.
         self.setSortingEnabled(True)
         self.sortByColumn(PvTableColumns.name, Qt.AscendingOrder)  # default sorting
         self.verticalHeader().setVisible(False)
-        self.horizontalHeader().setDefaultAlignment(QtCore.Qt.AlignLeft)
         self.verticalHeader().setDefaultSectionSize(20)
+        self.horizontalHeader().setDefaultAlignment(QtCore.Qt.AlignLeft)
         self.horizontalHeader().setDefaultSectionSize(200)
+        self.horizontalHeader().setStretchLastSection(True)
 
         # Comparison doesn't make sense if columns are moved.
         self.horizontalHeader().setSectionsMovable(False)
@@ -281,11 +281,12 @@ class SnapshotPvTableView(QTableView):
         :return:
         """
         super().setModel(model)
-        self.model().sourceModel().columnsInserted.connect(self.set_snap_visualization)
-        self.model().sourceModel().columnsRemoved.connect(self.set_snap_visualization)
-        self.model().sourceModel().modelReset.connect(self.set_default_visualization)
-        self.set_default_visualization()
+        source = self.model().sourceModel()
+        source.columnsInserted.connect(self._set_single_column_width)
+        source.columnsRemoved.connect(self._apply_selection_to_full_row)
+        source.modelReset.connect(self._set_columns_width)
         self.sortByColumn(PvTableColumns.name, Qt.AscendingOrder)  # default sorting
+
 
     def dataChanged(self, mode_idx, mode_idx1, roles):
         """
@@ -302,7 +303,7 @@ class SnapshotPvTableView(QTableView):
 
     def reset(self):
         super().reset()
-        self.set_snap_visualization()
+        self._apply_selection_to_full_row()
 
     def _apply_selection_to_full_row(self):
         rows = list()
@@ -315,30 +316,13 @@ class SnapshotPvTableView(QTableView):
         self.selectionModel().select(selection,
                                      QItemSelectionModel.Rows | QItemSelectionModel.ClearAndSelect)
 
-    def set_default_visualization(self):
-        setResizeMode = self.horizontalHeader().setSectionResizeMode
-        setResizeMode(PvTableColumns.name, QHeaderView.ResizeToContents)
-        setResizeMode(PvTableColumns.unit, QHeaderView.ResizeToContents)
-        setResizeMode(PvTableColumns.value, QHeaderView.Interactive)
-        self.setColumnWidth(PvTableColumns.value, 200)
-
+    def _set_columns_width(self):
+        self.resizeColumnsToContents()
         self._apply_selection_to_full_row()
 
-    def set_snap_visualization(self):
-        """
-        Whenever the view is updated with new columns with snap values to 200,
-        and extend last one
-        :return:
-        """
-        n_columns = self.model().columnCount()
-        if n_columns > PvTableColumns.snapshots:
-            last_col = n_columns - 1
-            header = self.horizontalHeader()
-            for i in range(PvTableColumns.snapshots, last_col):
-                self.setColumnWidth(i, 200)
-                header.setSectionResizeMode(i, QHeaderView.Interactive)
-            header.setSectionResizeMode(last_col, QHeaderView.Stretch)
-
+    def _set_single_column_width(self, _, first_column, last_column):
+        for col in range(first_column, last_column + 1):
+            self.resizeColumnToContents(col)
         self._apply_selection_to_full_row()
 
     def _open_menu(self, point):
@@ -488,7 +472,9 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             # Otherwise values of PVs listed in request but not in the saved
             # file are not cleared (value from previous file is seen on the
             # screen)
-            self._headers.append(file_name)
+            prefix = self.parent().common_settings['save_file_prefix']
+            short_name = file_name.lstrip(prefix).rstrip(save_file_suffix)
+            self._headers.append(short_name)
             for pv_line in self._data:
                 pvname = pv_line.pvname
                 pv_data = pvs_list_full_names.get(pvname, {"value": None})
@@ -507,25 +493,6 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
 
         self._headers = self._headers[0:PvTableColumns.snapshots]
         self.endRemoveColumns()
-
-    def update_snap_files(self, updated_files):
-        # Check if one of updated files is currently selected, and update
-        # the values if it is.
-        errors = []
-        for file_name in self._headers[PvTableColumns.snapshots:]:
-            file_data = updated_files.get(file_name, None)
-            if file_data is not None:
-                saved_pvs, err = self._replace_macros_on_file_data(file_data)
-                if err:
-                    errors.append((file_data['file_name'], err))
-                idx = self._headers.index(file_name)
-                for pv_line in self._data:
-                    pvname = pv_line.pvname
-                    pv_data = saved_pvs.get(pvname, {"value": None})
-                    pv_line.change_snap_value(idx, pv_data.get("value", None))
-
-        if errors:
-            self.file_parse_errors.emit(errors)
 
     def _replace_macros_on_file_data(self, file_data):
         if self.snapshot.macros:
@@ -576,8 +543,11 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
                               self.createIndex(row, last_column))
 
     def headerData(self, section, orientation, role):
-        if role == QtCore.Qt.DisplayRole:
+        if role == QtCore.Qt.DisplayRole \
+           and orientation == QtCore.Qt.Horizontal:
             return self._headers[section]
+
+        return super().headerData(section, orientation, role)
 
     def change_tolerance(self, tol_f):
         self._tolerance_f = tol_f

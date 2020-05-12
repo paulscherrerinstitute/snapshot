@@ -13,7 +13,7 @@ from PyQt5 import QtCore
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QStatusBar, QLabel, QVBoxLayout, \
     QPlainTextEdit, QWidget, QMessageBox, QDialog, QSplitter, QCheckBox, \
-    QAction, QMenu, QMainWindow
+    QAction, QMenu, QMainWindow, QFormLayout
 
 from snapshot.ca_core import Snapshot
 from snapshot.core import SnapshotError, background_workers, global_thread_pool
@@ -21,7 +21,7 @@ from snapshot.parser import ReqParseError, initialize_config, get_save_files
 from .compare import SnapshotCompareWidget
 from .restore import SnapshotRestoreWidget
 from .save import SnapshotSaveWidget
-from .utils import SnapshotConfigureDialog, DetailedMsgBox
+from .utils import SnapshotConfigureDialog, DetailedMsgBox, make_separator
 
 from snapshot.core import since_start, enable_tracing
 
@@ -75,6 +75,8 @@ class SnapshotGui(QMainWindow):
         #         menu bar
         #        ______________________________
         #       | save_widget | restore_widget |
+        #       |             |                |
+        #       | autorefresh |                |
         #       --------------------------------
         #       |        compare_widget        |
         #       --------------------------------
@@ -91,6 +93,12 @@ class SnapshotGui(QMainWindow):
         open_new_req_file_action.setMenuRole(QAction.NoRole)
         open_new_req_file_action.triggered.connect(self.open_new_req_file)
         file_menu.addAction(open_new_req_file_action)
+
+        quit_action = QAction("Quit", file_menu)
+        quit_action.setMenuRole(QAction.NoRole)
+        quit_action.triggered.connect(self.close)
+        file_menu.addAction(quit_action)
+
         menu_bar.addMenu(file_menu)
 
         # Status components are needed by other GUI elements
@@ -116,7 +124,6 @@ class SnapshotGui(QMainWindow):
 
         self.save_widget = SnapshotSaveWidget(self.snapshot,
                                               self.common_settings, self)
-        self.save_widget.saved.connect(self.handle_saved)
 
         self.restore_widget = SnapshotRestoreWidget(self.snapshot,
                                                     self.common_settings, self)
@@ -124,8 +131,22 @@ class SnapshotGui(QMainWindow):
 
         self.restore_widget.files_selected.connect(self.handle_selected_files)
 
+        self.save_widget.saved.connect(self.restore_widget.rebuild_file_list)
+
+        self.autorefresh = QCheckBox("Automatic refresh")
+        self.autorefresh.setChecked(True)
+        self.autorefresh.toggled.connect(self.toggle_autorefresh)
+
+        left_layout = QVBoxLayout()
+        left_layout.addWidget(self.save_widget)
+        left_layout.addStretch()
+        left_layout.addWidget(make_separator(self, 'horizontal'))
+        left_layout.addWidget(self.autorefresh)
+        left_widget = QWidget()
+        left_widget.setLayout(left_layout)
+
         sr_splitter = QSplitter(self)
-        sr_splitter.addWidget(self.save_widget)
+        sr_splitter.addWidget(left_widget)
         sr_splitter.addWidget(self.restore_widget)
         sr_splitter.setStretchFactor(0, 1)
         sr_splitter.setStretchFactor(1, 2)
@@ -159,6 +180,12 @@ class SnapshotGui(QMainWindow):
                 self.common_settings['req_file_path'],
                 self.common_settings['req_file_macros'],))
 
+    def toggle_autorefresh(self, checked):
+        if checked:
+            background_workers.resume()
+        else:
+            background_workers.suspend()
+
     def open_new_req_file(self):
         configure_dialog = SnapshotConfigureDialog(self, init_path=self.common_settings['req_file_path'],
                                                    init_macros=self.common_settings['req_file_macros'])
@@ -174,11 +201,9 @@ class SnapshotGui(QMainWindow):
 
         # Read snapshots and instantiate PVs in parallel
         def getfiles(*args):
-            since_start("Started parsing snaps")
-            get_save_files(*args)
-            since_start("Finished parsing snaps")
+            return get_save_files(*args)
         future_files = global_thread_pool.submit(getfiles, save_dir,
-                                               req_file_path, {})
+                                                 req_file_path)
         self.init_snapshot(req_file_path, macros)
         if self.common_settings['save_dir'] == save_dir:
             already_parsed_files = future_files.result()
@@ -189,8 +214,7 @@ class SnapshotGui(QMainWindow):
             future_files.cancel()
             already_parsed_files = get_save_files(
                 self.common_settings['save_dir'],
-                self.common_settings['req_file_path'],
-                {})
+                self.common_settings['req_file_path'])
 
         # handle all gui components
         self.restore_widget.handle_new_snapshot_instance(self.snapshot,
@@ -203,11 +227,6 @@ class SnapshotGui(QMainWindow):
         self.status_bar.set_status("New request file loaded.", 3000, "#64C864")
         background_workers.resume()
         since_start("GUI processing finished")
-
-    def handle_saved(self):
-        # When save is done, save widget is updated by itself
-        # Update restore widget (new file in directory)
-        self.restore_widget.update_files()
 
     def set_request_file(self, path: str, macros: dict):
         self.common_settings["req_file_path"] = path
@@ -244,11 +263,9 @@ class SnapshotGui(QMainWindow):
             if configure_dialog.exec_() == QDialog.Rejected:
                 self.close()
 
-    def handle_files_updated(self, updated_files):
-        # When new save file is added, or old one has changed, this method
-        # should handle things like updating label widgets and compare widget.
+    def handle_files_updated(self):
         self.save_widget.update_labels()
-        self.compare_widget.update_shown_files(updated_files)
+        self.compare_widget.clear_snap_files()
 
     def handle_selected_files(self, selected_files):
         # selected_files is a dict() with file names as keywords and
