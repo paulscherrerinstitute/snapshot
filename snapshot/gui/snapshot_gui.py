@@ -242,14 +242,9 @@ class SnapshotGui(QMainWindow):
             self.snapshot = Snapshot(req_file_path, req_macros)
             self.set_request_file(req_file_path, req_macros)
 
-        except IOError:
-            warn = "File {} does not exist!".format(req_file_path)
-            QMessageBox.warning(self, "Warning", warn, QMessageBox.Ok, QMessageBox.NoButton)
-            reopen_config = True
-
-        except (ReqParseError, json.JSONDecodeError) as e:
-            msg = 'Snapshot cannot be loaded due to a syntax error in the ' \
-                'request file. See details.'
+        except (ReqParseError, IOError) as e:
+            msg = 'Request file cannot be loaded. ' \
+                'See details for type of error.'
             msg_window = DetailedMsgBox(msg, str(e), 'Warning', self,
                                         QMessageBox.Ok)
             msg_window.exec_()
