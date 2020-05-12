@@ -15,7 +15,7 @@ _print_trace = False
 def since_start(message=None):
     seconds = '{:.2f}'.format(time() - _start_time)
     if message and _print_trace:
-        print(message, "at", seconds, 's.')
+        print(seconds, message)
     else:
         return seconds
 
@@ -51,14 +51,17 @@ class _BackgroundWorkers:
 
     def suspend(self):
         if self._count == 0:
+            since_start("Pausing background threads")
             for w in self._workers:
                 w.suspend()
+            since_start("Background threads suspended")
         self._count += 1
 
     def resume(self):
         if self._count > 0:
             self._count -= 1
             if self._count == 0:
+                since_start("Resuming background threads")
                 for w in self._workers:
                     w.resume()
 
@@ -67,11 +70,76 @@ class _BackgroundWorkers:
             self._workers.append(worker)
 
     def unregister(self, worker):
-        idx = self._workers.index(worker)
-        del self._workers[idx]
+        if worker in self._workers:
+            idx = self._workers.index(worker)
+            del self._workers[idx]
 
 
 background_workers = _BackgroundWorkers()
+
+
+class BackgroundThread:
+    """
+    A base class for a background thread. Automatically registers with
+    background_workers. Override the _run() method. The new method must check
+    the _lock, _quit and _suspend variables and act appropriately. The
+    _periodic_loop() method does this for you and is handy for writing periodic
+    tasks.
+    """
+
+    __sleep_quantum = 0.1
+
+    def __init__(self, **kwargs):
+        self._lock = Lock()
+        self._quit = False
+        self._suspend = False
+        self._thread = Thread(target=self._run)
+
+    def __del__(self):
+        if self._thread.is_alive():
+            self.stop()
+
+    def start(self):
+        background_workers.register(self)
+        self._thread.start()
+
+    def stop(self):
+        background_workers.unregister(self)
+        self._quit = True
+        if self._thread.is_alive():
+            self._thread.join()
+
+    def suspend(self):
+        with self._lock:
+            self._suspend = True
+
+    def resume(self):
+        with self._lock:
+            self._suspend = False
+
+    def _run(self):
+        raise NotImplementedError(
+            "The BackgroundThread class should not be used directly.")
+
+    def _periodic_loop(self, period, task):
+        """
+        If you wish to implement a simple periodic task, call this function
+        from _run(). It handles quitting and suspending. It will execute task()
+        every period seconds. _lock is held while task() executes; task() may
+        release it, but must take it again before returning.
+        """
+
+        startTime = monotonic()
+        while not self._quit:
+            while monotonic() < startTime + period:
+                sleep(self.__sleep_quantum)
+                if self._quit:
+                    return
+
+            startTime = monotonic()
+            with self._lock:
+                if not self._suspend:  # this check needs the lock
+                    task()
 
 
 # Exceptions
@@ -263,20 +331,17 @@ class SnapshotPv(PV):
         else:
             fmt = '{}'
 
-        if is_array:
-            if numpy.size(value) == 0:
-                # Empty array is equal to "None" scalar value
-                return None
-            elif value.shape == tuple():
-                # make scalars as arrays
-                return f'[{fmt}]'.format(value)
-            elif numpy.size(value) > 3:
-                # abbreviate long arrays
-                return f'[{fmt} ... {fmt}]'.format(value[0], value[-1])
-            else:
-                return '[' + ' '.join([fmt.format(x) for x in value]) + ']'
+        if numpy.size(value) == 0:
+            # Empty array is equal to "None" scalar value
+            return None
+        elif value.shape == tuple():
+            # make scalars as arrays
+            return f'[{fmt}]'.format(value)
+        elif numpy.size(value) > 3:
+            # abbreviate long arrays
+            return f'[{fmt} ... {fmt}]'.format(value[0], value[-1])
         else:
-            return fmt.format(value)
+            return '[' + ' '.join([fmt.format(x) for x in value]) + ']'
 
     def compare_to_curr(self, value):
         """
@@ -320,11 +385,16 @@ class SnapshotPv(PV):
         if value1 is None or value2 is None:
             return value1 is value2
 
-        try:
-            return numpy.allclose(value1, value2, atol=tolerance, rtol=0)
-        except TypeError:
-            # Non-numeric array (i.e. strings)
-            return numpy.array_equal(value1, value2)
+        if is_array:
+            try:
+                return numpy.allclose(value1, value2, atol=tolerance, rtol=0)
+            except TypeError:
+                # Non-numeric array (i.e. strings)
+                return numpy.array_equal(value1, value2)
+        elif isinstance(value1, float) and isinstance(value2, float):
+            return abs(value1 - value2) <= tolerance
+        else:
+            return value1 == value2
 
     def add_conn_callback(self, callback):
         """
@@ -397,44 +467,20 @@ class SnapshotPv(PV):
         return txt
 
 
-class PvUpdater:
+class PvUpdater(BackgroundThread):
     """
     Manages a thread that periodically updated PV values. The values are both
     cached in the PV objects (see SnapshotPv.value()) and passed to a callback.
     A normal python thread is used instead of a CAThread because a fresh CA
     context is needed.
     """
-    updateRate = 1.  # seconds
-    _sleep_quantum = 0.1
+    update_rate = 1.0  # seconds
+    timeout = 1.0
 
     def __init__(self, callback=lambda: None, **kwargs):
+        super().__init__(**kwargs)
         self._callback = callback
-        self._lock = Lock()
         self._pvs = []
-        self._quit = False
-        self._suspend = False
-        self._thread = Thread(target=self._run)
-        background_workers.register(self)
-
-    def __del__(self):
-        background_workers.unregister(self)
-        self.stop()
-
-    def start(self):
-        self._thread.start()
-
-    def stop(self):
-        self._quit = True
-        if self._thread.is_alive():
-            self._thread.join()
-
-    def suspend(self):
-        with self._lock:
-            self._suspend = True
-
-    def resume(self):
-        with self._lock:
-            self._suspend = False
 
     def set_pvs(self, pvs):
         with self._lock:
@@ -454,8 +500,8 @@ class PvUpdater:
     @staticmethod
     def _get_complete(pv, wait=False):
         try:
-            if pv.connected:
-                timeout = PvUpdater.updateRate if wait is False else None
+            if pv.connected and pv._pvget_completer:
+                timeout = PvUpdater.timeout if wait is False else None
                 md = ca.get_complete_with_metadata(pv.chid, as_numpy=True,
                                                    timeout=timeout)
                 if md is None:
@@ -465,57 +511,58 @@ class PvUpdater:
                 return md['value']
             else:
                 return None
-        except ca.ChannelAccessException:
+        except (ca.ChannelAccessException, ca.ChannelAccessGetFailure):
+            # The GetFailure exception happens on pyepics 3.4 if PVs reconnect
+            # between _get_start() and _get_complete(). Which is good: older
+            # versions just kept silently returning None and wouldn't reconnect
+            # properly.
+            pv._pvget_completer = None
+            pv._last_value = None
             return None
 
     def _run(self):
         ca.use_initial_context()
-        startTime = monotonic()
-        while not self._quit:
-            while monotonic() < startTime + self.updateRate:
-                sleep(self._sleep_quantum)
-                if self._quit:
-                    return
+        self._periodic_loop(self.update_rate, self._task)
 
-            startTime = monotonic()
-            with self._lock:
-                if self._suspend:  # this check needs the lock
-                    continue
+    def _task(self):
+        since_start("Started getting PV values")
 
-                since_start("Started getting PV values")
+        report_init_timeout = False
+        report = "Some connected PVs are timing out while " \
+            "fetching ctrlvars, causing slowdowns."
+        for pv in self._pvs:
+            pv._pvget_lock.acquire()
+            if not pv._initialized:
+                # Units and precision will be needed in the GUI. Fetch
+                # them now and cache them, so that GUI won't need to.
+                if pv.connected:
+                    ctrl = pv.get_ctrlvars()
+                    # It can timeout, so don't rely on it.
+                    if ctrl:
+                        pv._initialized = True
+                    else:
+                        if not report_init_timeout:
+                            report_init_timeout = True
+                            logging.debug(report)
+            # get_ctrlvars() does not fetch the value, so we still need
+            # to do it. It is safe to do even in the case of timeout
+            # because the ctrl and value requests are orthogonal in
+            # pyepics. There is a very slim chance that pv._last_value
+            # remains none even if it when pv._initialized is True
+            # if the value get times out, but that's no different from
+            # what pyepics itself does. <rant>pyepics is quite bad at
+            # handling timeouts</rant>.
+            self._get_start(pv)
 
-                report_init_timeout = False
-                report = "Some connected PVs are timing out while " \
-                    "fetching ctrlvars, causing slowdowns."
-                for pv in self._pvs:
-                    pv._pvget_lock.acquire()
-                    if not pv._initialized:
-                        # Units and precision will be needed in the GUI. Fetch
-                        # them now and cache them, so that GUI won't need to.
-                        if pv.connected:
-                            ctrl = pv.get_ctrlvars()
-                            # It can timeout, so don't rely on it.
-                            if ctrl:
-                                pv._initialized = True
-                            else:
-                                if not report_init_timeout:
-                                    report_init_timeout = True
-                                    logging.debug(report)
-                    # get_ctrlvars() does not fetch the value, so we still need
-                    # to do it. It is safe to do even in the case of timeout
-                    # because the ctrl and value requests are orthogonal in
-                    # pyepics. There is a very slim chance that pv._last_value
-                    # remains none even if it when pv._initialized is True
-                    # if the value get times out, but that's no different from
-                    # what pyepics itself does. <rant>pyepics is quite bad at
-                    # handling timeouts</rant>.
-                    self._get_start(pv)
+        vals = [self._get_complete(pv) for pv in self._pvs]
 
-                vals = [self._get_complete(pv) for pv in self._pvs]
+        for pv in self._pvs:
+            pv._pvget_lock.release()
 
-                for pv in self._pvs:
-                    pv._pvget_lock.release()
+        since_start("Finished getting PV values")
 
-                since_start("Finished getting PV values")
-
+        self._lock.release()
+        try:
             self._callback(vals)
+        finally:
+            self._lock.acquire()
