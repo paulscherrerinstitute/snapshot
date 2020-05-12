@@ -266,6 +266,11 @@ class SnapshotGui(QMainWindow):
         if req_labels:
             self.common_settings['default_labels'] = req_labels
 
+        filters = self.common_settings['predefined_filters']
+        for fltype in ('filters', 'rgx-filters'):
+            req_filters = self.snapshot.req_file_metadata.get(fltype, [])
+            filters[fltype] = list(set(filters[fltype]) | set(req_filters))
+
     def handle_files_updated(self):
         self.save_widget.update_labels()
         self.compare_widget.clear_snap_files()
