@@ -64,6 +64,7 @@ class Snapshot(object):
         self.pvs = dict()
         self.macros = macros
         self.req_file_path = ''
+        self.req_file_metadata = {}
 
         # Other important states
         self._restore_started = False
@@ -82,9 +83,10 @@ class Snapshot(object):
                 os.path.normpath(os.path.abspath(req_file_path))
             req_f = SnapshotReqFile(self.req_file_path,
                                     changeable_macros=list(macros.keys()))
-            pvs = req_f.read()
+            pvs, metadata = req_f.read()
             since_start("Finished parsing reqfile")
 
+            self.req_file_metadata = metadata
             self.add_pvs(pvs)
 
     def add_pvs(self, pv_list):

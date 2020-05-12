@@ -247,9 +247,11 @@ class SnapshotGui(QMainWindow):
             QMessageBox.warning(self, "Warning", warn, QMessageBox.Ok, QMessageBox.NoButton)
             reopen_config = True
 
-        except ReqParseError as e:
-            msg = 'Snapshot cannot be loaded due to a syntax error in request file. See details.'
-            msg_window = DetailedMsgBox(msg, str(e), 'Warning', self, QMessageBox.Ok)
+        except (ReqParseError, json.JSONDecodeError) as e:
+            msg = 'Snapshot cannot be loaded due to a syntax error in the ' \
+                'request file. See details.'
+            msg_window = DetailedMsgBox(msg, str(e), 'Warning', self,
+                                        QMessageBox.Ok)
             msg_window.exec_()
             reopen_config = True
 
@@ -262,6 +264,12 @@ class SnapshotGui(QMainWindow):
             configure_dialog.accepted.connect(self.init_snapshot)
             if configure_dialog.exec_() == QDialog.Rejected:
                 self.close()
+
+        # Merge request file metadata into common settings, replacing existing
+        # settings.
+        req_labels = self.snapshot.req_file_metadata.get('labels', [])
+        if req_labels:
+            self.common_settings['default_labels'] = req_labels
 
     def handle_files_updated(self):
         self.save_widget.update_labels()

@@ -49,57 +49,93 @@ class SnapshotReqFile(object):
 
     def read(self):
         """
-        Parse request file and return list of pv names where changeable_macros
-        are not replaced. ("raw" pv names).
+        Parse request file and return
+          - a list of pv names where changeable_macros are not replaced. ("raw"
+            pv names).
+          - a dict with metadata from the file.
 
         In case of problems raises exceptions.
+                IOError
                 ReqParseError
                     ReqFileFormatError
                     ReqFileInfLoopError
 
-        :return: List of PV names.
+        :return: (pv_names, metadata).
         """
         result = self._read_only_self()
         if not isinstance(result, tuple):
             raise result
 
-        pvs, includes = result
+        pvs, metadata, includes = result
         while includes:
             results = global_thread_pool.map(lambda f: f._read_only_self(),
-                                           includes)
+                                             includes)
             includes = []
             for r in results:
                 if not isinstance(r, tuple):
                     raise r
                 pvs += r[0]
-                includes += r[1]
+                metadata += r[1]
+                includes += r[2]
 
-        return pvs
+        # Merge metadata into one dict, assuming all values are lists.
+        merged_metadata = {}
+        for m in metadata:
+            for k, v in m.items():
+                if not isinstance(v, list):
+                    msg = f"Metadata '{k}' with value '{v}' is not a list."
+                    raise ReqParseError(msg)
+                if k not in merged_metadata:
+                    merged_metadata[k] = set()
+                merged_metadata[k] |= set(v)
+        for k, v in merged_metadata.items():
+            merged_metadata[k] = list(v)
+
+        return pvs, merged_metadata
 
     def _read_only_self(self):
         """
-        Parse request file and return a tuple of pvs and includes.
+        Parse request file and return a tuple of pvs, metadata and includes.
 
         In case of problems returns (but does not raise) exceptions.
+                IOError
                 ReqParseError
                     ReqFileFormatError
                     ReqFileInfLoopError
 
-        :return: A tuple (pv_list, includes_list, error_list)
+        :return: A tuple (pv_list, metadata, includes_list)
         """
 
         pvs = list()
         includes = list()
 
         with open(self._path) as f:
-            f = f.readlines()
+            file_data = f.read()
 
-        self._curr_line_n = 0
-        for self._curr_line in f:
+        if file_data.lstrip().startswith('{'):
+            try:
+                md = file_data.lstrip()
+                metadata, end_of_metadata = \
+                    json.JSONDecoder().raw_decode(md)
+            except json.JSONDecodeError:
+                msg = f"{self._path}: Could not parse JSON metadata header."
+                return ReqParseError(msg)
+
+            # Ensure line counts make sense for error reporting.
+            actual_data = md[end_of_metadata:].lstrip()
+            actual_data_index = file_data.find(actual_data)
+            self._curr_line_n = len(file_data[:actual_data_index]
+                                    .splitlines())
+            file_data = file_data[actual_data_index:]
+        else:
+            metadata = {}
+            self._curr_line_n = 0
+
+        for self._curr_line in file_data.splitlines():
             self._curr_line_n += 1
             self._curr_line = self._curr_line.strip()
 
-            # skip comments and empty lines
+            # skip comments, empty lines and "data{}" stuff
             if not self._curr_line.startswith(('#', "data{", "}", "!")) \
                and self._curr_line.strip():
                 # First replace macros, then check if any unreplaced macros
@@ -168,7 +204,7 @@ class SnapshotReqFile(object):
                         self._format_err(
                             (self._curr_line, self._curr_line_n), e))
 
-        return (pvs, includes)
+        return (pvs, [metadata], includes)
 
     def _format_err(self, line: tuple, msg: str):
         return '{} [line {}: {}]: {}'.format(self._trace, line[0], line[1], msg)
