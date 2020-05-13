@@ -271,6 +271,10 @@ class SnapshotGui(QMainWindow):
             req_filters = self.snapshot.req_file_metadata.get(fltype, [])
             filters[fltype] = list(set(filters[fltype]) | set(req_filters))
 
+        self.common_settings['machine_params'] = \
+            self.snapshot.req_file_metadata.get('machine_params', [])
+        self.common_settings['existing_params'] = []  # from snapshot files
+
     def handle_files_updated(self):
         self.save_widget.update_labels()
         self.compare_widget.clear_snap_files()
