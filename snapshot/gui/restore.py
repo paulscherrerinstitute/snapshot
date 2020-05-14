@@ -12,9 +12,9 @@ import enum
 
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QIcon, QCursor, QGuiApplication
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QHBoxLayout, QMessageBox, QTreeWidget, QTreeWidgetItem, \
-    QMenu, QLineEdit, QLabel
+from PyQt5.QtGui import QCursor, QGuiApplication
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QHBoxLayout, \
+    QFormLayout, QMessageBox, QTreeWidget, QTreeWidgetItem, QMenu, QLineEdit
 
 from ..ca_core import PvStatus, ActionStatus, SnapshotPv
 from ..core import background_workers, BackgroundThread, since_start
@@ -476,7 +476,7 @@ class SnapshotRestoreFileSelector(QWidget):
             new_labels.update(labels)
 
         self.common_settings["existing_labels"] = list(new_labels)
-        self.filter_input.update_labels()
+        self.filter_input.update_params()
 
         # Set column sizes
         self.file_selector.resizeColumnToContents(FileSelectorColumns.filename)
@@ -643,6 +643,11 @@ class SnapshotFileFilterWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
+        left_layout = QFormLayout()
+        right_layout = QFormLayout()
+        layout.addLayout(left_layout)
+        layout.addLayout(right_layout)
+
         # Create filter selectors (with readbacks)
         # - text input to filter by name
         # - text input to filter comment
@@ -655,35 +660,29 @@ class SnapshotFileFilterWidget(QWidget):
         self.file_filter["name"] = ""
 
         # Labels filter
-        key_layout = QHBoxLayout()
-        key_label = QLabel("Labels:", self)
-        self.keys_input = SnapshotKeywordSelectorWidget(self.common_settings, parent=self)  # No need to force defaults
+        self.keys_input = SnapshotKeywordSelectorWidget(
+            self.common_settings, parent=self)  # No need to force defaults
         self.keys_input.setPlaceholderText("label_1 label_2 ...")
         self.keys_input.keywords_changed.connect(self.update_filter)
-        key_layout.addWidget(key_label)
-        key_layout.addWidget(self.keys_input)
+        right_layout.addRow("Labels:", self.keys_input)
 
-        # Comment filter
-        comment_layout = QHBoxLayout()
-        comment_label = QLabel("Comment:", self)
-        self.comment_input = QLineEdit(self)
-        self.comment_input.setPlaceholderText("Filter by comment")
-        self.comment_input.textChanged.connect(self.update_filter)
-        comment_layout.addWidget(comment_label)
-        comment_layout.addWidget(self.comment_input)
+        # Params filter
+        # TODO this is only a mockup
+        self.param_input = QLineEdit()
+        self.param_input.setText("Param input mockup")
+        right_layout.addRow("Params:", self.param_input)
 
         # File name filter
-        name_layout = QHBoxLayout()
-        name_label = QLabel("Name:", self)
         self.name_input = QLineEdit(self)
         self.name_input.setPlaceholderText("Filter by name")
         self.name_input.textChanged.connect(self.update_filter)
-        name_layout.addWidget(name_label)
-        name_layout.addWidget(self.name_input)
+        left_layout.addRow("Name:", self.name_input)
 
-        layout.addLayout(name_layout)
-        layout.addLayout(comment_layout)
-        layout.addLayout(key_layout)
+        # Comment filter
+        self.comment_input = QLineEdit(self)
+        self.comment_input.setPlaceholderText("Filter by comment")
+        self.comment_input.textChanged.connect(self.update_filter)
+        left_layout.addRow("Comment:", self.comment_input)
 
     def update_filter(self):
         if self.keys_input.get_keywords():
@@ -695,7 +694,7 @@ class SnapshotFileFilterWidget(QWidget):
 
         self.file_filter_updated.emit()
 
-    def update_labels(self):
+    def update_params(self):
         self.keys_input.update_suggested_keywords()
 
     def clear(self):
