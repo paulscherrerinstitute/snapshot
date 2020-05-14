@@ -310,15 +310,18 @@ def initialize_config(config_path=None, save_dir=None, force=False,
     if config_path:
         # Validate configuration file
         try:
-            config.update(json.load(open(config_path)))
+            new_settings = json.load(open(config_path))
             # force-labels must be type of bool
-            if not isinstance(config.get('labels', dict())
-                                    .get('force-labels', False), bool):
+            if not isinstance(new_settings.get('labels', dict())
+                                          .get('force-labels', False), bool):
                 raise TypeError('"force-labels" must be boolean')
         except Exception as e:
             # Propagate error to the caller, but continue filling in defaults
             config['config_ok'] = False
             config['config_error'] = str(e)
+            new_settings = {}
+    else:
+        new_settings = {}
 
     config['save_file_prefix'] = ''
     config['req_file_path'] = ''
@@ -335,15 +338,18 @@ def initialize_config(config_path=None, save_dir=None, force=False,
 
     # default labels also in config file? Add them
     config['default_labels'] = \
-        list(set(default_labels + (config.get('labels', dict())
-                                   .get('labels', list()))))
+        list(set(default_labels + (new_settings.get('labels', dict())
+                                               .get('labels', list()))))
 
     config['force_default_labels'] = \
-        config.get('labels', dict()) \
-              .get('force-labels', False) or force_default_labels
+        new_settings.get('labels', dict()) \
+                    .get('force-labels', False) or force_default_labels
 
-    # Predefined filters
-    config["predefined_filters"] = config.get('filters', dict())
+    # Predefined filters. Ensure entries exist.
+    config['predefined_filters'] = new_settings.get('filters', {})
+    for fltype in ('filters', 'rgx-filters'):
+        if fltype not in config['predefined_filters']:
+            config['predefined_filters'][fltype] = []
 
     if req_file_macros is None:
         req_file_macros = dict()
