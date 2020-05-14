@@ -9,8 +9,10 @@ import datetime
 import os
 import time
 import enum
+import re
+import json
 
-from PyQt5 import QtCore
+from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QCursor, QGuiApplication
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QHBoxLayout, \
@@ -508,6 +510,41 @@ class SnapshotRestoreFileSelector(QWidget):
     def filter_file_list_selector(self):
         file_filter = self.filter_input.file_filter
 
+        def ensure_nums_or_strings(*vals):
+            """Variables have to be all numbers or all strings. If this is not
+            the case, convert everything to strings."""
+            if not all((isinstance(x, (int, float)) for x in vals)):
+                return tuple((str(x) for x in vals))
+            return vals
+
+        def check_params(params_filter, file_params):
+            """
+            file_params is a dict of machine params and their values.
+            params_filter is a dict of machine params and corresponding lists.
+            These lists have either one or two elements, causing either an
+            equality or in-range check.
+
+            Returns True if all checks pass.
+            """
+            for p, vals in params_filter.items():
+                if p not in file_params:
+                    return False
+                if len(vals) == 1:
+                    v1 = vals[0]
+                    v2 = file_params[p]
+                    v1, v2 = ensure_nums_or_strings(v1, v2)
+                    if v1 != v2:
+                        return False
+                elif len(vals) == 2:
+                    vals = ensure_nums_or_strings(*vals)
+                    low = min(vals)
+                    high = max(vals)
+                    v = file_params[p]
+                    v, low, high = ensure_nums_or_strings(v, low, high)
+                    if not (v >= low and v <= high):
+                        return False
+            return True
+
         for file_name in self.file_list:
             file_line = self.file_list[file_name]["file_selector"]
             file_to_filter = self.file_list.get(file_name)
@@ -518,6 +555,7 @@ class SnapshotRestoreFileSelector(QWidget):
                 keys_filter = file_filter.get("keys")
                 comment_filter = file_filter.get("comment")
                 name_filter = file_filter.get("name")
+                params_filter = file_filter.get("params")
 
                 if keys_filter:
                     keys_status = False
@@ -539,9 +577,16 @@ class SnapshotRestoreFileSelector(QWidget):
                 else:
                     name_status = True
 
+                params_status = True
+                if params_filter:
+                    params_status = check_params(
+                        params_filter,
+                        file_to_filter['meta_data']['machine_params'])
+
                 # Set visibility if any of the filters conditions met
                 file_line.setHidden(
-                    not (name_status and keys_status and comment_status))
+                    not (name_status and keys_status and comment_status
+                         and params_status))
 
     def open_menu(self, point):
         item_idx = self.file_selector.indexAt(point)
@@ -654,6 +699,76 @@ class SnapshotRestoreFileSelector(QWidget):
         self.file_list = dict()
 
 
+def num_or_string(string):
+    """Decodes the string using json decoder if possible. If the result is a
+    float, an int or a string, returns it directly, otherwise returns None.
+    This ensures that the numbers are well-formed and that strings are properly
+    quoted."""
+    if string == '':
+        return None
+    try:
+        val = json.loads(string)
+        if isinstance(val, (float, int, str)):
+            return val
+    except json.JSONDecodeError:
+        pass
+    return None
+
+
+class ParamFilterValidator(QtGui.QValidator):
+    """Checks the correctness of machine param filter syntax. It will match
+    space-separated expressions like
+
+        param1(value) param2(low_value, high_value) param3(value) ...
+
+    It will check that parameters names are known. It also has a function that
+    will return the parsing result as a dict.
+    """
+
+    param_rgx = re.compile('([^ ,()]+)\\(([^()]*)\\) *')
+    valid_params = []
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    def set_params(self, param_names):
+        self.valid_params = param_names
+
+    def parse(self, input):
+        # Replace all "param(values)" with nothing and if anything but spaces
+        # remains, it's wrong.
+        if self.param_rgx.sub('', input).strip() != '':
+            return
+
+        # Extract all "param(values)" into ("param", "values").
+        pv_pairs = self.param_rgx.findall(input)
+        if not pv_pairs:
+            return {}
+        if not all((len(x) == 2 or len(x) == 1 for x in pv_pairs)):
+            return
+
+        # For each parameter, "values" can be either "value" or
+        # "value1, value2".
+        result = {}
+        for param, value_string in pv_pairs:
+            if param not in self.valid_params or param in result:
+                return
+            values = [num_or_string(v.strip())
+                      for v in value_string.split(',')]
+            if len(values) < 1 or len(values) > 2:
+                return
+            if any((x is None for x in values)):
+                return
+            result[param] = values
+
+        return result
+
+    def validate(self, input, pos):
+        if self.parse(input) is None:
+            return QtGui.QValidator.Intermediate, input, pos
+        return QtGui.QValidator.Acceptable, input, pos
+
+
 class SnapshotFileFilterWidget(QWidget):
     """
         Is a widget with 3 filter options:
@@ -661,6 +776,7 @@ class SnapshotFileFilterWidget(QWidget):
             - by comment
             - by labels
             - by name
+            - by machine parameters
 
         Emits signal: filter_changed when any of the filter changed.
     """
@@ -680,11 +796,6 @@ class SnapshotFileFilterWidget(QWidget):
         layout.addLayout(left_layout)
         layout.addLayout(right_layout)
 
-        # Create filter selectors (with readbacks)
-        # - text input to filter by name
-        # - text input to filter comment
-        # - labels selector
-
         # Init filters
         self.file_filter = dict()
         self.file_filter["keys"] = list()
@@ -699,9 +810,12 @@ class SnapshotFileFilterWidget(QWidget):
         right_layout.addRow("Labels:", self.keys_input)
 
         # Params filter
-        # TODO this is only a mockup
+        self.validator = ParamFilterValidator(self)
         self.param_input = QLineEdit()
-        self.param_input.setText("Param input mockup")
+        self.param_input.setPlaceholderText("Filter by parameters")
+        self.param_input.setValidator(self.validator)
+        self.param_input.textEdited.connect(self.set_param_input_color)
+        self.param_input.textEdited.connect(self.update_filter)
         right_layout.addRow("Params:", self.param_input)
 
         # File name filter
@@ -716,6 +830,13 @@ class SnapshotFileFilterWidget(QWidget):
         self.comment_input.textChanged.connect(self.update_filter)
         left_layout.addRow("Comment:", self.comment_input)
 
+    def set_param_input_color(self):
+        if self.param_input.hasAcceptableInput():
+            style = ''
+        else:
+            style = 'color: red;'
+        self.param_input.setStyleSheet(style)
+
     def update_filter(self):
         if self.keys_input.get_keywords():
             self.file_filter["keys"] = self.keys_input.get_keywords()
@@ -723,11 +844,16 @@ class SnapshotFileFilterWidget(QWidget):
             self.file_filter["keys"] = list()
         self.file_filter["comment"] = self.comment_input.text().strip('')
         self.file_filter["name"] = self.name_input.text().strip('')
+        self.file_filter["params"] = \
+            self.validator.parse(self.param_input.text())
 
         self.file_filter_updated.emit()
 
     def update_params(self):
         self.keys_input.update_suggested_keywords()
+        self.validator.set_params(self.common_settings['machine_params'] + [
+            p for p in self.common_settings['existing_params']
+            if p not in self.common_settings['machine_params']])
 
     def clear(self):
         self.keys_input.clear_keywords()
