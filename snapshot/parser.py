@@ -555,6 +555,8 @@ def get_save_files(save_dir, req_file_path):
                     meta_data["comment"] = ""
                 if "labels" not in meta_data:
                     meta_data["labels"] = []
+                if "machine_params" not in meta_data:
+                    meta_data["machine_params"] = {}
 
                 return (file_name,
                         {'file_name': file_name,
