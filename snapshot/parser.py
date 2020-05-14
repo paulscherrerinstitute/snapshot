@@ -70,28 +70,20 @@ class SnapshotReqFile(object):
         while includes:
             results = global_thread_pool.map(lambda f: f._read_only_self(),
                                              includes)
+            old_includes = includes
             includes = []
-            for r in results:
-                if not isinstance(r, tuple):
-                    raise r
-                pvs += r[0]
-                metadata += r[1]
-                includes += r[2]
-
-        # Merge metadata into one dict, assuming all values are lists.
-        merged_metadata = {}
-        for m in metadata:
-            for k, v in m.items():
-                if not isinstance(v, list):
-                    msg = f"Metadata '{k}' with value '{v}' is not a list."
+            for result, inc in zip(results, old_includes):
+                if not isinstance(result, tuple):
+                    raise result
+                new_pvs, new_metadata, new_includes = result
+                if new_metadata:
+                    msg = f"Found metadata in included file {inc._path}; " \
+                        "metadata is only allowed in the top-level file."
                     raise ReqParseError(msg)
-                if k not in merged_metadata:
-                    merged_metadata[k] = set()
-                merged_metadata[k] |= set(v)
-        for k, v in merged_metadata.items():
-            merged_metadata[k] = list(v)
+                pvs += new_pvs
+                includes += new_includes
 
-        return pvs, merged_metadata
+        return pvs, metadata
 
     def _read_only_self(self):
         """
@@ -207,7 +199,7 @@ class SnapshotReqFile(object):
                         self._format_err(
                             (self._curr_line, self._curr_line_n), e))
 
-        return (pvs, [metadata], includes)
+        return (pvs, metadata, includes)
 
     def _format_err(self, line: tuple, msg: str):
         return '{} [line {}: {}]: {}'.format(self._trace, line[0], line[1], msg)
@@ -290,6 +282,10 @@ class ReqFileInfLoopError(ReqParseError):
     pass
 
 
+# TODO Reading filters and labels from the config file is deprecated as they
+# are now part of the request file. When the transition is complete, remove
+# them from this function. Also remove them from the command-line arguments.
+# See also SnapshotGui.init_snapshot().
 def initialize_config(config_path=None, save_dir=None, force=False,
                       default_labels=None, force_default_labels=None,
                       req_file_path=None, req_file_macros=None,

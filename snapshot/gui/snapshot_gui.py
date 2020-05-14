@@ -262,18 +262,27 @@ class SnapshotGui(QMainWindow):
 
         # Merge request file metadata into common settings, replacing existing
         # settings.
-        req_labels = self.snapshot.req_file_metadata.get('labels', [])
+        # TODO Labels and filters are only overridden if given in the request
+        # file, for backwards compatibility with config files. After config
+        # files are out of use, change this to always override old values.
+        req_labels = self.snapshot.req_file_metadata.get('labels', {})
         if req_labels:
-            self.common_settings['default_labels'] = req_labels
-
-        filters = self.common_settings['predefined_filters']
-        for fltype in ('filters', 'rgx-filters'):
-            req_filters = self.snapshot.req_file_metadata.get(fltype, [])
-            filters[fltype] = list(set(filters[fltype]) | set(req_filters))
+            self.common_settings['force_default_labels'] = \
+                req_labels.get('force_default_labels', False)
+            self.common_settings['default_labels'] = \
+                req_labels.get('labels', [])
+        req_filters = self.snapshot.req_file_metadata.get('filters', {})
+        if req_filters:
+            filters = self.common_settings['predefined_filters']
+            for fltype in ('filters', 'rgx-filters'):
+                filters[fltype] = req_filters.get(fltype, [])
 
         self.common_settings['machine_params'] = \
             self.snapshot.req_file_metadata.get('machine_params', [])
-        self.common_settings['existing_params'] = []  # from snapshot files
+
+        # Metadata to be filled from snapshot files.
+        self.common_settings['existing_labels'] = []
+        self.common_settings['existing_params'] = []
 
     def handle_files_updated(self):
         self.save_widget.update_labels()
