@@ -242,7 +242,7 @@ class SnapshotGui(QMainWindow):
             self.snapshot = Snapshot(req_file_path, req_macros)
             self.set_request_file(req_file_path, req_macros)
 
-        except (ReqParseError, IOError) as e:
+        except (ReqParseError, OSError) as e:
             msg = 'Request file cannot be loaded. ' \
                 'See details for type of error.'
             msg_window = DetailedMsgBox(msg, str(e), 'Warning', self,

@@ -55,7 +55,7 @@ class SnapshotReqFile(object):
           - a dict with metadata from the file.
 
         In case of problems raises exceptions.
-                IOError
+                OSError
                 ReqParseError
                     ReqFileFormatError
                     ReqFileInfLoopError
@@ -98,7 +98,7 @@ class SnapshotReqFile(object):
         Parse request file and return a tuple of pvs, metadata and includes.
 
         In case of problems returns (but does not raise) exceptions.
-                IOError
+                OSError
                 ReqParseError
                     ReqFileFormatError
                     ReqFileInfLoopError
@@ -109,8 +109,11 @@ class SnapshotReqFile(object):
         pvs = list()
         includes = list()
 
-        with open(self._path) as f:
-            file_data = f.read()
+        try:
+            with open(self._path) as f:
+                file_data = f.read()
+        except OSError as e:
+            return e
 
         if file_data.lstrip().startswith('{'):
             try:
@@ -199,8 +202,8 @@ class SnapshotReqFile(object):
                     sub_f = SnapshotReqFile(path, parent=self, macros=macros)
                     includes.append(sub_f)
 
-                except IOError as e:
-                    return IOError(
+                except OSError as e:
+                    return OSError(
                         self._format_err(
                             (self._curr_line, self._curr_line_n), e))
 

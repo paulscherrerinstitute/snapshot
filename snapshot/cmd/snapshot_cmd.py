@@ -32,7 +32,7 @@ def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10
     macros = macros or {}
     try:
         snapshot = Snapshot(req_file_path, macros)
-    except (IOError, SnapshotError) as e:
+    except (OSError, SnapshotError) as e:
         logging.error('Snapshot cannot be loaded due to a following error: {}'.format(e))
         sys.exit(1)
 
@@ -72,7 +72,7 @@ def restore(saved_file_path, force=False, timeout=10):
         # Use saved file as request file here
         snapshot = Snapshot(saved_file_path, macros=meta_data.get('macros', dict()))
 
-    except (IOError, SnapshotError) as e:
+    except (OSError, SnapshotError) as e:
         logging.error('Snapshot cannot be loaded due to a following error: {}'.format(e))
         sys.exit(1)
 

@@ -126,9 +126,11 @@ class SnapshotSaveWidget(QWidget):
 
             if status == ActionStatus.no_conn:
                 # Prompt user and ask if he wants to save in force mode
-                msg = "Some PVs are not connected (see details). Do you want to save anyway?\n"
+                msg = "Some PVs are not connected (see details). " \
+                    "Do you want to save anyway?\n"
 
-                msg_window = DetailedMsgBox(msg, "\n".join(list(pvs_status.keys())), "Warning", self)
+                msg_window = DetailedMsgBox(
+                    msg, "\n".join(list(pvs_status.keys())), "Warning", self)
                 reply = msg_window.exec_()
 
                 if reply != QMessageBox.No:
@@ -150,9 +152,19 @@ class SnapshotSaveWidget(QWidget):
                     self.sts_info.clear_status()
                     self.save_button.setEnabled(True)
 
-            else:
+            elif status == ActionStatus.ok:
                 # Save done in "default force mode"
                 self.save_done(pvs_status, force)
+
+            elif status == ActionStatus.os_error:
+                msg = f"Could not write to file {self.file_path}."
+                QMessageBox.warning(self, "Warning", msg,
+                                    QMessageBox.Ok, QMessageBox.NoButton)
+
+            else:
+                msg = f"Error occurred with code {status}."
+                QMessageBox.warning(self, "Warning", msg,
+                                    QMessageBox.Ok, QMessageBox.NoButton)
 
         else:
             # User rejected saving into existing file.

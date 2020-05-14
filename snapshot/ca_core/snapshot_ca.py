@@ -42,6 +42,7 @@ class ActionStatus(Enum):
     no_data = 2
     no_conn = 3
     timeout = 4
+    os_error = 5
 
 
 class Snapshot(object):
@@ -181,11 +182,15 @@ class Snapshot(object):
             pvs_data[pvname]['val'] = value
 
         logging.debug("Writing snapshot to file")
-        parse_to_save_file(pvs_data, save_file_path, self.macros, symlink_path, **kw)
+        try:
+            parse_to_save_file(pvs_data, save_file_path, self.macros, symlink_path, **kw)
+            status = ActionStatus.ok
+        except OSError:
+            status = ActionStatus.os_error
         logging.debug("Snapshot done")
         background_workers.resume()
 
-        return ActionStatus.ok, pvs_status
+        return status, pvs_status
 
     def restore_pvs(self, pvs_raw, force=False, callback=None, custom_macros=None):
         """

@@ -599,8 +599,15 @@ class SnapshotRestoreFileSelector(QWidget):
                 if settings_window.exec_():
                     background_workers.suspend()
                     file_data = self.file_list.get(self.selected_files[0])
-                    self.snapshot.replace_metadata(file_data['file_path'],
-                                                   file_data['meta_data'])
+                    try:
+                        self.snapshot.replace_metadata(file_data['file_path'],
+                                                       file_data['meta_data'])
+                    except OSError as e:
+                        warn = "Problem modifying file:\n" + str(e)
+                        QMessageBox.warning(self, "Warning", warn,
+                                            QMessageBox.Ok,
+                                            QMessageBox.NoButton)
+
                     self.rebuild_file_list()
                     background_workers.resume()
             else:
