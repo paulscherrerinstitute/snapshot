@@ -29,6 +29,7 @@ class FileSelectorColumns(enum.IntEnum):
     filename = 0
     comment = enum.auto()
     labels = enum.auto()
+    params = enum.auto()
 
 
 class FileListScanner(QtCore.QObject, BackgroundThread):
@@ -129,7 +130,7 @@ class SnapshotRestoreWidget(QWidget):
         layout.setContentsMargins(10, 10, 10, 10)
         self.setLayout(layout)
 
-        # Create list with: file names, comment, labels
+        # Create list with: file names, comment, labels, machine params
         self.file_selector = SnapshotRestoreFileSelector(snapshot,
                                                          common_settings, self)
 
@@ -395,14 +396,16 @@ class SnapshotRestoreFileSelector(QWidget):
 
         self.filter_input.file_filter_updated.connect(self.filter_file_list_selector)
 
-        # Create list with: file names, comment, labels
+        # Create list with: file names, comment, labels, machine params.
+        # This is done with a single-level QTreeWidget instead of QTableWidget
+        # because it is line-oriented whereas a table is cell-oriented.
         self.file_selector = QTreeWidget(self)
         self.file_selector.setRootIsDecorated(False)
+        self.file_selector.setUniformRowHeights(True)
         self.file_selector.setIndentation(0)
-        self.file_selector.setColumnCount(len(FileSelectorColumns))
-        column_labels = ["File name", "Comment", "Labels"]
-        assert(len(column_labels) == len(FileSelectorColumns))
-        self.file_selector.setHeaderLabels(column_labels)
+        self.file_selector.setColumnCount(FileSelectorColumns.params)
+        self.column_labels = ["File name", "Comment", "Labels"]
+        self.file_selector.setHeaderLabels(self.column_labels)
         self.file_selector.setAllColumnsShowFocus(True)
         self.file_selector.setSortingEnabled(True)
         # Sort by file name (alphabetical order)
@@ -464,26 +467,43 @@ class SnapshotRestoreFileSelector(QWidget):
         new_params = set()
         for new_file, new_data in file_list.items():
             meta_data = new_data["meta_data"]
-            labels = meta_data.get("labels", list())
-            params = meta_data.get("machine_params", list())
-            comment = meta_data.get("comment", "")
+            labels = meta_data.get("labels", [])
+            params = meta_data.get("machine_params", {})
 
             assert(new_file not in self.file_list)
+            new_labels.update(labels)
+            new_params.update(params.keys())
+
+        new_labels = list(new_labels)
+        new_params = list(new_params)
+        all_params = self.common_settings['machine_params'] + \
+            [p for p in new_params
+             if p not in self.common_settings['machine_params']]
+
+        for new_file, new_data in file_list.items():
+            meta_data = new_data["meta_data"]
+            labels = meta_data.get("labels", [])
+            params = meta_data.get("machine_params", {})
+            comment = meta_data.get("comment", "")
+
             row = [new_file, comment, " ".join(labels)]
-            assert(len(row) == len(FileSelectorColumns))
-            selector_item = QTreeWidgetItem(row)
+            assert(len(row) == FileSelectorColumns.params)
+            param_vals = [None] * len(all_params)
+            for p, v in params.items():
+                idx = all_params.index(p)
+                param_vals[idx] = str(v)
+            selector_item = QTreeWidgetItem(row + param_vals)
             self.file_selector.addTopLevelItem(selector_item)
             self.file_list[new_file] = new_data
             self.file_list[new_file]["file_selector"] = selector_item
-            new_labels.update(labels)
-            new_params.update(params)
 
-        self.common_settings["existing_labels"] = list(new_labels)
-        self.common_settings["existing_params"] = list(new_params)
+        self.common_settings["existing_labels"] = new_labels
+        self.common_settings["existing_params"] = new_params
         self.filter_input.update_params()
 
-        # Set column sizes
-        self.file_selector.resizeColumnToContents(FileSelectorColumns.filename)
+        self.file_selector.setHeaderLabels(self.column_labels + all_params)
+        for col in range(self.file_selector.columnCount()):
+            self.file_selector.resizeColumnToContents(col)
 
     def filter_file_list_selector(self):
         file_filter = self.filter_input.file_filter
