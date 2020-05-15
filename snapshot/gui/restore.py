@@ -554,7 +554,15 @@ class SnapshotRestoreFileSelector(QWidget):
         clipboard = QGuiApplication.clipboard()
 
         menu = QMenu(self)
-        menu.addAction(f"Copy {field.lower()}", lambda: clipboard.setText(text))
+        if item_idx.column() < FileSelectorColumns.params:
+            menu.addAction(f"Copy {field.lower()}",
+                           lambda: clipboard.setText(text))
+        else:
+            menu.addAction(f"Copy {field} name",
+                           lambda: clipboard.setText(field))
+            menu.addAction(f"Copy {field} value",
+                           lambda: clipboard.setText(text))
+
         menu.addAction("Delete selected files", self.delete_files)
         menu.addAction("Edit file meta-data", self.update_file_metadata)
 
