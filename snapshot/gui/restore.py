@@ -461,9 +461,11 @@ class SnapshotRestoreFileSelector(QWidget):
 
     def _update_file_list_selector(self, file_list):
         new_labels = set()
+        new_params = set()
         for new_file, new_data in file_list.items():
             meta_data = new_data["meta_data"]
             labels = meta_data.get("labels", list())
+            params = meta_data.get("machine_params", list())
             comment = meta_data.get("comment", "")
 
             assert(new_file not in self.file_list)
@@ -474,8 +476,10 @@ class SnapshotRestoreFileSelector(QWidget):
             self.file_list[new_file] = new_data
             self.file_list[new_file]["file_selector"] = selector_item
             new_labels.update(labels)
+            new_params.update(params)
 
         self.common_settings["existing_labels"] = list(new_labels)
+        self.common_settings["existing_params"] = list(new_params)
         self.filter_input.update_params()
 
         # Set column sizes
