@@ -13,6 +13,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QLineEdit, QLabel, QHBoxLayout, QVBoxLayout, QFrame, QGroupBox, QMessageBox, QPushButton, \
     QWidget
 
+from ..core import get_pv_values
 from ..ca_core import PvStatus, ActionStatus
 from ..parser import save_file_suffix
 from .utils import SnapshotKeywordSelectorWidget, DetailedMsgBox
@@ -112,6 +113,27 @@ class SnapshotSaveWidget(QWidget):
 
             labels = self.advanced.labels_input.get_keywords()
             comment = self.advanced.comment_input.text()
+            params = {p: v for p, v in zip(
+                self.common_settings['machine_params'],
+                get_pv_values(self.common_settings['machine_params']))}
+
+            invalid_params = {p: v for p, v in params.items()
+                              if type(v) not in (float, int, str)}
+            if invalid_params:
+                msg = "Some machine parameters have invalid values " \
+                    "(see details). Do you want to save anyway?\n"
+                msg_window = DetailedMsgBox(
+                    msg, '\n'.join(
+                        [f"{p} has no value" if v is None
+                         else f"{p} has unsupported type {type(v)}"
+                         for p, v in invalid_params.items()]),
+                    "Warning", self)
+                reply = msg_window.exec_()
+                if reply == QMessageBox.No:
+                    self.sts_info.clear_status()
+                    return
+                for p in invalid_params:
+                    params[p] = None
 
             force = self.common_settings["force"]
             # Start saving process with default "force" flag and notify when finished
@@ -119,6 +141,7 @@ class SnapshotSaveWidget(QWidget):
                                                         force=force,
                                                         labels=labels,
                                                         comment=comment,
+                                                        machine_params=params,
                                                         symlink_path=os.path.join(
                                                             self.common_settings["save_dir"],
                                                             self.common_settings["save_file_prefix"] +
@@ -139,6 +162,7 @@ class SnapshotSaveWidget(QWidget):
                                                                 force=True,
                                                                 labels=labels,
                                                                 comment=comment,
+                                                                machine_params=params,
                                                                 symlink_path=os.path.join(
                                                                     self.common_settings["save_dir"],
                                                                     self.common_settings["save_file_prefix"] +

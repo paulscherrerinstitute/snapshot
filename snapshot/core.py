@@ -1,4 +1,4 @@
-from epics import PV, ca, caput
+from epics import PV, ca, caput, caget_many
 import numpy
 from enum import Enum
 import json
@@ -140,6 +140,13 @@ class BackgroundThread:
             with self._lock:
                 if not self._suspend:  # this check needs the lock
                     task()
+
+
+def get_pv_values(pv_names):
+    background_workers.suspend()
+    values = caget_many(pv_names, timeout=1., as_numpy=True)
+    background_workers.resume()
+    return values
 
 
 # Exceptions

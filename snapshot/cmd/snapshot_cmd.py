@@ -5,7 +5,7 @@ import sys
 import time
 
 from snapshot.ca_core import PvStatus, ActionStatus, Snapshot
-from snapshot.core import SnapshotError
+from snapshot.core import SnapshotError, get_pv_values
 from snapshot.parser import parse_from_save_file
 
 
@@ -41,7 +41,30 @@ def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10
     while snapshot.get_disconnected_pvs_names() and time.time() < end_time:
         time.sleep(0.2)
 
-    status, pv_status = snapshot.save_pvs(save_file_path, force=force, labels=labels, comment=comment,
+    param_names = snapshot.req_file_metadata.get('machine_params', [])
+    params = {p: v for p, v in zip(param_names, get_pv_values(param_names))}
+    invalid_params = {p: v for p, v in params.items()
+                      if type(v) not in (float, int, str)}
+    if invalid_params:
+        pv_errors = [f"\t{p} has no value" if v is None
+                     else f"\t{p} has unsupported type {type(v)}"
+                     for p, v in invalid_params.items()]
+        if not force:
+            logging.error("Machine parameters are not accessible or have "
+                          "invalid values. Will not proceed without force "
+                          "mode.\n" + '\n'.join(pv_errors))
+            return
+        logging.info("Machine parameters are not accessible or have "
+                     "invalid values. Force mode is on, proceeding.\n"
+                     + '\n'.join(pv_errors))
+        for p in invalid_params.keys():
+            params[p] = None
+
+    status, pv_status = snapshot.save_pvs(save_file_path,
+                                          force=force,
+                                          labels=labels,
+                                          comment=comment,
+                                          machine_params=params,
                                           symlink_path=symlink_path)
 
     if status != ActionStatus.ok:
