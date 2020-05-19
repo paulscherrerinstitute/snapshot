@@ -43,17 +43,37 @@ class _BackgroundWorkers:
     These tasks should be suspended when they are not needed and when their CPU
     usage would needlessly prolong execution of other functions. Examples are
     saving and restoring PVs, and reading a request file.
+
+    A task is registered by name. This name can be used to selectively suspend
+    and resume a particular task.
     """
 
     def __init__(self):
-        self._workers = []
+        self._workers = {}
+        self._explicitly_suspended = {}
         self._count = 0
+
+    def is_suspended(self):
+        return self._count > 0
+
+    def suspend_one(self, worker_name):
+        if not self._explicitly_suspended[worker_name]:
+            self._explicitly_suspended[worker_name] = True
+            if not self.is_suspended():
+                self._workers[worker_name].suspend()
+
+    def resume_one(self, worker_name):
+        if self._explicitly_suspended[worker_name]:
+            self._explicitly_suspended[worker_name] = False
+            if not self.is_suspended():
+                self._workers[worker_name].resume()
 
     def suspend(self):
         if self._count == 0:
             since_start("Pausing background threads")
-            for w in self._workers:
-                w.suspend()
+            for n, w in self._workers.items():
+                if not self._explicitly_suspended[n]:
+                    w.suspend()
             since_start("Background threads suspended")
         self._count += 1
 
@@ -62,17 +82,19 @@ class _BackgroundWorkers:
             self._count -= 1
             if self._count == 0:
                 since_start("Resuming background threads")
-                for w in self._workers:
-                    w.resume()
+                for n, w in self._workers.items():
+                    if not self._explicitly_suspended[n]:
+                        w.resume()
 
-    def register(self, worker):
-        if worker not in self._workers:
-            self._workers.append(worker)
+    def register(self, worker_name, worker):
+        assert(worker_name not in self._workers)
+        self._workers[worker_name] = worker
+        self._explicitly_suspended[worker_name] = False
 
-    def unregister(self, worker):
-        if worker in self._workers:
-            idx = self._workers.index(worker)
-            del self._workers[idx]
+    def unregister(self, worker_name):
+        if worker_name in self._workers:
+            del self._workers[worker_name]
+            del self._explicitly_suspended[worker_name]
 
 
 background_workers = _BackgroundWorkers()
@@ -89,7 +111,9 @@ class BackgroundThread:
 
     __sleep_quantum = 0.1
 
-    def __init__(self, **kwargs):
+    def __init__(self, name=None, **kwargs):
+        assert(name is not None)
+        self._name = name
         self._lock = Lock()
         self._quit = False
         self._suspend = False
@@ -100,11 +124,11 @@ class BackgroundThread:
             self.stop()
 
     def start(self):
-        background_workers.register(self)
+        background_workers.register(self._name, self)
         self._thread.start()
 
     def stop(self):
-        background_workers.unregister(self)
+        background_workers.unregister(self._name)
         self._quit = True
         if self._thread.is_alive():
             self._thread.join()
@@ -485,7 +509,7 @@ class PvUpdater(BackgroundThread):
     timeout = 1.0
 
     def __init__(self, callback=lambda: None, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(name='pv_updater', **kwargs)
         self._callback = callback
         self._pvs = []
 

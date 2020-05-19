@@ -44,7 +44,7 @@ class FileListScanner(QtCore.QObject, BackgroundThread):
     update_rate = 5.  # seconds
 
     def __init__(self, parent=None):
-        super().__init__(parent=parent)
+        super().__init__(name='file_scanner', parent=parent)
 
         self._save_dir = None
         self._req_file_name = None

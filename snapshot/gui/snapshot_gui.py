@@ -133,7 +133,7 @@ class SnapshotGui(QMainWindow):
 
         self.save_widget.saved.connect(self.restore_widget.rebuild_file_list)
 
-        self.autorefresh = QCheckBox("Automatic refresh")
+        self.autorefresh = QCheckBox("Periodic PV update")
         self.autorefresh.setChecked(True)
         self.autorefresh.toggled.connect(self.toggle_autorefresh)
 
@@ -182,9 +182,9 @@ class SnapshotGui(QMainWindow):
 
     def toggle_autorefresh(self, checked):
         if checked:
-            background_workers.resume()
+            background_workers.resume_one('pv_updater')
         else:
-            background_workers.suspend()
+            background_workers.suspend_one('pv_updater')
 
     def open_new_req_file(self):
         configure_dialog = SnapshotConfigureDialog(self, init_path=self.common_settings['req_file_path'],
