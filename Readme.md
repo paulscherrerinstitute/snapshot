@@ -1,20 +1,26 @@
 [![Build Status](https://travis-ci.org/paulscherrerinstitute/snapshot.svg?branch=master)](https://travis-ci.org/paulscherrerinstitute/snapshot) [![Build status](https://ci.appveyor.com/api/projects/status/l4efa6fybxady5db?svg=true)](https://ci.appveyor.com/project/simongregorebner/snapshot)
 
 # Overview
-Snapshot is Python based tool with a graphical user interface which is able to store (and later restore) values of Channel Access process variables (PVs).
+Snapshot is Python based tool with a graphical user interface which is able to
+store (and later restore) values of Channel Access process variables (PVs).
 
 ![Screenshot](snapshot.png)
 
 # Installation
 
-Snapshot is available as an Anaconda package on the paulscherrerinstitute Anaconda package channel. It can be easily installed as follows:
+Snapshot is available as an Anaconda package on the paulscherrerinstitute
+Anaconda package channel. It can be easily installed as follows:
 
 ```bash
 conda install -c https://conda.anaconda.org/paulscherrerinstitute snapshot
 ```
 
 # Usage
-To define a set of PVs which should be saved/restored the _snapshot_ tool requires a "request" file. Request files are in the following format. Beside accepting explicit channels also the use of macros are possible. From version 1.5.0 on, request files format was extended to support nested loading of request files.
+To define a set of PVs which should be saved/restored the _snapshot_ tool
+requires a "request" file. Request files are in the following format. Beside
+accepting explicit channels also the use of macros are possible. From version
+1.5.0 on, request files format was extended to support nested loading of request
+files.
 
 ```
 examplePv:test-1
@@ -29,7 +35,9 @@ $(SYS):test-3
 !/absolute/path/file2.req, "SYS=$(SYS),ID=1"
 ```
 
-After snapshot is build and deployed as conda package (see section [Instalation](#installation) it can be used in graphical mode or as command line tool.
+After snapshot is build and deployed as conda package (see section
+[Instalation](#installation) it can be used in graphical mode or as command line
+tool.
 
 To use graphical interface snapshot must be started with following command:
 
@@ -54,9 +62,11 @@ positional arguments:
   --config CONFIG       path to configuration file
 ```
 
-> Configuration file enables option of predefined labels and filters. Example can be found in [HERE](example/config.json)
+> Configuration file enables option of predefined labels and filters. Example
+> can be found in [HERE](example/config.json)
 
-To be used as command line tool it must be run either with `snapshot save` or `snapshot restore` depending on action needed.
+To be used as command line tool it must be run either with `snapshot save` or
+`snapshot restore` depending on action needed.
 
 ```bash
 snapshot save [-h] [-m MACRO] [-o OUT] [-f] [--timeout TIMEOUT] FILE
@@ -88,7 +98,9 @@ optional arguments:
 ```
 
 ## Format of saved files
-When PVs values are saved using a GUI, they are stored in file where first line starts with `#` and is followed by meta data (json formating). This is followed by lines with PV names and saved data (one line per PV). Example:
+When PVs values are saved using a GUI, they are stored in file where first line
+starts with `#` and is followed by meta data (json formating). This is followed
+by lines with PV names and saved data (one line per PV). Example:
 
 ```
 #{"keywords": "key1,key2", "comment": "This is comment", "save_time": 1452670573.6637778}
@@ -99,7 +111,9 @@ examplePv:test-4,[5.0, 6.0, 7.0, 8.0, 9.0, 0.0, 1.0, 2.0, 3.0, 4.0]
 ```
 
 ## Advanced usage of snapshot
-Snapshot can also be used as a module inside other python applications. Find simple example bellow. For more details have a look at [example/example.py](./example/example.py).
+Snapshot can also be used as a module inside other python applications. Find
+simple example bellow. For more details have a look at
+[example/example.py](./example/example.py).
 
 
 ```python
@@ -113,7 +127,8 @@ snapshot.restore_pvs_blocking('path/to/desired/save/file.snap')
 
 # Development
 ## Testing
-To test the application a softioc can be started as follows (while being in the _tests_ directory):
+To test the application a softioc can be started as follows (while being in the
+_tests_ directory):
 
 ```
 docker run -it --rm -v `pwd`:/data -p 5064:5064 -p 5065:5065 -p 5064:5064/udp -p 5065:5065/udp paulscherrerinstitute/centos_build_caqtdm softIoc -d /data/epics_testioc.db
