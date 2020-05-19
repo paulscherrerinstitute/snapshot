@@ -121,9 +121,9 @@ class SnapshotCompareWidget(QWidget):
         self.show_disconn_inp.setMaximumWidth(500)
 
         # Tolerance setting
-        tol_label = QLabel("Tolerance f:")
+        tol_label = QLabel("Tolerance:")
         tol = QSpinBox()
-        tol.setRange(1, 1000)
+        tol.setRange(1, 1000000)
         tol.setValue(1)
         tol.valueChanged[int].connect(self.model.change_tolerance)
         self.model.change_tolerance(tol.value())
