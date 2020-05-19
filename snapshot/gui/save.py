@@ -113,9 +113,10 @@ class SnapshotSaveWidget(QWidget):
 
             labels = self.advanced.labels_input.get_keywords()
             comment = self.advanced.comment_input.text()
-            params = {p: v for p, v in zip(
-                self.common_settings['machine_params'],
-                get_pv_values(self.common_settings['machine_params']))}
+
+            machine_params = self.common_settings['machine_params']
+            params = {p: v for p, v in zip(machine_params.keys(),
+                                           get_pv_values(machine_params.values()))}
 
             invalid_params = {p: v for p, v in params.items()
                               if type(v) not in (float, int, str)}
@@ -124,8 +125,9 @@ class SnapshotSaveWidget(QWidget):
                     "(see details). Do you want to save anyway?\n"
                 msg_window = DetailedMsgBox(
                     msg, '\n'.join(
-                        [f"{p} has no value" if v is None
-                         else f"{p} has unsupported type {type(v)}"
+                        [f"{p} ({machine_params[p]}) has no value" if v is None
+                         else f"{p} ({machine_params[p]}) has unsupported "
+                         f"type {type(v)}"
                          for p, v in invalid_params.items()]),
                     "Warning", self)
                 reply = msg_window.exec_()

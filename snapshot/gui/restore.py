@@ -478,9 +478,9 @@ class SnapshotRestoreFileSelector(QWidget):
 
         new_labels = list(new_labels)
         new_params = list(new_params)
-        all_params = self.common_settings['machine_params'] + \
-            [p for p in new_params
-             if p not in self.common_settings['machine_params']]
+        defined_params = list(self.common_settings['machine_params'].keys())
+        all_params = defined_params + \
+            [p for p in new_params if p not in defined_params]
 
         for new_file, new_data in file_list.items():
             meta_data = new_data["meta_data"]
@@ -607,6 +607,10 @@ class SnapshotRestoreFileSelector(QWidget):
                            lambda: clipboard.setText(field))
             menu.addAction(f"Copy {field} value",
                            lambda: clipboard.setText(text))
+            if field in self.common_settings['machine_params']:
+                pv_name = self.common_settings['machine_params'][field]
+                menu.addAction(f"Copy {field} PV name",
+                               lambda: clipboard.setText(pv_name))
 
         menu.addAction("Delete selected files", self.delete_files)
         menu.addAction("Edit file meta-data", self.update_file_metadata)
@@ -851,7 +855,8 @@ class SnapshotFileFilterWidget(QWidget):
 
     def update_params(self):
         self.keys_input.update_suggested_keywords()
-        self.validator.set_params(self.common_settings['machine_params'] + [
+        defined_params = list(self.common_settings['machine_params'].keys())
+        self.validator.set_params(defined_params + [
             p for p in self.common_settings['existing_params']
             if p not in self.common_settings['machine_params']])
 

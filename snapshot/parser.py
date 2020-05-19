@@ -7,6 +7,7 @@ import glob
 import numpy
 import time
 import logging
+from itertools import chain
 
 
 save_file_suffix = '.snap'
@@ -82,6 +83,19 @@ class SnapshotReqFile(object):
                     raise ReqParseError(msg)
                 pvs += new_pvs
                 includes += new_includes
+
+        # In the file, machine_params are stored as an array of
+        # key-value pairs to preserve order. Here, we can rely on
+        # having an ordered dict.
+        try:
+            metadata['machine_params'] = \
+                dict(metadata.get('machine_params', []))
+            if not all(isinstance(x, str) for x in chain.from_iterable(
+                    metadata['machine_params'].items())):
+                raise ReqParseError
+        except Exception:
+            raise ReqParseError('Invalid format of machine parameter list, '
+                                'must be a list of ["name", "pv_name"] pairs.')
 
         return pvs, metadata
 

@@ -41,13 +41,15 @@ def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10
     while snapshot.get_disconnected_pvs_names() and time.time() < end_time:
         time.sleep(0.2)
 
-    param_names = snapshot.req_file_metadata.get('machine_params', [])
-    params = {p: v for p, v in zip(param_names, get_pv_values(param_names))}
+    machine_params = snapshot.req_file_metadata.get('machine_params', {})
+    params = {p: v for p, v in zip(machine_params.keys(),
+                                   get_pv_values(machine_params.values()))}
     invalid_params = {p: v for p, v in params.items()
                       if type(v) not in (float, int, str)}
     if invalid_params:
-        pv_errors = [f"\t{p} has no value" if v is None
-                     else f"\t{p} has unsupported type {type(v)}"
+        pv_errors = [f"\t{p} ({machine_params[p]}) has no value" if v is None
+                     else f"\t{p} ({machine_params[p]}) has unsupported "
+                     f"type {type(v)}"
                      for p, v in invalid_params.items()]
         if not force:
             logging.error("Machine parameters are not accessible or have "

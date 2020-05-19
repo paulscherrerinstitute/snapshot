@@ -278,7 +278,7 @@ class SnapshotGui(QMainWindow):
                 filters[fltype] = req_filters.get(fltype, [])
 
         self.common_settings['machine_params'] = \
-            self.snapshot.req_file_metadata.get('machine_params', [])
+            self.snapshot.req_file_metadata.get('machine_params', {})
 
         # Metadata to be filled from snapshot files.
         self.common_settings['existing_labels'] = []
