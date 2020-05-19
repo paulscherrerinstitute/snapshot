@@ -1,1 +1,16 @@
+{
+	"labels":{
+		"force-labels": true,
+		"labels": ["test1","test2","test3"]
+	},
+	"filters":{
+		"rgx-filters":[".*", "^S.*"],
+		"filters":["SIN", "S10"]
+	},
+        "machine_params": [
+            ["param1": "PV:NAME:ONE"],
+            ["param2": "PV:NAME:TWO"]
+        ]
+}
+
 $(SYS):$(A)_TST

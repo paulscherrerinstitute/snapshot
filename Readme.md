@@ -20,7 +20,8 @@ To define a set of PVs which should be saved/restored the _snapshot_ tool
 requires a "request" file. Request files are in the following format. Beside
 accepting explicit channels also the use of macros are possible. From version
 1.5.0 on, request files format was extended to support nested loading of request
-files.
+files. From version 2.0.26 on, the request file can begin with a JSON
+configuration (see further down for details).
 
 ```
 examplePv:test-1
@@ -62,8 +63,8 @@ positional arguments:
   --config CONFIG       path to configuration file
 ```
 
-> Configuration file enables option of predefined labels and filters. Example
-> can be found in [HERE](example/config.json)
+The `--config` option is deprecated, although it remains. It is recommended
+that the configuration snippet is stored in the beginning of the request file.
 
 To be used as command line tool it must be run either with `snapshot save` or
 `snapshot restore` depending on action needed.
@@ -96,6 +97,31 @@ optional arguments:
   -f, --force        force restore in case of disconnected PVs after timeout
   --timeout TIMEOUT  max time waiting for PVs to be connected and restored
 ```
+
+## Format of configuration
+
+The config snippet must be the first thing in the request file, before even any
+comments. See the [example request file](example/test.req). It may contain the
+following keys:
+
+- "labels": a dict containing:
+  * "labels": an array of labels that can be applied to snapshot files.
+  * "force-labels": a boolean. If true, only labels defined here will be
+    available for saving in the snapshot files. If false, additional labels that
+    may be present in the existing files will also be available.
+
+- "filters": a dict containing:
+  * "filters": an array of predefined PV name filters that will be available
+    from the filter drop-down menu.
+  * "rgx-filters": same as "filters", except the filters are in regular
+    expression syntax.
+
+- "machine_params": an array of machine parameters, i.e. PVs that are not part
+  of the request file, but whose values will be stored as metadata. It is an
+  array of pairs `["param_name", "pv_name"]`, e.g. `["electron_energy",
+  "SARCL02-MBND100:P-READ"]`. Within the program, the parameter is referred to
+  as `param_name` for display and filetering purposes."
+
 
 ## Format of saved files
 When PVs values are saved using a GUI, they are stored in file where first line
