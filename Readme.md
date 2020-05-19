@@ -123,6 +123,33 @@ following keys:
   as `param_name` for display and filetering purposes."
 
 
+## Format of machine parameter filter expression
+
+Unlike other filters, the machine parameter filter requires a specific syntax to
+allow both exact and in-range comparisons of parameter values. The expression
+consists of space-separated statements, e.g.
+
+    second_param(value) first_param(low_value, high_value) ...
+
+The above expression will match files where:
+
+  - the value of `second_param` is exactly `value`
+  - and the value of `first_param` is between `low_value` and `high_value`.
+
+Each value can be
+
+  - an integer, which must not begin with 0;
+  - a float, with period as the decimal separator, must not begin with 0 or end
+    with a period (i.e. write `1.0`, not `1.`);
+  - a string, which must be enclosed in double quotes and may contain backslash
+    escape sequences.
+
+Strings can be compared against numbers (and vice versa), and can be used for
+in-rage checks, but the comparison will be lexicographic, not numeric.
+
+Each parameter may only appear once. If the expression is invalid, it is shown
+in red, and no filtering is applied to files.
+
 ## Format of saved files
 When PVs values are saved using a GUI, they are stored in file where first line
 starts with `#` and is followed by meta data (json formating). This is followed
