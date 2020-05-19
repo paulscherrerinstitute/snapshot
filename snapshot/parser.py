@@ -97,6 +97,12 @@ class SnapshotReqFile(object):
             raise ReqParseError('Invalid format of machine parameter list, '
                                 'must be a list of ["name", "pv_name"] pairs.')
 
+        forbidden_chars = " ,.()"
+        if any((any(char in param for char in forbidden_chars)
+                for param in metadata['machine_params'].keys())):
+            raise ReqParseError('Invalid format of machine parameter list, '
+                                'names must not contain space or punctuation.')
+
         return pvs, metadata
 
     def _read_only_self(self):
