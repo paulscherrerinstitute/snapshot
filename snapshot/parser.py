@@ -452,6 +452,12 @@ def parse_from_save_file(save_file_path, metadata_only=False):
                     data = json.loads(split_line[1])
                     pv_value = data['val']
                     # EGU and PREC are ignored, only stored for information.
+                    if isinstance(pv_value, list) and \
+                       any(isinstance(x, list) for x in pv_value):
+                        pv_value = None
+                        err.append(f"Value of '{pvname}' contains nested "
+                                   "lists; only one-dimensional arrays are "
+                                   "supported.")
                 else:
                     # The legacy "name,value" format
                     pv_value_str = split_line[1]
