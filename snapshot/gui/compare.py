@@ -770,7 +770,7 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
         self._disconn_filter = True  # show disconnected?
         self._name_filter = ''  # string or regex object
         self._eq_filter = PvCompareFilter.show_all
-        self._filtered_pvs = list()
+        self._filtered_pvs = None
 
     def setSourceModel(self, model):
         super().setSourceModel(model)
@@ -793,6 +793,7 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
         self._filtered_pvs = list()
         self.invalidate()
         self.filtered.emit(self._filtered_pvs)
+        self._filtered_pvs = None
 
     def filterAcceptsRow(self, idx: int, source_parent: QtCore.QModelIndex):
         """
@@ -836,7 +837,8 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
                 # Only name and connection filters apply
                 result = name_match and connected_match
 
-        if result:
+        # We only construct the list of PVs when needed by apply_filter()
+        if result and self._filtered_pvs is not None:
             self._filtered_pvs.append(row_model.pvname)
 
         return result
