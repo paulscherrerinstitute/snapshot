@@ -5,7 +5,7 @@ import sys
 import time
 
 from snapshot.ca_core import PvStatus, ActionStatus, Snapshot
-from snapshot.core import SnapshotError
+from snapshot.core import SnapshotError, get_pv_values
 from snapshot.parser import parse_from_save_file
 
 
@@ -32,7 +32,7 @@ def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10
     macros = macros or {}
     try:
         snapshot = Snapshot(req_file_path, macros)
-    except (IOError, SnapshotError) as e:
+    except (OSError, SnapshotError) as e:
         logging.error('Snapshot cannot be loaded due to a following error: {}'.format(e))
         sys.exit(1)
 
@@ -41,7 +41,32 @@ def save(req_file_path, save_file_path='.', macros=None, force=False, timeout=10
     while snapshot.get_disconnected_pvs_names() and time.time() < end_time:
         time.sleep(0.2)
 
-    status, pv_status = snapshot.save_pvs(save_file_path, force=force, labels=labels, comment=comment,
+    machine_params = snapshot.req_file_metadata.get('machine_params', {})
+    params = {p: v for p, v in zip(machine_params.keys(),
+                                   get_pv_values(machine_params.values()))}
+    invalid_params = {p: v for p, v in params.items()
+                      if type(v) not in (float, int, str)}
+    if invalid_params:
+        pv_errors = [f"\t{p} ({machine_params[p]}) has no value" if v is None
+                     else f"\t{p} ({machine_params[p]}) has unsupported "
+                     f"type {type(v)}"
+                     for p, v in invalid_params.items()]
+        if not force:
+            logging.error("Machine parameters are not accessible or have "
+                          "invalid values. Will not proceed without force "
+                          "mode.\n" + '\n'.join(pv_errors))
+            return
+        logging.info("Machine parameters are not accessible or have "
+                     "invalid values. Force mode is on, proceeding.\n"
+                     + '\n'.join(pv_errors))
+        for p in invalid_params.keys():
+            params[p] = None
+
+    status, pv_status = snapshot.save_pvs(save_file_path,
+                                          force=force,
+                                          labels=labels,
+                                          comment=comment,
+                                          machine_params=params,
                                           symlink_path=symlink_path)
 
     if status != ActionStatus.ok:
@@ -72,7 +97,7 @@ def restore(saved_file_path, force=False, timeout=10):
         # Use saved file as request file here
         snapshot = Snapshot(saved_file_path, macros=meta_data.get('macros', dict()))
 
-    except (IOError, SnapshotError) as e:
+    except (OSError, SnapshotError) as e:
         logging.error('Snapshot cannot be loaded due to a following error: {}'.format(e))
         sys.exit(1)
 

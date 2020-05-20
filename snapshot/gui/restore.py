@@ -9,12 +9,14 @@ import datetime
 import os
 import time
 import enum
+import re
+import json
 
-from PyQt5 import QtCore
+from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QIcon, QCursor, QGuiApplication
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QHBoxLayout, QMessageBox, QTreeWidget, QTreeWidgetItem, \
-    QMenu, QLineEdit, QLabel
+from PyQt5.QtGui import QCursor, QGuiApplication
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QHBoxLayout, \
+    QFormLayout, QMessageBox, QTreeWidget, QTreeWidgetItem, QMenu, QLineEdit
 
 from ..ca_core import PvStatus, ActionStatus, SnapshotPv
 from ..core import background_workers, BackgroundThread, since_start
@@ -29,6 +31,7 @@ class FileSelectorColumns(enum.IntEnum):
     filename = 0
     comment = enum.auto()
     labels = enum.auto()
+    params = enum.auto()
 
 
 class FileListScanner(QtCore.QObject, BackgroundThread):
@@ -41,7 +44,7 @@ class FileListScanner(QtCore.QObject, BackgroundThread):
     update_rate = 5.  # seconds
 
     def __init__(self, parent=None):
-        super().__init__(parent=parent)
+        super().__init__(name='file_scanner', parent=parent)
 
         self._save_dir = None
         self._req_file_name = None
@@ -129,7 +132,7 @@ class SnapshotRestoreWidget(QWidget):
         layout.setContentsMargins(10, 10, 10, 10)
         self.setLayout(layout)
 
-        # Create list with: file names, comment, labels
+        # Create list with: file names, comment, labels, machine params
         self.file_selector = SnapshotRestoreFileSelector(snapshot,
                                                          common_settings, self)
 
@@ -395,14 +398,16 @@ class SnapshotRestoreFileSelector(QWidget):
 
         self.filter_input.file_filter_updated.connect(self.filter_file_list_selector)
 
-        # Create list with: file names, comment, labels
+        # Create list with: file names, comment, labels, machine params.
+        # This is done with a single-level QTreeWidget instead of QTableWidget
+        # because it is line-oriented whereas a table is cell-oriented.
         self.file_selector = QTreeWidget(self)
         self.file_selector.setRootIsDecorated(False)
+        self.file_selector.setUniformRowHeights(True)
         self.file_selector.setIndentation(0)
-        self.file_selector.setColumnCount(len(FileSelectorColumns))
-        column_labels = ["File name", "Comment", "Labels"]
-        assert(len(column_labels) == len(FileSelectorColumns))
-        self.file_selector.setHeaderLabels(column_labels)
+        self.file_selector.setColumnCount(FileSelectorColumns.params)
+        self.column_labels = ["File name", "Comment", "Labels"]
+        self.file_selector.setHeaderLabels(self.column_labels)
         self.file_selector.setAllColumnsShowFocus(True)
         self.file_selector.setSortingEnabled(True)
         # Sort by file name (alphabetical order)
@@ -461,28 +466,84 @@ class SnapshotRestoreFileSelector(QWidget):
 
     def _update_file_list_selector(self, file_list):
         new_labels = set()
+        new_params = set()
         for new_file, new_data in file_list.items():
             meta_data = new_data["meta_data"]
-            labels = meta_data.get("labels", list())
-            comment = meta_data.get("comment", "")
+            labels = meta_data.get("labels", [])
+            params = meta_data.get("machine_params", {})
 
             assert(new_file not in self.file_list)
+            new_labels.update(labels)
+            new_params.update(params.keys())
+
+        new_labels = list(new_labels)
+        new_params = list(new_params)
+        defined_params = list(self.common_settings['machine_params'].keys())
+        all_params = defined_params + \
+            [p for p in new_params if p not in defined_params]
+
+        for new_file, new_data in file_list.items():
+            meta_data = new_data["meta_data"]
+            labels = meta_data.get("labels", [])
+            params = meta_data.get("machine_params", {})
+            comment = meta_data.get("comment", "")
+
             row = [new_file, comment, " ".join(labels)]
-            assert(len(row) == len(FileSelectorColumns))
-            selector_item = QTreeWidgetItem(row)
+            assert(len(row) == FileSelectorColumns.params)
+            param_vals = [None] * len(all_params)
+            for p, v in params.items():
+                idx = all_params.index(p)
+                param_vals[idx] = str(v)
+            selector_item = QTreeWidgetItem(row + param_vals)
             self.file_selector.addTopLevelItem(selector_item)
             self.file_list[new_file] = new_data
             self.file_list[new_file]["file_selector"] = selector_item
-            new_labels.update(labels)
 
-        self.common_settings["existing_labels"] = list(new_labels)
-        self.filter_input.update_labels()
+        self.common_settings["existing_labels"] = new_labels
+        self.common_settings["existing_params"] = new_params
+        self.filter_input.update_params()
 
-        # Set column sizes
-        self.file_selector.resizeColumnToContents(FileSelectorColumns.filename)
+        self.file_selector.setHeaderLabels(self.column_labels + all_params)
+        for col in range(self.file_selector.columnCount()):
+            self.file_selector.resizeColumnToContents(col)
 
     def filter_file_list_selector(self):
         file_filter = self.filter_input.file_filter
+
+        def ensure_nums_or_strings(*vals):
+            """Variables have to be all numbers or all strings. If this is not
+            the case, convert everything to strings."""
+            if not all((isinstance(x, (int, float)) for x in vals)):
+                return tuple((str(x) for x in vals))
+            return vals
+
+        def check_params(params_filter, file_params):
+            """
+            file_params is a dict of machine params and their values.
+            params_filter is a dict of machine params and corresponding lists.
+            These lists have either one or two elements, causing either an
+            equality or in-range check.
+
+            Returns True if all checks pass.
+            """
+            for p, vals in params_filter.items():
+                if p not in file_params:
+                    return False
+                if len(vals) == 1:
+                    v1 = vals[0]
+                    v2 = file_params[p]
+                    v1, v2 = ensure_nums_or_strings(v1, v2)
+                    if v1 != v2:
+                        return False
+                elif len(vals) == 2:
+                    vals = ensure_nums_or_strings(*vals)
+                    low = min(vals)
+                    high = max(vals)
+                    v = file_params[p]
+                    v, low, high = ensure_nums_or_strings(v, low, high)
+                    if not (v >= low and v <= high):
+                        return False
+            return True
 
         for file_name in self.file_list:
             file_line = self.file_list[file_name]["file_selector"]
@@ -494,6 +555,7 @@ class SnapshotRestoreFileSelector(QWidget):
                 keys_filter = file_filter.get("keys")
                 comment_filter = file_filter.get("comment")
                 name_filter = file_filter.get("name")
+                params_filter = file_filter.get("params")
 
                 if keys_filter:
                     keys_status = False
@@ -515,9 +577,16 @@ class SnapshotRestoreFileSelector(QWidget):
                 else:
                     name_status = True
 
+                params_status = True
+                if params_filter:
+                    params_status = check_params(
+                        params_filter,
+                        file_to_filter['meta_data']['machine_params'])
+
                 # Set visibility if any of the filters conditions met
                 file_line.setHidden(
-                    not (name_status and keys_status and comment_status))
+                    not (name_status and keys_status and comment_status
+                         and params_status))
 
     def open_menu(self, point):
         item_idx = self.file_selector.indexAt(point)
@@ -530,7 +599,19 @@ class SnapshotRestoreFileSelector(QWidget):
         clipboard = QGuiApplication.clipboard()
 
         menu = QMenu(self)
-        menu.addAction(f"Copy {field.lower()}", lambda: clipboard.setText(text))
+        if item_idx.column() < FileSelectorColumns.params:
+            menu.addAction(f"Copy {field.lower()}",
+                           lambda: clipboard.setText(text))
+        else:
+            menu.addAction(f"Copy {field} name",
+                           lambda: clipboard.setText(field))
+            menu.addAction(f"Copy {field} value",
+                           lambda: clipboard.setText(text))
+            if field in self.common_settings['machine_params']:
+                pv_name = self.common_settings['machine_params'][field]
+                menu.addAction(f"Copy {field} PV name",
+                               lambda: clipboard.setText(pv_name))
+
         menu.addAction("Delete selected files", self.delete_files)
         menu.addAction("Edit file meta-data", self.update_file_metadata)
 
@@ -599,8 +680,15 @@ class SnapshotRestoreFileSelector(QWidget):
                 if settings_window.exec_():
                     background_workers.suspend()
                     file_data = self.file_list.get(self.selected_files[0])
-                    self.snapshot.replace_metadata(file_data['file_path'],
-                                                   file_data['meta_data'])
+                    try:
+                        self.snapshot.replace_metadata(file_data['file_path'],
+                                                       file_data['meta_data'])
+                    except OSError as e:
+                        warn = "Problem modifying file:\n" + str(e)
+                        QMessageBox.warning(self, "Warning", warn,
+                                            QMessageBox.Ok,
+                                            QMessageBox.NoButton)
+
                     self.rebuild_file_list()
                     background_workers.resume()
             else:
@@ -615,6 +703,76 @@ class SnapshotRestoreFileSelector(QWidget):
         self.file_list = dict()
 
 
+def num_or_string(string):
+    """Decodes the string using json decoder if possible. If the result is a
+    float, an int or a string, returns it directly, otherwise returns None.
+    This ensures that the numbers are well-formed and that strings are properly
+    quoted."""
+    if string == '':
+        return None
+    try:
+        val = json.loads(string)
+        if isinstance(val, (float, int, str)):
+            return val
+    except json.JSONDecodeError:
+        pass
+    return None
+
+
+class ParamFilterValidator(QtGui.QValidator):
+    """Checks the correctness of machine param filter syntax. It will match
+    space-separated expressions like
+
+        param1(value) param2(low_value, high_value) param3(value) ...
+
+    It will check that parameters names are known. It also has a function that
+    will return the parsing result as a dict.
+    """
+
+    param_rgx = re.compile('([^ ,()]+)\\(([^()]*)\\) *')
+    valid_params = []
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    def set_params(self, param_names):
+        self.valid_params = param_names
+
+    def parse(self, input):
+        # Replace all "param(values)" with nothing and if anything but spaces
+        # remains, it's wrong.
+        if self.param_rgx.sub('', input).strip() != '':
+            return
+
+        # Extract all "param(values)" into ("param", "values").
+        pv_pairs = self.param_rgx.findall(input)
+        if not pv_pairs:
+            return {}
+        if not all((len(x) == 2 or len(x) == 1 for x in pv_pairs)):
+            return
+
+        # For each parameter, "values" can be either "value" or
+        # "value1, value2".
+        result = {}
+        for param, value_string in pv_pairs:
+            if param not in self.valid_params or param in result:
+                return
+            values = [num_or_string(v.strip())
+                      for v in value_string.split(',')]
+            if len(values) < 1 or len(values) > 2:
+                return
+            if any((x is None for x in values)):
+                return
+            result[param] = values
+
+        return result
+
+    def validate(self, input, pos):
+        if self.parse(input) is None:
+            return QtGui.QValidator.Intermediate, input, pos
+        return QtGui.QValidator.Acceptable, input, pos
+
+
 class SnapshotFileFilterWidget(QWidget):
     """
         Is a widget with 3 filter options:
@@ -622,6 +780,7 @@ class SnapshotFileFilterWidget(QWidget):
             - by comment
             - by labels
             - by name
+            - by machine parameters
 
         Emits signal: filter_changed when any of the filter changed.
     """
@@ -636,10 +795,10 @@ class SnapshotFileFilterWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
-        # Create filter selectors (with readbacks)
-        # - text input to filter by name
-        # - text input to filter comment
-        # - labels selector
+        left_layout = QFormLayout()
+        right_layout = QFormLayout()
+        layout.addLayout(left_layout)
+        layout.addLayout(right_layout)
 
         # Init filters
         self.file_filter = dict()
@@ -648,35 +807,39 @@ class SnapshotFileFilterWidget(QWidget):
         self.file_filter["name"] = ""
 
         # Labels filter
-        key_layout = QHBoxLayout()
-        key_label = QLabel("Labels:", self)
-        self.keys_input = SnapshotKeywordSelectorWidget(self.common_settings, parent=self)  # No need to force defaults
+        self.keys_input = SnapshotKeywordSelectorWidget(
+            self.common_settings, parent=self)  # No need to force defaults
         self.keys_input.setPlaceholderText("label_1 label_2 ...")
         self.keys_input.keywords_changed.connect(self.update_filter)
-        key_layout.addWidget(key_label)
-        key_layout.addWidget(self.keys_input)
+        right_layout.addRow("Labels:", self.keys_input)
 
-        # Comment filter
-        comment_layout = QHBoxLayout()
-        comment_label = QLabel("Comment:", self)
-        self.comment_input = QLineEdit(self)
-        self.comment_input.setPlaceholderText("Filter by comment")
-        self.comment_input.textChanged.connect(self.update_filter)
-        comment_layout.addWidget(comment_label)
-        comment_layout.addWidget(self.comment_input)
+        # Params filter
+        self.validator = ParamFilterValidator(self)
+        self.param_input = QLineEdit()
+        self.param_input.setPlaceholderText("Filter by parameters")
+        self.param_input.setValidator(self.validator)
+        self.param_input.textEdited.connect(self.set_param_input_color)
+        self.param_input.textEdited.connect(self.update_filter)
+        right_layout.addRow("Params:", self.param_input)
 
         # File name filter
-        name_layout = QHBoxLayout()
-        name_label = QLabel("Name:", self)
         self.name_input = QLineEdit(self)
         self.name_input.setPlaceholderText("Filter by name")
         self.name_input.textChanged.connect(self.update_filter)
-        name_layout.addWidget(name_label)
-        name_layout.addWidget(self.name_input)
+        left_layout.addRow("Name:", self.name_input)
 
-        layout.addLayout(name_layout)
-        layout.addLayout(comment_layout)
-        layout.addLayout(key_layout)
+        # Comment filter
+        self.comment_input = QLineEdit(self)
+        self.comment_input.setPlaceholderText("Filter by comment")
+        self.comment_input.textChanged.connect(self.update_filter)
+        left_layout.addRow("Comment:", self.comment_input)
+
+    def set_param_input_color(self):
+        if self.param_input.hasAcceptableInput():
+            style = ''
+        else:
+            style = 'color: red;'
+        self.param_input.setStyleSheet(style)
 
     def update_filter(self):
         if self.keys_input.get_keywords():
@@ -685,11 +848,17 @@ class SnapshotFileFilterWidget(QWidget):
             self.file_filter["keys"] = list()
         self.file_filter["comment"] = self.comment_input.text().strip('')
         self.file_filter["name"] = self.name_input.text().strip('')
+        self.file_filter["params"] = \
+            self.validator.parse(self.param_input.text())
 
         self.file_filter_updated.emit()
 
-    def update_labels(self):
+    def update_params(self):
         self.keys_input.update_suggested_keywords()
+        defined_params = list(self.common_settings['machine_params'].keys())
+        self.validator.set_params(defined_params + [
+            p for p in self.common_settings['existing_params']
+            if p not in self.common_settings['machine_params']])
 
     def clear(self):
         self.keys_input.clear_keywords()

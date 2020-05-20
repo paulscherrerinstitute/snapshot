@@ -13,6 +13,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QLineEdit, QLabel, QHBoxLayout, QVBoxLayout, QFrame, QGroupBox, QMessageBox, QPushButton, \
     QWidget
 
+from ..core import get_pv_values
 from ..ca_core import PvStatus, ActionStatus
 from ..parser import save_file_suffix
 from .utils import SnapshotKeywordSelectorWidget, DetailedMsgBox
@@ -113,12 +114,36 @@ class SnapshotSaveWidget(QWidget):
             labels = self.advanced.labels_input.get_keywords()
             comment = self.advanced.comment_input.text()
 
+            machine_params = self.common_settings['machine_params']
+            params = {p: v for p, v in zip(machine_params.keys(),
+                                           get_pv_values(machine_params.values()))}
+
+            invalid_params = {p: v for p, v in params.items()
+                              if type(v) not in (float, int, str)}
+            if invalid_params:
+                msg = "Some machine parameters have invalid values " \
+                    "(see details). Do you want to save anyway?\n"
+                msg_window = DetailedMsgBox(
+                    msg, '\n'.join(
+                        [f"{p} ({machine_params[p]}) has no value" if v is None
+                         else f"{p} ({machine_params[p]}) has unsupported "
+                         f"type {type(v)}"
+                         for p, v in invalid_params.items()]),
+                    "Warning", self)
+                reply = msg_window.exec_()
+                if reply == QMessageBox.No:
+                    self.sts_info.clear_status()
+                    return
+                for p in invalid_params:
+                    params[p] = None
+
             force = self.common_settings["force"]
             # Start saving process with default "force" flag and notify when finished
             status, pvs_status = self.snapshot.save_pvs(self.file_path,
                                                         force=force,
                                                         labels=labels,
                                                         comment=comment,
+                                                        machine_params=params,
                                                         symlink_path=os.path.join(
                                                             self.common_settings["save_dir"],
                                                             self.common_settings["save_file_prefix"] +
@@ -126,9 +151,11 @@ class SnapshotSaveWidget(QWidget):
 
             if status == ActionStatus.no_conn:
                 # Prompt user and ask if he wants to save in force mode
-                msg = "Some PVs are not connected (see details). Do you want to save anyway?\n"
+                msg = "Some PVs are not connected (see details). " \
+                    "Do you want to save anyway?\n"
 
-                msg_window = DetailedMsgBox(msg, "\n".join(list(pvs_status.keys())), "Warning", self)
+                msg_window = DetailedMsgBox(
+                    msg, "\n".join(list(pvs_status.keys())), "Warning", self)
                 reply = msg_window.exec_()
 
                 if reply != QMessageBox.No:
@@ -137,6 +164,7 @@ class SnapshotSaveWidget(QWidget):
                                                                 force=True,
                                                                 labels=labels,
                                                                 comment=comment,
+                                                                machine_params=params,
                                                                 symlink_path=os.path.join(
                                                                     self.common_settings["save_dir"],
                                                                     self.common_settings["save_file_prefix"] +
@@ -150,9 +178,19 @@ class SnapshotSaveWidget(QWidget):
                     self.sts_info.clear_status()
                     self.save_button.setEnabled(True)
 
-            else:
+            elif status == ActionStatus.ok:
                 # Save done in "default force mode"
                 self.save_done(pvs_status, force)
+
+            elif status == ActionStatus.os_error:
+                msg = f"Could not write to file {self.file_path}."
+                QMessageBox.warning(self, "Warning", msg,
+                                    QMessageBox.Ok, QMessageBox.NoButton)
+
+            else:
+                msg = f"Error occurred with code {status}."
+                QMessageBox.warning(self, "Warning", msg,
+                                    QMessageBox.Ok, QMessageBox.NoButton)
 
         else:
             # User rejected saving into existing file.

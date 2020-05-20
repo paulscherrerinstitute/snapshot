@@ -133,7 +133,7 @@ class SnapshotGui(QMainWindow):
 
         self.save_widget.saved.connect(self.restore_widget.rebuild_file_list)
 
-        self.autorefresh = QCheckBox("Automatic refresh")
+        self.autorefresh = QCheckBox("Periodic PV update")
         self.autorefresh.setChecked(True)
         self.autorefresh.toggled.connect(self.toggle_autorefresh)
 
@@ -182,9 +182,9 @@ class SnapshotGui(QMainWindow):
 
     def toggle_autorefresh(self, checked):
         if checked:
-            background_workers.resume()
+            background_workers.resume_one('pv_updater')
         else:
-            background_workers.suspend()
+            background_workers.suspend_one('pv_updater')
 
     def open_new_req_file(self):
         configure_dialog = SnapshotConfigureDialog(self, init_path=self.common_settings['req_file_path'],
@@ -242,14 +242,11 @@ class SnapshotGui(QMainWindow):
             self.snapshot = Snapshot(req_file_path, req_macros)
             self.set_request_file(req_file_path, req_macros)
 
-        except IOError:
-            warn = "File {} does not exist!".format(req_file_path)
-            QMessageBox.warning(self, "Warning", warn, QMessageBox.Ok, QMessageBox.NoButton)
-            reopen_config = True
-
-        except ReqParseError as e:
-            msg = 'Snapshot cannot be loaded due to a syntax error in request file. See details.'
-            msg_window = DetailedMsgBox(msg, str(e), 'Warning', self, QMessageBox.Ok)
+        except (ReqParseError, OSError) as e:
+            msg = 'Request file cannot be loaded. ' \
+                'See details for type of error.'
+            msg_window = DetailedMsgBox(msg, str(e), 'Warning', self,
+                                        QMessageBox.Ok)
             msg_window.exec_()
             reopen_config = True
 
@@ -262,6 +259,30 @@ class SnapshotGui(QMainWindow):
             configure_dialog.accepted.connect(self.init_snapshot)
             if configure_dialog.exec_() == QDialog.Rejected:
                 self.close()
+
+        # Merge request file metadata into common settings, replacing existing
+        # settings.
+        # TODO Labels and filters are only overridden if given in the request
+        # file, for backwards compatibility with config files. After config
+        # files are out of use, change this to always override old values.
+        req_labels = self.snapshot.req_file_metadata.get('labels', {})
+        if req_labels:
+            self.common_settings['force_default_labels'] = \
+                req_labels.get('force_default_labels', False)
+            self.common_settings['default_labels'] = \
+                req_labels.get('labels', [])
+        req_filters = self.snapshot.req_file_metadata.get('filters', {})
+        if req_filters:
+            filters = self.common_settings['predefined_filters']
+            for fltype in ('filters', 'rgx-filters'):
+                filters[fltype] = req_filters.get(fltype, [])
+
+        self.common_settings['machine_params'] = \
+            self.snapshot.req_file_metadata.get('machine_params', {})
+
+        # Metadata to be filled from snapshot files.
+        self.common_settings['existing_labels'] = []
+        self.common_settings['existing_params'] = []
 
     def handle_files_updated(self):
         self.save_widget.update_labels()

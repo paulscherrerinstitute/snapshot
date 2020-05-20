@@ -7,6 +7,7 @@ import glob
 import numpy
 import time
 import logging
+from itertools import chain
 
 
 save_file_suffix = '.snap'
@@ -49,57 +50,107 @@ class SnapshotReqFile(object):
 
     def read(self):
         """
-        Parse request file and return list of pv names where changeable_macros
-        are not replaced. ("raw" pv names).
+        Parse request file and return
+          - a list of pv names where changeable_macros are not replaced. ("raw"
+            pv names).
+          - a dict with metadata from the file.
 
         In case of problems raises exceptions.
+                OSError
                 ReqParseError
                     ReqFileFormatError
                     ReqFileInfLoopError
 
-        :return: List of PV names.
+        :return: (pv_names, metadata).
         """
         result = self._read_only_self()
         if not isinstance(result, tuple):
             raise result
 
-        pvs, includes = result
+        pvs, metadata, includes = result
         while includes:
             results = global_thread_pool.map(lambda f: f._read_only_self(),
-                                           includes)
+                                             includes)
+            old_includes = includes
             includes = []
-            for r in results:
-                if not isinstance(r, tuple):
-                    raise r
-                pvs += r[0]
-                includes += r[1]
+            for result, inc in zip(results, old_includes):
+                if not isinstance(result, tuple):
+                    raise result
+                new_pvs, new_metadata, new_includes = result
+                if new_metadata:
+                    msg = f"Found metadata in included file {inc._path}; " \
+                        "metadata is only allowed in the top-level file."
+                    raise ReqParseError(msg)
+                pvs += new_pvs
+                includes += new_includes
 
-        return pvs
+        # In the file, machine_params are stored as an array of
+        # key-value pairs to preserve order. Here, we can rely on
+        # having an ordered dict.
+        try:
+            metadata['machine_params'] = \
+                dict(metadata.get('machine_params', []))
+            if not all(isinstance(x, str) for x in chain.from_iterable(
+                    metadata['machine_params'].items())):
+                raise ReqParseError
+        except Exception:
+            raise ReqParseError('Invalid format of machine parameter list, '
+                                'must be a list of ["name", "pv_name"] pairs.')
+
+        forbidden_chars = " ,.()"
+        if any((any(char in param for char in forbidden_chars)
+                for param in metadata['machine_params'].keys())):
+            raise ReqParseError('Invalid format of machine parameter list, '
+                                'names must not contain space or punctuation.')
+
+        return pvs, metadata
 
     def _read_only_self(self):
         """
-        Parse request file and return a tuple of pvs and includes.
+        Parse request file and return a tuple of pvs, metadata and includes.
 
         In case of problems returns (but does not raise) exceptions.
+                OSError
                 ReqParseError
                     ReqFileFormatError
                     ReqFileInfLoopError
 
-        :return: A tuple (pv_list, includes_list, error_list)
+        :return: A tuple (pv_list, metadata, includes_list)
         """
 
         pvs = list()
         includes = list()
 
-        with open(self._path) as f:
-            f = f.readlines()
+        try:
+            with open(self._path) as f:
+                file_data = f.read()
+        except OSError as e:
+            return e
 
-        self._curr_line_n = 0
-        for self._curr_line in f:
+        if file_data.lstrip().startswith('{'):
+            try:
+                md = file_data.lstrip()
+                metadata, end_of_metadata = \
+                    json.JSONDecoder().raw_decode(md)
+            except json.JSONDecodeError:
+                msg = f"{self._path}: Could not parse JSON metadata header."
+                return ReqParseError(msg)
+
+            # Ensure line counts make sense for error reporting.
+            actual_data = md[end_of_metadata:].lstrip()
+            actual_data_index = file_data.find(actual_data)
+            self._curr_line_n = len(file_data[:actual_data_index]
+                                    .splitlines())
+            file_data = file_data[actual_data_index:]
+        else:
+            metadata = {}
+            self._curr_line_n = 0
+
+        for self._curr_line in file_data.splitlines():
             self._curr_line_n += 1
             self._curr_line = self._curr_line.strip()
 
-            # skip comments and empty lines
+            # skip comments, empty lines and "data{}" stuff
             if not self._curr_line.startswith(('#', "data{", "}", "!")) \
                and self._curr_line.strip():
                 # First replace macros, then check if any unreplaced macros
@@ -163,12 +214,12 @@ class SnapshotReqFile(object):
                     sub_f = SnapshotReqFile(path, parent=self, macros=macros)
                     includes.append(sub_f)
 
-                except IOError as e:
-                    return IOError(
+                except OSError as e:
+                    return OSError(
                         self._format_err(
                             (self._curr_line, self._curr_line_n), e))
 
-        return (pvs, includes)
+        return (pvs, metadata, includes)
 
     def _format_err(self, line: tuple, msg: str):
         return '{} [line {}: {}]: {}'.format(self._trace, line[0], line[1], msg)
@@ -251,6 +302,10 @@ class ReqFileInfLoopError(ReqParseError):
     pass
 
 
+# TODO Reading filters and labels from the config file is deprecated as they
+# are now part of the request file. When the transition is complete, remove
+# them from this function. Also remove them from the command-line arguments.
+# See also SnapshotGui.init_snapshot().
 def initialize_config(config_path=None, save_dir=None, force=False,
                       default_labels=None, force_default_labels=None,
                       req_file_path=None, req_file_macros=None,
@@ -274,15 +329,18 @@ def initialize_config(config_path=None, save_dir=None, force=False,
     if config_path:
         # Validate configuration file
         try:
-            config.update(json.load(open(config_path)))
+            new_settings = json.load(open(config_path))
             # force-labels must be type of bool
-            if not isinstance(config.get('labels', dict())
-                                    .get('force-labels', False), bool):
+            if not isinstance(new_settings.get('labels', dict())
+                                          .get('force-labels', False), bool):
                 raise TypeError('"force-labels" must be boolean')
         except Exception as e:
             # Propagate error to the caller, but continue filling in defaults
             config['config_ok'] = False
             config['config_error'] = str(e)
+            new_settings = {}
+    else:
+        new_settings = {}
 
     config['save_file_prefix'] = ''
     config['req_file_path'] = ''
@@ -299,15 +357,18 @@ def initialize_config(config_path=None, save_dir=None, force=False,
 
     # default labels also in config file? Add them
     config['default_labels'] = \
-        list(set(default_labels + (config.get('labels', dict())
-                                   .get('labels', list()))))
+        list(set(default_labels + (new_settings.get('labels', dict())
+                                               .get('labels', list()))))
 
     config['force_default_labels'] = \
-        config.get('labels', dict()) \
-              .get('force-labels', False) or force_default_labels
+        new_settings.get('labels', dict()) \
+                    .get('force-labels', False) or force_default_labels
 
-    # Predefined filters
-    config["predefined_filters"] = config.get('filters', dict())
+    # Predefined filters. Ensure entries exist.
+    config['predefined_filters'] = new_settings.get('filters', {})
+    for fltype in ('filters', 'rgx-filters'):
+        if fltype not in config['predefined_filters']:
+            config['predefined_filters'][fltype] = []
 
     if req_file_macros is None:
         req_file_macros = dict()
@@ -514,6 +575,8 @@ def get_save_files(save_dir, req_file_path):
                     meta_data["comment"] = ""
                 if "labels" not in meta_data:
                     meta_data["labels"] = []
+                if "machine_params" not in meta_data:
+                    meta_data["machine_params"] = {}
 
                 return (file_name,
                         {'file_name': file_name,

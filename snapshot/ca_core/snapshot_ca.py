@@ -42,6 +42,7 @@ class ActionStatus(Enum):
     no_data = 2
     no_conn = 3
     timeout = 4
+    os_error = 5
 
 
 class Snapshot(object):
@@ -64,6 +65,7 @@ class Snapshot(object):
         self.pvs = dict()
         self.macros = macros
         self.req_file_path = ''
+        self.req_file_metadata = {}
 
         # Other important states
         self._restore_started = False
@@ -82,9 +84,10 @@ class Snapshot(object):
                 os.path.normpath(os.path.abspath(req_file_path))
             req_f = SnapshotReqFile(self.req_file_path,
                                     changeable_macros=list(macros.keys()))
-            pvs = req_f.read()
+            pvs, metadata = req_f.read()
             since_start("Finished parsing reqfile")
 
+            self.req_file_metadata = metadata
             self.add_pvs(pvs)
 
     def add_pvs(self, pv_list):
@@ -179,11 +182,15 @@ class Snapshot(object):
             pvs_data[pvname]['val'] = value
 
         logging.debug("Writing snapshot to file")
-        parse_to_save_file(pvs_data, save_file_path, self.macros, symlink_path, **kw)
+        try:
+            parse_to_save_file(pvs_data, save_file_path, self.macros, symlink_path, **kw)
+            status = ActionStatus.ok
+        except OSError:
+            status = ActionStatus.os_error
         logging.debug("Snapshot done")
         background_workers.resume()
 
-        return ActionStatus.ok, pvs_status
+        return status, pvs_status
 
     def restore_pvs(self, pvs_raw, force=False, callback=None, custom_macros=None):
         """

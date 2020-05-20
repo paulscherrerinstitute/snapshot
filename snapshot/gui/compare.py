@@ -35,6 +35,7 @@ class PvCompareFilter(enum.Enum):
 class SnapshotCompareWidget(QWidget):
     pvs_filtered = QtCore.pyqtSignal(list)
     restore_requested = QtCore.pyqtSignal(list)
+    rgx_icon = None
 
     def __init__(self, snapshot, common_settings, parent=None, **kw):
         super().__init__(parent, **kw)
@@ -66,40 +67,30 @@ class SnapshotCompareWidget(QWidget):
         # - drop down to filter by compare status
         # - check box to select if showing pvs with incomplete data
 
+        if SnapshotCompareWidget.rgx_icon is None:
+            SnapshotCompareWidget.rgx_icon = QIcon(
+                os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                             "images/rgx.png"))
+
         # #### PV name filter
         pv_filter_label = QLabel("Filter:", self)
         pv_filter_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
 
-        # Select and prepare name filter entry widget:
-        #    if predefined_filters: make a drop down menu but keep the option to enter filter (QComboBox)
-        #    if not predefined_filters: create a normal QLineEdit
-        predefined_filters = self.common_settings["predefined_filters"]
-        if predefined_filters:
-            self.pv_filter_sel = QComboBox(self)
-            self.pv_filter_sel.setEditable(True)
-            self.pv_filter_sel.setIconSize(QtCore.QSize(35, 15))
-            self.pv_filter_inp = self.pv_filter_sel.lineEdit()
-            self.pv_filter_inp.setPlaceholderText("Filter by PV name")
+        self.pv_filter_sel = QComboBox(self)
+        self.pv_filter_sel.setEditable(True)
+        self.pv_filter_sel.setIconSize(QtCore.QSize(35, 15))
+        self.pv_filter_inp = self.pv_filter_sel.lineEdit()
+        self.pv_filter_inp.setPlaceholderText("Filter by PV name")
 
-            policy = self.pv_filter_sel.sizePolicy()
-            policy.setHorizontalPolicy(policy.Expanding)
-            self.pv_filter_sel.setSizePolicy(policy)
+        policy = self.pv_filter_sel.sizePolicy()
+        policy.setHorizontalPolicy(policy.Expanding)
+        self.pv_filter_sel.setSizePolicy(policy)
 
-            # Add filters
-            self.pv_filter_sel.addItem(None)
-            icon = QIcon(os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                      "images/rgx.png"))
-            for rgx in predefined_filters.get('rgx-filters', list()):
-                self.pv_filter_sel.addItem(icon, rgx)
-            self.pv_filter_sel.addItems(predefined_filters.get('filters', list()))
-            self.pv_filter_sel.currentIndexChanged.connect(self._predefined_filter_selected)
-
-        else:
-            self.pv_filter_inp = QLineEdit(self)
-            self.pv_filter_inp.setPlaceholderText("Filter by PV name")
-            self.pv_filter_sel = self.pv_filter_inp
-
+        self.pv_filter_sel.currentIndexChanged.connect(
+            self._predefined_filter_selected)
         self.pv_filter_inp.textChanged.connect(self._create_name_filter)
+
+        self._populate_filter_list()
 
         # Prepare pallets to color the pv name filter input if rgx not valid
         self._inp_palette_ok = self.pv_filter_inp.palette()
@@ -130,9 +121,9 @@ class SnapshotCompareWidget(QWidget):
         self.show_disconn_inp.setMaximumWidth(500)
 
         # Tolerance setting
-        tol_label = QLabel("Tolerance f:")
+        tol_label = QLabel("Tolerance:")
         tol = QSpinBox()
-        tol.setRange(1, 1000)
+        tol.setRange(1, 1000000)
         tol.setValue(1)
         tol.valueChanged[int].connect(self.model.change_tolerance)
         self.model.change_tolerance(tol.value())
@@ -160,6 +151,16 @@ class SnapshotCompareWidget(QWidget):
         layout.addLayout(filter_layout)
         layout.addWidget(self.view)
         self.setLayout(layout)
+
+    def _populate_filter_list(self):
+        predefined_filters = self.common_settings['predefined_filters']
+        self.pv_filter_sel.blockSignals(True)
+        self.pv_filter_sel.clear()
+        self.pv_filter_sel.addItem(None)
+        for rgx in predefined_filters.get('rgx-filters', list()):
+            self.pv_filter_sel.addItem(SnapshotCompareWidget.rgx_icon, rgx)
+        self.pv_filter_sel.addItems(predefined_filters.get('filters', list()))
+        self.pv_filter_sel.blockSignals(False)
 
     def _handle_filtered(self, pvs_names_list):
         self.pvs_filtered.emit(pvs_names_list)
@@ -205,6 +206,7 @@ class SnapshotCompareWidget(QWidget):
         self.model.snapshot = snapshot
         self.model.set_pvs(snapshot.pvs.values())
         self.view.sortByColumn(0, Qt.AscendingOrder)  # default sorting
+        self._populate_filter_list()
 
     def _handle_restore_request(self, pvs_list):
         self.restore_requested.emit(pvs_list)
