@@ -222,6 +222,10 @@ class SnapshotPv(PV):
                          auto_monitor=False,
                          connection_timeout=None, **kw)
 
+    @property
+    def initialized(self):
+        return self._initialized
+
     @PV.value.getter
     def value(self):
         """
