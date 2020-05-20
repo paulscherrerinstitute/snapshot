@@ -282,7 +282,8 @@ class SnapshotPv(PV):
                     if numpy.size(saved_value) == 0:
                         # Empty array is equal to "None" scalar value
                         saved_value = None
-                    elif numpy.size(saved_value) == 1:
+                    elif (numpy.size(saved_value) == 1
+                          and not isinstance(saved_value, numpy.ndarray)):
                         # make scalars as arrays
                         saved_value = numpy.asarray([saved_value])
 
