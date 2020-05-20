@@ -673,7 +673,6 @@ class SnapshotPvTableLine(QtCore.QObject):
             first_data = self.data[PvTableColumns.snapshots]['raw_value']
             for data in self.data[PvTableColumns.snapshots + 1:]:
                 if not SnapshotPv.compare(first_data, data['raw_value'],
-                                          self.is_array,
                                           self.tolerance_from_precision()):
                     return False
             return True
@@ -683,7 +682,6 @@ class SnapshotPvTableLine(QtCore.QObject):
         if self._pv_ref.connected:
             return SnapshotPv.compare(self._pv_ref.value,
                                       self.data[idx]['raw_value'],
-                                      self.is_array,
                                       self.tolerance_from_precision())
         else:
             return False
@@ -705,7 +703,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             connected = self._pv_ref.connected
             for i in range(1, len(values)):
                 comparison = SnapshotPv.compare(values[i-1], values[i],
-                                                self.is_array, tolerance)
+                                                tolerance)
                 snap = self.data[PvTableColumns.snapshots + i - 1]
                 if connected and not comparison:
                     snap['icon'] = self._NEQ_ICON
@@ -725,9 +723,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             return value
         else:
             # dump other values
-            is_array = isinstance(value, numpy.ndarray) \
-                or isinstance(value, list)
-            return SnapshotPv.value_to_display_str(value, is_array, precision)
+            return SnapshotPv.value_to_display_str(value, precision)
 
     def update_pv_value(self, pv_value):
         value_col = self.data[PvTableColumns.value]
@@ -738,9 +734,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             self._compare(None, get_missing=False)
             return True
 
-        new_value = SnapshotPv.value_to_display_str(pv_value,
-                                                    self.is_array,
-                                                    self.precision)
+        new_value = SnapshotPv.value_to_display_str(pv_value, self.precision)
 
         if unit_col['data'] == 'UNDEF':
             unit_col['data'] = self._pv_ref.units
