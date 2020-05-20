@@ -33,7 +33,7 @@ class PvCompareFilter(enum.Enum):
 
 
 class SnapshotCompareWidget(QWidget):
-    pvs_filtered = QtCore.pyqtSignal(list)
+    pvs_filtered = QtCore.pyqtSignal(set)
     restore_requested = QtCore.pyqtSignal(list)
     rgx_icon = None
 
@@ -56,7 +56,7 @@ class SnapshotCompareWidget(QWidget):
         self.model.file_parse_errors.connect(self._show_snapshot_parse_errors)
         self._proxy = SnapshotPvFilterProxyModel(self)
         self._proxy.setSourceModel(self.model)
-        self._proxy.filtered.connect(self._handle_filtered)
+        self._proxy.filtered.connect(self.pvs_filtered)
 
         # Build model and set default visualization on view (column widths, etc)
         self.model.set_pvs(snapshot.pvs.values())
@@ -161,9 +161,6 @@ class SnapshotCompareWidget(QWidget):
             self.pv_filter_sel.addItem(SnapshotCompareWidget.rgx_icon, rgx)
         self.pv_filter_sel.addItems(predefined_filters.get('filters', list()))
         self.pv_filter_sel.blockSignals(False)
-
-    def _handle_filtered(self, pvs_names_list):
-        self.pvs_filtered.emit(pvs_names_list)
 
     def _handle_regex_change(self, state):
         txt = self.pv_filter_inp.text()
@@ -763,14 +760,14 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
     """
     Proxy model providing a custom filtering functionality for PV table
     """
-    filtered = QtCore.pyqtSignal(list)
+    filtered = QtCore.pyqtSignal(set)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._disconn_filter = True  # show disconnected?
         self._name_filter = ''  # string or regex object
         self._eq_filter = PvCompareFilter.show_all
-        self._filtered_pvs = None
+        self._filtered_pvs = set()
 
     def setSourceModel(self, model):
         super().setSourceModel(model)
@@ -790,10 +787,7 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
 
     def apply_filter(self):
         # during invalidateFilter(), filterAcceptsRow() is called for each row
-        self._filtered_pvs = list()
-        self.invalidate()
-        self.filtered.emit(self._filtered_pvs)
-        self._filtered_pvs = None
+        self.invalidateFilter()
 
     def filterAcceptsRow(self, idx: int, source_parent: QtCore.QModelIndex):
         """
@@ -837,8 +831,10 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
                 # Only name and connection filters apply
                 result = name_match and connected_match
 
-        # We only construct the list of PVs when needed by apply_filter()
-        if result and self._filtered_pvs is not None:
-            self._filtered_pvs.append(row_model.pvname)
+        if result:
+            self._filtered_pvs.add(row_model.pvname)
+        else:
+            self._filtered_pvs.discard(row_model.pvname)
 
+        self.filtered.emit(self._filtered_pvs)
         return result

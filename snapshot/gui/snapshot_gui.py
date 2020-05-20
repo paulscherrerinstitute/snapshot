@@ -296,11 +296,11 @@ class SnapshotGui(QMainWindow):
     def _handle_restore_request(self, pvs_list):
         self.restore_widget.do_restore(pvs_list)
 
-    def handle_pvs_filtered(self, pvs=None):
-        if pvs is None:
-            pvs = list()
-
-        self.restore_widget.filtered_pvs = pvs
+    def handle_pvs_filtered(self, pv_names_set):
+        # Yes, this merely sets the reference to the set of names, so
+        # technically, it needn't be done every time. But good luck tracking
+        # down who updated the list without this ;)
+        self.restore_widget.filtered_pvs = pv_names_set
 
 
 # -------- Status widgets -----------
