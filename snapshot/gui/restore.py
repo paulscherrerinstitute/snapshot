@@ -532,7 +532,8 @@ class SnapshotRestoreFileSelector(QWidget):
 
         def check_params(params_filter, file_params):
             """
-            file_params is a dict of machine params and their values.
+            file_params is a dict of machine params and their data (being a
+            dict containing 'value' and 'precision').
             params_filter is a dict of machine params and corresponding lists.
             These lists have either one or two elements, causing either an
             equality or in-range check.
@@ -544,15 +545,23 @@ class SnapshotRestoreFileSelector(QWidget):
                     return False
                 if len(vals) == 1:
                     v1 = vals[0]
-                    v2 = file_params[p]
+                    v2 = file_params[p]['value']
                     v1, v2 = ensure_nums_or_strings(v1, v2)
-                    if v1 != v2:
-                        return False
+                    if isinstance(v2, float):
+                        # If precision is defined, compare with tolerance.
+                        prec = file_params[p]['precision']
+                        tol = 10**(-prec) if (prec and prec > 0) else 0
+                        if abs(v1 - v2) > tol:
+                            return False
+                    else:
+                        if v1 != v2:
+                            return False
+
                 elif len(vals) == 2:
                     vals = ensure_nums_or_strings(*vals)
                     low = min(vals)
                     high = max(vals)
-                    v = file_params[p]
+                    v = file_params[p]['value']
                     v, low, high = ensure_nums_or_strings(v, low, high)
                     if not (v >= low and v <= high):
                         return False
