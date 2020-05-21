@@ -492,8 +492,13 @@ class SnapshotRestoreFileSelector(QWidget):
             assert(len(row) == FileSelectorColumns.params)
             param_vals = [None] * len(all_params)
             for p, v in params.items():
+                string = SnapshotPv.value_to_display_str(
+                    v['value'],
+                    v['precision'] if v['precision'] is not None else 0)
+                if v['units']:
+                    string += ' ' + v['units']
                 idx = all_params.index(p)
-                param_vals[idx] = str(v)
+                param_vals[idx] = string
             selector_item = QTreeWidgetItem(row + param_vals)
             self.file_selector.addTopLevelItem(selector_item)
             self.file_list[new_file] = new_data

@@ -479,6 +479,16 @@ def parse_from_save_file(save_file_path, metadata_only=False):
 
     if not meta_loaded:
         err.insert(0, 'No meta data in the file.')
+    else:
+        # Check that the snapshot has machine parameters with metadata; at some
+        # point, only values were being saved.
+        for p, v in meta_data.get('machine_params', {}).items():
+            if not isinstance(v, dict):
+                meta_data['machine_params'][p] = {
+                    'value': v,
+                    'units': None,
+                    'precision': None
+                }
 
     saved_file.close()
     return saved_pvs, meta_data, err
