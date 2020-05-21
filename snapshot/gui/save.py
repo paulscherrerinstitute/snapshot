@@ -13,7 +13,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QLineEdit, QLabel, QHBoxLayout, QVBoxLayout, QFrame, QGroupBox, QMessageBox, QPushButton, \
     QWidget
 
-from ..core import get_pv_values
+from ..core import get_machine_param_data
 from ..ca_core import PvStatus, ActionStatus
 from ..parser import save_file_suffix
 from .utils import SnapshotKeywordSelectorWidget, DetailedMsgBox
@@ -115,11 +115,9 @@ class SnapshotSaveWidget(QWidget):
             comment = self.advanced.comment_input.text()
 
             machine_params = self.common_settings['machine_params']
-            params = {p: v for p, v in zip(machine_params.keys(),
-                                           get_pv_values(machine_params.values()))}
-
-            invalid_params = {p: v for p, v in params.items()
-                              if type(v) not in (float, int, str)}
+            params_data = get_machine_param_data(machine_params)
+            invalid_params = {p: v['value'] for p, v in params_data.items()
+                              if type(v['value']) not in (float, int, str)}
             if invalid_params:
                 msg = "Some machine parameters have invalid values " \
                     "(see details). Do you want to save anyway?\n"
@@ -135,7 +133,7 @@ class SnapshotSaveWidget(QWidget):
                     self.sts_info.clear_status()
                     return
                 for p in invalid_params:
-                    params[p] = None
+                    params_data[p] = None
 
             force = self.common_settings["force"]
             # Start saving process with default "force" flag and notify when finished
@@ -143,7 +141,7 @@ class SnapshotSaveWidget(QWidget):
                                                         force=force,
                                                         labels=labels,
                                                         comment=comment,
-                                                        machine_params=params,
+                                                        machine_params=params_data,
                                                         symlink_path=os.path.join(
                                                             self.common_settings["save_dir"],
                                                             self.common_settings["save_file_prefix"] +

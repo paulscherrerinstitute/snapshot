@@ -166,11 +166,20 @@ class BackgroundThread:
                     task()
 
 
-def get_pv_values(pv_names):
+def get_machine_param_data(machine_params):
+    """For each machine parameter (given in dict {name: pv_name}), get PV
+    data as dict. The data includes 'value', 'units', 'precision'. Returns a
+    dict of {name: data}. In case of error, all values in data are None."""
+
     background_workers.suspend()
-    values = caget_many(pv_names, timeout=1., as_numpy=True)
+    pvs = [PV(name, auto_monitor=False, connection_timeout=None)
+           for name in machine_params.values()]
+    results = [p.get_with_metadata(form='ctrl', as_numpy=True) for p in pvs]
     background_workers.resume()
-    return values
+
+    return {p: {key: (v.get(key) if v is not None else None)
+                for key in('value', 'units', 'precision')}
+            for p, v in zip(machine_params.keys(), results)}
 
 
 # Exceptions
