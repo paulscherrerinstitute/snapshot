@@ -559,8 +559,12 @@ class SnapshotRestoreFileSelector(QWidget):
                     v1, v2 = ensure_nums_or_strings(v1, v2)
                     if isinstance(v2, float):
                         # If precision is defined, compare with tolerance.
+                        # The default precision is 6, which matches string
+                        # formatting behaviour. It makes no sense to do
+                        # comparison to a higher precision than what the user
+                        # can see.
                         prec = file_params[p]['precision']
-                        tol = 10**(-prec) if (prec and prec > 0) else 0
+                        tol = 10**(-prec) if (prec and prec > 0) else 10**-6
                         if abs(v1 - v2) > tol:
                             return False
                     else:

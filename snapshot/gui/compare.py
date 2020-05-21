@@ -710,7 +710,10 @@ class SnapshotPvTableLine(QtCore.QObject):
     def tolerance_from_precision(self):
         prec = self.precision
         if not prec or prec < 0:
-            prec = numpy.inf
+            # The default precision is 6, which matches string formatting
+            # behaviour. It makes no sense to do comparison to a higher
+            # precision than what the user can see.
+            prec = 6
         return self._tolerance_f * 10**(-prec)
 
     @staticmethod
