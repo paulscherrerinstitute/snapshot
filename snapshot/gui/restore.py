@@ -495,8 +495,6 @@ class SnapshotRestoreFileSelector(QWidget):
                 string = SnapshotPv.value_to_display_str(
                     v['value'],
                     v['precision'] if v['precision'] is not None else 0)
-                if v['units']:
-                    string += ' ' + v['units']
                 idx = all_params.index(p)
                 param_vals[idx] = string
             selector_item = QTreeWidgetItem(row + param_vals)
@@ -507,6 +505,18 @@ class SnapshotRestoreFileSelector(QWidget):
         self.common_settings["existing_labels"] = new_labels
         self.common_settings["existing_params"] = new_params
         self.filter_input.update_params()
+
+        # Add units to column headers; get units from the latest file that has
+        # them.
+        params_mtimes = [(data['meta_data']['machine_params'],
+                          data['modif_time'])
+                         for data in file_list.values()]
+        params_mtimes.sort(key=lambda d: d[1], reverse=True)
+        for i, p in enumerate(all_params):
+            for file_params, _ in params_mtimes:
+                if file_params.get(p, {}).get('units', None):
+                    all_params[i] += f" ({file_params[p]['units']})"
+                    break
 
         self.file_selector.setHeaderLabels(self.column_labels + all_params)
         for col in range(self.file_selector.columnCount()):
@@ -625,13 +635,20 @@ class SnapshotRestoreFileSelector(QWidget):
             menu.addAction(f"Copy {field.lower()}",
                            lambda: clipboard.setText(text))
         else:
-            menu.addAction(f"Copy {field} name",
-                           lambda: clipboard.setText(field))
-            menu.addAction(f"Copy {field} value",
+            # Machine param fields end with the unit in parentheses which needs
+            # to be stripped to recognize them.
+            try:
+                param_name = field[:field.rindex('(')].rstrip()
+            except ValueError:
+                param_name = field
+
+            menu.addAction(f"Copy {param_name} name",
+                           lambda: clipboard.setText(param_name))
+            menu.addAction(f"Copy {param_name} value",
                            lambda: clipboard.setText(text))
-            if field in self.common_settings['machine_params']:
-                pv_name = self.common_settings['machine_params'][field]
-                menu.addAction(f"Copy {field} PV name",
+            if param_name in self.common_settings['machine_params']:
+                pv_name = self.common_settings['machine_params'][param_name]
+                menu.addAction(f"Copy {param_name} PV name",
                                lambda: clipboard.setText(pv_name))
 
         menu.addAction("Delete selected files", self.delete_files)
