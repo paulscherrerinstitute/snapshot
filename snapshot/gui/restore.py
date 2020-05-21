@@ -507,6 +507,14 @@ class SnapshotRestoreFileSelector(QWidget):
         for col in range(self.file_selector.columnCount()):
             self.file_selector.resizeColumnToContents(col)
 
+        # There can be some rather long comments in the snapshots, so let's
+        # make sure that they don't push out more useful stuff.
+        if self.file_selector.columnWidth(FileSelectorColumns.comment) \
+           > self.file_selector.columnWidth(FileSelectorColumns.filename):
+            self.file_selector.setColumnWidth(
+                FileSelectorColumns.comment,
+                self.file_selector.columnWidth(FileSelectorColumns.filename))
+
     def filter_file_list_selector(self):
         file_filter = self.filter_input.file_filter
 
