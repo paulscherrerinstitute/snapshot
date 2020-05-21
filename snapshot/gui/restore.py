@@ -14,7 +14,7 @@ import json
 
 from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QCursor, QGuiApplication
+from PyQt5.QtGui import QCursor, QGuiApplication, QPalette, QColor
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QHBoxLayout, \
     QFormLayout, QMessageBox, QTreeWidget, QTreeWidgetItem, QMenu, QLineEdit
 
@@ -865,6 +865,10 @@ class SnapshotFileFilterWidget(QWidget):
         self.param_input.textEdited.connect(self.update_filter)
         right_layout.addRow("Params:", self.param_input)
 
+        self._inp_palette_ok = self.param_input.palette()
+        self._inp_palette_err = QPalette()
+        self._inp_palette_err.setColor(QPalette.Base, QColor("#F39292"))
+
         # File name filter
         self.name_input = QLineEdit(self)
         self.name_input.setPlaceholderText("Filter by name")
@@ -879,10 +883,9 @@ class SnapshotFileFilterWidget(QWidget):
 
     def set_param_input_color(self):
         if self.param_input.hasAcceptableInput():
-            style = ''
+            self.param_input.setPalette(self._inp_palette_ok)
         else:
-            style = 'color: red;'
-        self.param_input.setStyleSheet(style)
+            self.param_input.setPalette(self._inp_palette_err)
 
     def update_filter(self):
         if self.keys_input.get_keywords():
