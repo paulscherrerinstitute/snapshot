@@ -241,26 +241,26 @@ class SnapshotPv(PV):
         Overriden PV.value property. Since auto_monitor is disabled, this
         property would perform a get(). Instead, we return the last value
         that was fetched by PvUpdater, emulating auto_monitor using periodic
-        updates. If no value was fetched yet, do a get().
+        updates. If no value was fetched yet, return None, but don't block.
+
+        This method is never used when we _really_ want a value. In such cases,
+        use get().
         """
-        value = self._last_value  # it could be updated in the background
-        if not self._initialized:
-            self._initialized = True
-            value = self.get(use_monitor=False, with_ctrlvars=True)
-            self._last_value = value
-        return value
+        if self._initialized:
+            return self._last_value
+        return None
 
     def get(self, *args, **kwargs):
         """
-        Overriden PV.get() function. If not arguments are given, returns the
-        cached value, otherwise calls PV.get(). It also makes one-element
-        arrays behave consistently: unless it is given 'as_numpy=False', it
-        will always return an ndarray.
+        Overriden PV.get() function. If no arguments are given and the value
+        was initialized by PvUpdater, returns the cached value, otherwise calls
+        PV.get(). It also makes one-element arrays behave consistently: unless
+        it is given 'as_numpy=False', it will always return an ndarray.
 
         See also SnapshotPv.value().
         """
 
-        if args or kwargs:
+        if args or kwargs or not self._initialized:
             # Because PvUpdater uses low-level ca calls that can time
             # out, get() must be able to handle incomplete gets that
             # it didn't start itself.
@@ -292,6 +292,20 @@ class SnapshotPv(PV):
                 return val
 
         return self.value
+
+    @PV.precision.getter
+    def precision(self):
+        "Override so as to not block until PvUpdater initializes ctrlvars."
+        if self._initialized:
+            return super().precision
+        return None
+
+    @PV.units.getter
+    def units(self):
+        "Override so as to not block until PvUpdater initializes ctrlvars."
+        if self._initialized:
+            return super().units
+        return None
 
     def save_pv(self):
         """
@@ -576,6 +590,7 @@ class PvUpdater(BackgroundThread):
         report_init_timeout = False
         report = "Some connected PVs are timing out while " \
             "fetching ctrlvars, causing slowdowns."
+        newly_initialized = []
         for pv in self._pvs:
             pv._pvget_lock.acquire()
             if not pv._initialized:
@@ -585,7 +600,9 @@ class PvUpdater(BackgroundThread):
                     ctrl = pv.get_ctrlvars()
                     # It can timeout, so don't rely on it.
                     if ctrl:
-                        pv._initialized = True
+                        # Defer setting init status until we are ready to
+                        # release the lock.
+                        newly_initialized.append(pv)
                     else:
                         if not report_init_timeout:
                             report_init_timeout = True
@@ -602,6 +619,8 @@ class PvUpdater(BackgroundThread):
 
         vals = [self._get_complete(pv) for pv in self._pvs]
 
+        for pv in newly_initialized:
+            pv._initialized = True
         for pv in self._pvs:
             pv._pvget_lock.release()
 

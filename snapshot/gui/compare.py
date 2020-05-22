@@ -688,7 +688,7 @@ class SnapshotPvTableLine(QtCore.QObject):
         return len(self.data[PvTableColumns.snapshots:])
 
     def _compare(self, pv_value=None, get_missing=True):
-        if pv_value is None and self._pv_ref.connected and get_missing:
+        if pv_value is None and get_missing and self._pv_ref.connected:
             pv_value = self._pv_ref.value
 
         # Compare each snapshot to the one on its left (or the PV value in the
