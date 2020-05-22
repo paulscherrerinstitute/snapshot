@@ -702,7 +702,9 @@ class SnapshotPvTableLine(QtCore.QObject):
                 comparison = SnapshotPv.compare(values[i-1], values[i],
                                                 tolerance)
                 snap = self.data[PvTableColumns.snapshots + i - 1]
-                if connected and not comparison:
+                if i == 1 and not connected:
+                    snap['icon'] = self._WARN_ICON
+                elif not comparison:
                     snap['icon'] = self._NEQ_ICON
                 else:
                     snap['icon'] = self._EQ_ICON
