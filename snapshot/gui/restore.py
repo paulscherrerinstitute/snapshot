@@ -14,7 +14,7 @@ import json
 
 from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QCursor, QGuiApplication
+from PyQt5.QtGui import QCursor, QGuiApplication, QPalette, QColor
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QHBoxLayout, \
     QFormLayout, QMessageBox, QTreeWidget, QTreeWidgetItem, QMenu, QLineEdit
 
@@ -492,8 +492,11 @@ class SnapshotRestoreFileSelector(QWidget):
             assert(len(row) == FileSelectorColumns.params)
             param_vals = [None] * len(all_params)
             for p, v in params.items():
+                string = SnapshotPv.value_to_display_str(
+                    v['value'],
+                    v['precision'] if v['precision'] is not None else 0)
                 idx = all_params.index(p)
-                param_vals[idx] = str(v)
+                param_vals[idx] = string
             selector_item = QTreeWidgetItem(row + param_vals)
             self.file_selector.addTopLevelItem(selector_item)
             self.file_list[new_file] = new_data
@@ -503,9 +506,29 @@ class SnapshotRestoreFileSelector(QWidget):
         self.common_settings["existing_params"] = new_params
         self.filter_input.update_params()
 
+        # Add units to column headers; get units from the latest file that has
+        # them.
+        params_mtimes = [(data['meta_data']['machine_params'],
+                          data['modif_time'])
+                         for data in file_list.values()]
+        params_mtimes.sort(key=lambda d: d[1], reverse=True)
+        for i, p in enumerate(all_params):
+            for file_params, _ in params_mtimes:
+                if file_params.get(p, {}).get('units', None):
+                    all_params[i] += f" ({file_params[p]['units']})"
+                    break
+
         self.file_selector.setHeaderLabels(self.column_labels + all_params)
         for col in range(self.file_selector.columnCount()):
             self.file_selector.resizeColumnToContents(col)
+
+        # There can be some rather long comments in the snapshots, so let's
+        # make sure that they don't push out more useful stuff.
+        if self.file_selector.columnWidth(FileSelectorColumns.comment) \
+           > self.file_selector.columnWidth(FileSelectorColumns.filename):
+            self.file_selector.setColumnWidth(
+                FileSelectorColumns.comment,
+                self.file_selector.columnWidth(FileSelectorColumns.filename))
 
     def filter_file_list_selector(self):
         file_filter = self.filter_input.file_filter
@@ -519,7 +542,8 @@ class SnapshotRestoreFileSelector(QWidget):
 
         def check_params(params_filter, file_params):
             """
-            file_params is a dict of machine params and their values.
+            file_params is a dict of machine params and their data (being a
+            dict containing 'value' and 'precision').
             params_filter is a dict of machine params and corresponding lists.
             These lists have either one or two elements, causing either an
             equality or in-range check.
@@ -531,15 +555,27 @@ class SnapshotRestoreFileSelector(QWidget):
                     return False
                 if len(vals) == 1:
                     v1 = vals[0]
-                    v2 = file_params[p]
+                    v2 = file_params[p]['value']
                     v1, v2 = ensure_nums_or_strings(v1, v2)
-                    if v1 != v2:
-                        return False
+                    if isinstance(v2, float):
+                        # If precision is defined, compare with tolerance.
+                        # The default precision is 6, which matches string
+                        # formatting behaviour. It makes no sense to do
+                        # comparison to a higher precision than what the user
+                        # can see.
+                        prec = file_params[p]['precision']
+                        tol = 10**(-prec) if (prec and prec > 0) else 10**-6
+                        if abs(v1 - v2) > tol:
+                            return False
+                    else:
+                        if v1 != v2:
+                            return False
+
                 elif len(vals) == 2:
                     vals = ensure_nums_or_strings(*vals)
                     low = min(vals)
                     high = max(vals)
-                    v = file_params[p]
+                    v = file_params[p]['value']
                     v, low, high = ensure_nums_or_strings(v, low, high)
                     if not (v >= low and v <= high):
                         return False
@@ -603,13 +639,20 @@ class SnapshotRestoreFileSelector(QWidget):
             menu.addAction(f"Copy {field.lower()}",
                            lambda: clipboard.setText(text))
         else:
-            menu.addAction(f"Copy {field} name",
-                           lambda: clipboard.setText(field))
-            menu.addAction(f"Copy {field} value",
+            # Machine param fields end with the unit in parentheses which needs
+            # to be stripped to recognize them.
+            try:
+                param_name = field[:field.rindex('(')].rstrip()
+            except ValueError:
+                param_name = field
+
+            menu.addAction(f"Copy {param_name} name",
+                           lambda: clipboard.setText(param_name))
+            menu.addAction(f"Copy {param_name} value",
                            lambda: clipboard.setText(text))
-            if field in self.common_settings['machine_params']:
-                pv_name = self.common_settings['machine_params'][field]
-                menu.addAction(f"Copy {field} PV name",
+            if param_name in self.common_settings['machine_params']:
+                pv_name = self.common_settings['machine_params'][param_name]
+                menu.addAction(f"Copy {param_name} PV name",
                                lambda: clipboard.setText(pv_name))
 
         menu.addAction("Delete selected files", self.delete_files)
@@ -822,6 +865,10 @@ class SnapshotFileFilterWidget(QWidget):
         self.param_input.textEdited.connect(self.update_filter)
         right_layout.addRow("Params:", self.param_input)
 
+        self._inp_palette_ok = self.param_input.palette()
+        self._inp_palette_err = QPalette()
+        self._inp_palette_err.setColor(QPalette.Base, QColor("#F39292"))
+
         # File name filter
         self.name_input = QLineEdit(self)
         self.name_input.setPlaceholderText("Filter by name")
@@ -836,10 +883,9 @@ class SnapshotFileFilterWidget(QWidget):
 
     def set_param_input_color(self):
         if self.param_input.hasAcceptableInput():
-            style = ''
+            self.param_input.setPalette(self._inp_palette_ok)
         else:
-            style = 'color: red;'
-        self.param_input.setStyleSheet(style)
+            self.param_input.setPalette(self._inp_palette_err)
 
     def update_filter(self):
         if self.keys_input.get_keywords():
