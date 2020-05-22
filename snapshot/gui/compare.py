@@ -33,7 +33,7 @@ class PvCompareFilter(enum.Enum):
 
 
 class SnapshotCompareWidget(QWidget):
-    pvs_filtered = QtCore.pyqtSignal(list)
+    pvs_filtered = QtCore.pyqtSignal(set)
     restore_requested = QtCore.pyqtSignal(list)
     rgx_icon = None
 
@@ -56,7 +56,7 @@ class SnapshotCompareWidget(QWidget):
         self.model.file_parse_errors.connect(self._show_snapshot_parse_errors)
         self._proxy = SnapshotPvFilterProxyModel(self)
         self._proxy.setSourceModel(self.model)
-        self._proxy.filtered.connect(self._handle_filtered)
+        self._proxy.filtered.connect(self.pvs_filtered)
 
         # Build model and set default visualization on view (column widths, etc)
         self.model.set_pvs(snapshot.pvs.values())
@@ -161,9 +161,6 @@ class SnapshotCompareWidget(QWidget):
             self.pv_filter_sel.addItem(SnapshotCompareWidget.rgx_icon, rgx)
         self.pv_filter_sel.addItems(predefined_filters.get('filters', list()))
         self.pv_filter_sel.blockSignals(False)
-
-    def _handle_filtered(self, pvs_names_list):
-        self.pvs_filtered.emit(pvs_names_list)
 
     def _handle_regex_change(self, state):
         txt = self.pv_filter_inp.text()
@@ -673,7 +670,6 @@ class SnapshotPvTableLine(QtCore.QObject):
             first_data = self.data[PvTableColumns.snapshots]['raw_value']
             for data in self.data[PvTableColumns.snapshots + 1:]:
                 if not SnapshotPv.compare(first_data, data['raw_value'],
-                                          self.is_array,
                                           self.tolerance_from_precision()):
                     return False
             return True
@@ -683,7 +679,6 @@ class SnapshotPvTableLine(QtCore.QObject):
         if self._pv_ref.connected:
             return SnapshotPv.compare(self._pv_ref.value,
                                       self.data[idx]['raw_value'],
-                                      self.is_array,
                                       self.tolerance_from_precision())
         else:
             return False
@@ -705,7 +700,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             connected = self._pv_ref.connected
             for i in range(1, len(values)):
                 comparison = SnapshotPv.compare(values[i-1], values[i],
-                                                self.is_array, tolerance)
+                                                tolerance)
                 snap = self.data[PvTableColumns.snapshots + i - 1]
                 if connected and not comparison:
                     snap['icon'] = self._NEQ_ICON
@@ -725,9 +720,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             return value
         else:
             # dump other values
-            is_array = isinstance(value, numpy.ndarray) \
-                or isinstance(value, list)
-            return SnapshotPv.value_to_display_str(value, is_array, precision)
+            return SnapshotPv.value_to_display_str(value, precision)
 
     def update_pv_value(self, pv_value):
         value_col = self.data[PvTableColumns.value]
@@ -738,9 +731,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             self._compare(None, get_missing=False)
             return True
 
-        new_value = SnapshotPv.value_to_display_str(pv_value,
-                                                    self.is_array,
-                                                    self.precision)
+        new_value = SnapshotPv.value_to_display_str(pv_value, self.precision)
 
         if unit_col['data'] == 'UNDEF':
             unit_col['data'] = self._pv_ref.units
@@ -769,14 +760,14 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
     """
     Proxy model providing a custom filtering functionality for PV table
     """
-    filtered = QtCore.pyqtSignal(list)
+    filtered = QtCore.pyqtSignal(set)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._disconn_filter = True  # show disconnected?
         self._name_filter = ''  # string or regex object
         self._eq_filter = PvCompareFilter.show_all
-        self._filtered_pvs = list()
+        self._filtered_pvs = set()
 
     def setSourceModel(self, model):
         super().setSourceModel(model)
@@ -796,9 +787,7 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
 
     def apply_filter(self):
         # during invalidateFilter(), filterAcceptsRow() is called for each row
-        self._filtered_pvs = list()
-        self.invalidate()
-        self.filtered.emit(self._filtered_pvs)
+        self.invalidateFilter()
 
     def filterAcceptsRow(self, idx: int, source_parent: QtCore.QModelIndex):
         """
@@ -843,6 +832,9 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
                 result = name_match and connected_match
 
         if result:
-            self._filtered_pvs.append(row_model.pvname)
+            self._filtered_pvs.add(row_model.pvname)
+        else:
+            self._filtered_pvs.discard(row_model.pvname)
 
+        self.filtered.emit(self._filtered_pvs)
         return result

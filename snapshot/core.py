@@ -222,6 +222,10 @@ class SnapshotPv(PV):
                          auto_monitor=False,
                          connection_timeout=None, **kw)
 
+    @property
+    def initialized(self):
+        return self._initialized
+
     @PV.value.getter
     def value(self):
         """
@@ -240,7 +244,11 @@ class SnapshotPv(PV):
     def get(self, *args, **kwargs):
         """
         Overriden PV.get() function. If not arguments are given, returns the
-        cached value, otherwise calls PV.get(). See also SnapshotPv.value().
+        cached value, otherwise calls PV.get(). It also makes one-element
+        arrays behave consistently: unless it is given 'as_numpy=False', it
+        will always return an ndarray.
+
+        See also SnapshotPv.value().
         """
 
         if args or kwargs:
@@ -254,7 +262,25 @@ class SnapshotPv(PV):
                         # There is never an infinite timeout. If this call
                         # timed out as well, we still can't proceed.
                         return None
-                return PV.get(self, *args, **kwargs)
+
+                val = PV.get(self, *args, **kwargs)
+
+                # pyepics is inconsistent with regard to one-element arrays;
+                # see _internal_cnct_callback() for explanation. Moreover, it
+                # will return string arrays as lists. To keep everything
+                # uniform, we convert all lists to ndarrays.
+                if val is not None and self.is_array:
+                    if numpy.size(val) == 0:
+                        val = None
+                    elif (numpy.size(val) == 1 and
+                          kwargs.get('as_numpy', True) and
+                          not isinstance(val, numpy.ndarray)):
+                        val = numpy.asarray([val])
+                    elif (kwargs.get('as_numpy', True) and
+                          not isinstance(val, numpy.ndarray)):
+                        val = numpy.asarray(val)
+
+                return val
 
         return self.value
 
@@ -274,14 +300,6 @@ class SnapshotPv(PV):
             # connected pyepics tries to reconnect which takes some time.
             if self.read_access:
                 saved_value = self.get(use_monitor=False)
-                if self.is_array:
-                    if numpy.size(saved_value) == 0:
-                        # Empty array is equal to "None" scalar value
-                        saved_value = None
-                    elif numpy.size(saved_value) == 1:
-                        # make scalars as arrays
-                        saved_value = numpy.asarray([saved_value])
-
                 if saved_value is None:
                     logging.debug('No value returned for channel ' + self.pvname)
                     return saved_value, PvStatus.no_value
@@ -327,52 +345,44 @@ class SnapshotPv(PV):
             callback(pvname=self.pvname, status=PvStatus.access_err)
 
     @staticmethod
-    def value_to_display_str(value, is_array, precision):
+    def value_to_display_str(value, precision):
         """
         Get snapshot style string representation of provided value. For display
         purposes only!
 
         :param value: Value to be represented as string.
-        :param is_array: Should be treated as an array.
         :param precision: display precision for floats
 
         :return: String representation of value
         """
 
         # First, check for the most common stuff
-        if not is_array:
-            if isinstance(value, float):
-                if precision and precision > 0:
-                    fmt = f'{{:.{precision}f}}'
-                else:
-                    fmt = '{:f}'
-                return fmt.format(value)
-            elif isinstance(value, str):
-                return value
-            else:
-                return str(value)
-
-        # Use numpy to handle the rest
-        value = numpy.asarray(value)
-        if value.dtype.kind == 'f':
+        if value is None:
+            return ''
+        elif isinstance(value, float):
             if precision and precision > 0:
                 fmt = f'{{:.{precision}f}}'
             else:
                 fmt = '{:f}'
-        else:
-            fmt = '{}'
+            return fmt.format(value)
+        elif isinstance(value, str):
+            return value
+        elif isinstance(value, numpy.ndarray):
+            if value.dtype.kind == 'f':
+                if precision and precision > 0:
+                    fmt = f'{{:.{precision}f}}'
+                else:
+                    fmt = '{:f}'
+            else:
+                fmt = '{}'
 
-        if numpy.size(value) == 0:
-            # Empty array is equal to "None" scalar value
-            return None
-        elif value.shape == tuple():
-            # make scalars as arrays
-            return f'[{fmt}]'.format(value)
-        elif numpy.size(value) > 3:
-            # abbreviate long arrays
-            return f'[{fmt} ... {fmt}]'.format(value[0], value[-1])
+            if numpy.size(value) > 3:
+                # abbreviate long arrays
+                return f'[{fmt} ... {fmt}]'.format(value[0], value[-1])
+            else:
+                return '[' + ' '.join([fmt.format(x) for x in value]) + ']'
         else:
-            return '[' + ' '.join([fmt.format(x) for x in value]) + ']'
+            return str(value)
 
     def compare_to_curr(self, value):
         """
@@ -382,48 +392,31 @@ class SnapshotPv(PV):
 
         :return: Result of comparison.
         """
-        return SnapshotPv.compare(value, self.value, self.is_array, 0.)
+        return SnapshotPv.compare(value, self.value, 0.)
 
     @staticmethod
-    def compare(value1, value2, is_array, tolerance):
+    def compare(value1, value2, tolerance):
         """
         Compare two values snapshot style (handling numpy arrays) for waveforms.
 
         :param value1: Value to be compared to value2.
         :param value2: Value to be compared to value1.
-        :param is_array: Are values to be compared arrays?
         :param tolerance: Comparison is done as |v1 - v2| <= tolerance
 
         :return: Result of comparison.
         """
 
-        if is_array:
-            # Because of how pyepics works, array value can also be sent as scalar (nord=1) and
-            # numpy.size() will return 1
-            # or as (type: epics.dbr.c_double_Array_0) if array is empty --> numpy.size() will
-            # return 0
-
-            if value1 is not None and not isinstance(value1, numpy.ndarray) and numpy.size(value1) == 1:
-                value1 = numpy.array([value1])
-            elif numpy.size(value1) == 0:
-                value1 = None
-
-            if value2 is not None and not isinstance(value2, numpy.ndarray) and numpy.size(value2) == 1:
-                value2 = numpy.array([value2])
-            elif numpy.size(value2) == 0:
-                value2 = None
-
         if value1 is None or value2 is None:
             return value1 is value2
 
-        if is_array:
+        if isinstance(value1, float) and isinstance(value2, float):
+            return abs(value1 - value2) <= tolerance
+        elif any(isinstance(x, numpy.ndarray) for x in (value1, value2)):
             try:
                 return numpy.allclose(value1, value2, atol=tolerance, rtol=0)
             except TypeError:
                 # Non-numeric array (i.e. strings)
                 return numpy.array_equal(value1, value2)
-        elif isinstance(value1, float) and isinstance(value2, float):
-            return abs(value1 - value2) <= tolerance
         else:
             return value1 == value2
 
@@ -538,8 +531,21 @@ class PvUpdater(BackgroundThread):
                 if md is None:
                     return None
                 pv._pvget_completer = None
-                pv._last_value = md['value']
-                return md['value']
+                val = md['value']
+
+                # Handle arrays. See comment in SnapshotPv.get()
+                if val is not None and pv.is_array:
+                    if numpy.size(val) == 0:
+                        val = None
+                    elif (numpy.size(val) == 1 and
+                          not isinstance(val, numpy.ndarray)):
+                        val = numpy.asarray([val])
+                    elif not(isinstance(val, numpy.ndarray)):
+                        val = numpy.asarray(val)
+
+                pv._last_value = val
+                return val
+
             else:
                 return None
         except (ca.ChannelAccessException, ca.ChannelAccessGetFailure):

@@ -456,10 +456,21 @@ def parse_from_save_file(save_file_path, metadata_only=False):
                     # The legacy "name,value" format
                     pv_value_str = split_line[1]
                     pv_value = json.loads(pv_value_str)
-                    if isinstance(pv_value, list):
+
+                if isinstance(pv_value, list):
+                    if any(isinstance(x, list) for x in pv_value):
+                        # A version of this tool incorrectly wrote
+                        # one-element arrays, and we shouldn't crash if we
+                        # read such a snapshot.
+                        pv_value = None
+                        err.append(f"Value of '{pvname}' contains nested "
+                                   "lists; only one-dimensional arrays "
+                                   "are supported.")
+                    else:
                         # arrays as numpy array, because pyepics returns
                         # as numpy array
                         pv_value = numpy.asarray(pv_value)
+
             except json.JSONDecodeError:
                 pv_value = None
                 err.append(f"Value of '{pvname}' cannot be decoded, ignored.")

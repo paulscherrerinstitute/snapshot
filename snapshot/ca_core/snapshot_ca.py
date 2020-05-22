@@ -172,14 +172,20 @@ class Snapshot(object):
         logging.debug("Create snapshot for %d channels" % len(self.pvs.items()))
         for pvname, pv_ref in self.pvs.items():
             # Get current value, status of operation.
-            value, pvs_status[pvname] = pv_ref.save_pv()
+            value, status = pv_ref.save_pv()
 
             # Make data structure with data to be saved
+            pvs_status[pvname] = status
             pvs_data[pvname] = OrderedDict()
             pvs_data[pvname]['raw_name'] = pv_ref.pvname
-            pvs_data[pvname]['egu'] = pv_ref.units
-            pvs_data[pvname]['prec'] = pv_ref.precision
-            pvs_data[pvname]['val'] = value
+            if status == PvStatus.ok or pv_ref.initialized:
+                pvs_data[pvname]['egu'] = pv_ref.units
+                pvs_data[pvname]['prec'] = pv_ref.precision
+                pvs_data[pvname]['val'] = value
+            else:
+                pvs_data[pvname]['egu'] = None
+                pvs_data[pvname]['prec'] = None
+                pvs_data[pvname]['val'] = None
 
         logging.debug("Writing snapshot to file")
         try:
