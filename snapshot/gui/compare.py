@@ -257,6 +257,7 @@ class SnapshotPvTableView(QTableView):
         self.sortByColumn(PvTableColumns.name, Qt.AscendingOrder)  # default sorting
         self.verticalHeader().setVisible(False)
         self.verticalHeader().setDefaultSectionSize(20)
+        self.horizontalHeader().setHighlightSections(False)
         self.horizontalHeader().setDefaultAlignment(QtCore.Qt.AlignLeft)
         self.horizontalHeader().setDefaultSectionSize(200)
         self.horizontalHeader().setStretchLastSection(True)
