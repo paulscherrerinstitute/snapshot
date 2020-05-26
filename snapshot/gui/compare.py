@@ -257,6 +257,7 @@ class SnapshotPvTableView(QTableView):
         self.sortByColumn(PvTableColumns.name, Qt.AscendingOrder)  # default sorting
         self.verticalHeader().setVisible(False)
         self.verticalHeader().setDefaultSectionSize(20)
+        self.horizontalHeader().setHighlightSections(False)
         self.horizontalHeader().setDefaultAlignment(QtCore.Qt.AlignLeft)
         self.horizontalHeader().setDefaultSectionSize(200)
         self.horizontalHeader().setStretchLastSection(True)
@@ -687,7 +688,7 @@ class SnapshotPvTableLine(QtCore.QObject):
         return len(self.data[PvTableColumns.snapshots:])
 
     def _compare(self, pv_value=None, get_missing=True):
-        if pv_value is None and self._pv_ref.connected and get_missing:
+        if pv_value is None and get_missing and self._pv_ref.connected:
             pv_value = self._pv_ref.value
 
         # Compare each snapshot to the one on its left (or the PV value in the
@@ -702,7 +703,9 @@ class SnapshotPvTableLine(QtCore.QObject):
                 comparison = SnapshotPv.compare(values[i-1], values[i],
                                                 tolerance)
                 snap = self.data[PvTableColumns.snapshots + i - 1]
-                if connected and not comparison:
+                if i == 1 and not connected:
+                    snap['icon'] = self._WARN_ICON
+                elif not comparison:
                     snap['icon'] = self._NEQ_ICON
                 else:
                     snap['icon'] = self._EQ_ICON
