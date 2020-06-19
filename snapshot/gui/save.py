@@ -162,7 +162,7 @@ class SnapshotSaveWidget(QWidget):
                                                                 force=True,
                                                                 labels=labels,
                                                                 comment=comment,
-                                                                machine_params=params,
+                                                                machine_params=params_data,
                                                                 symlink_path=os.path.join(
                                                                     self.common_settings["save_dir"],
                                                                     self.common_settings["save_file_prefix"] +
