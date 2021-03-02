@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import QDialog, QHBoxLayout, QLabel, QLineEdit, QDialogButt
 from ..ca_core import parse_macros
 from snapshot.parser import MacroError
 
+
 def parse_dict_macros_to_text(macros):
     """
     Converting dict() separated macros string to comma separated.
@@ -88,7 +89,9 @@ class SnapshotConfigureDialog(QDialog):
 
         if os.path.isfile(file_path):
             try:
-                self.accepted.emit(file_path, parse_macros(self.macros_input.text()))
+                self.accepted.emit(
+                    file_path, parse_macros(
+                        self.macros_input.text()))
                 self.done(QDialog.Accepted)
             except MacroError as e:
                 QMessageBox.warning(self, "Warning", str(e),
@@ -97,7 +100,12 @@ class SnapshotConfigureDialog(QDialog):
 
         else:
             warn = "File {} does not exist!".format(file_path)
-            QMessageBox.warning(self, "Warning", warn, QMessageBox.Ok, QMessageBox.NoButton)
+            QMessageBox.warning(
+                self,
+                "Warning",
+                warn,
+                QMessageBox.Ok,
+                QMessageBox.NoButton)
 
     def _config_rejected(self):
         self.reject()
@@ -238,7 +246,8 @@ class SnapshotKeywordSelectorWidget(QComboBox):
         # Handles keyboard events in following way:
         #     if: space, enter or tab, then add current string to the selected
         #     if backspace, then delete last character, or last keyword
-        if event.key() in [Qt.Key_Tab, Qt.Key_Enter, Qt.Key_Return, Qt.Key_Space]:
+        if event.key() in [Qt.Key_Tab, Qt.Key_Enter,
+                           Qt.Key_Return, Qt.Key_Space]:
             if self.input.text().endswith(" "):
                 key_to_add = self.input.text().split(" ")[-2]
             else:
@@ -263,14 +272,16 @@ class SnapshotKeywordSelectorWidget(QComboBox):
         default_labels = self.common_settings["default_labels"]
         keyword = keyword.strip()
 
-        # Skip if already selected or not in predefined labels if defaults_only (force=True overrides defaults_only)
+        # Skip if already selected or not in predefined labels if defaults_only
+        # (force=True overrides defaults_only)
         if keyword and (keyword not in self.selectedKeywords) and (
                 not self.defaults_only or force or self.defaults_only and keyword in default_labels):
             key_widget = SnapshotKeywordWidget(keyword, self)
             key_widget.delete.connect(self.remove_keyword)
             self.keywordWidgets[keyword] = key_widget
             self.selectedKeywords.append(keyword)
-            self.layout.insertWidget(len(self.selectedKeywords) - 1, key_widget)
+            self.layout.insertWidget(
+                len(self.selectedKeywords) - 1, key_widget)
             self.keywords_changed.emit()
             self.setItemText(0, "")
 
@@ -464,7 +475,9 @@ class DetailedMsgBox(QMessageBox):
             textEdit.setMaximumHeight(16777215)
             textEdit.setMinimumWidth(0)
             textEdit.setMaximumWidth(16777215)
-            textEdit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            textEdit.setSizePolicy(
+                QSizePolicy.Expanding,
+                QSizePolicy.Expanding)
 
         return result
 
@@ -475,7 +488,7 @@ def show_snapshot_parse_errors(parent, file_and_error_list):
         if item[1]:  # list of errors
 
             err_details += '- - - ' + item[0] + \
-                            ' - - -\n * '  # file name
+                ' - - -\n * '  # file name
             err_details += '\n * '.join(item[1])
             err_details += '\n\n'
 
@@ -485,7 +498,8 @@ def show_snapshot_parse_errors(parent, file_and_error_list):
         msg = str(len(file_and_error_list)) + \
             " of the snapshot saved files (.snap) were loaded with errors " \
             "(see details)."
-        msg_window = DetailedMsgBox(msg, err_details, 'Warning', parent, QMessageBox.Ok)
+        msg_window = DetailedMsgBox(
+            msg, err_details, 'Warning', parent, QMessageBox.Ok)
         msg_window.exec_()
 
 

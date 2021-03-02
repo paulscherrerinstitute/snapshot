@@ -146,12 +146,14 @@ class SnapshotRestoreWidget(QWidget):
 
         self.restore_button = QPushButton("Restore Filtered", self)
         self.restore_button.clicked.connect(self.start_restore_filtered)
-        self.restore_button.setToolTip("Restores only currently filtered PVs from the selected .snap file.")
+        self.restore_button.setToolTip(
+            "Restores only currently filtered PVs from the selected .snap file.")
         self.restore_button.setEnabled(False)
 
         self.restore_all_button = QPushButton("Restore All", self)
         self.restore_all_button.clicked.connect(self.start_restore_all)
-        self.restore_all_button.setToolTip("Restores all PVs from the selected .snap file.")
+        self.restore_all_button.setToolTip(
+            "Restores all PVs from the selected .snap file.")
         self.restore_all_button.setEnabled(False)
 
         btn_layout = QHBoxLayout()
@@ -218,7 +220,8 @@ class SnapshotRestoreWidget(QWidget):
 
         # Restore can be done only if specific file is selected
         if len(self.file_selector.selected_files) == 1:
-            file_data = self.file_selector.file_list.get(self.file_selector.selected_files[0])
+            file_data = self.file_selector.file_list.get(
+                self.file_selector.selected_files[0])
 
             # Prepare pvs with values to restore
             if file_data:
@@ -231,8 +234,10 @@ class SnapshotRestoreWidget(QWidget):
 
                 if pvs_list is not None:
                     for pvname in pvs_in_file.keys():
-                        if SnapshotPv.macros_substitution(pvname, macros) not in pvs_list:
-                            pvs_to_restore.pop(pvname, None)  # remove unfiltered pvs
+                        if SnapshotPv.macros_substitution(
+                                pvname, macros) not in pvs_list:
+                            pvs_to_restore.pop(
+                                pvname, None)  # remove unfiltered pvs
 
                 force = self.common_settings["force"]
 
@@ -242,7 +247,8 @@ class SnapshotRestoreWidget(QWidget):
                 self.restore_all_button.setEnabled(False)
                 self.restore_button.setEnabled(False)
 
-                # Force updating the GUI and disabling the button before future actions
+                # Force updating the GUI and disabling the button before future
+                # actions
                 QtCore.QCoreApplication.processEvents()
                 self.sts_log.log_msgs("Restore started.", time.time())
                 self.sts_info.set_status("Restoring ...", 0, "orange")
@@ -253,7 +259,8 @@ class SnapshotRestoreWidget(QWidget):
                 if status == ActionStatus.no_conn:
                     # Ask user if he wants to force restoring
                     msg = "Some PVs are not connected (see details). Do you want to restore anyway?\n"
-                    msg_window = DetailedMsgBox(msg, "\n".join(list(pvs_status.keys())), 'Warning', self)
+                    msg_window = DetailedMsgBox(msg, "\n".join(
+                        list(pvs_status.keys())), 'Warning', self)
                     reply = msg_window.exec_()
 
                     if reply != QMessageBox.No:
@@ -261,23 +268,29 @@ class SnapshotRestoreWidget(QWidget):
                         status, pvs_status = self.snapshot.restore_pvs(pvs_to_restore,
                                                                        callback=self.restore_done_callback, force=True)
 
-                        # If here restore started successfully. Waiting for callbacks.
+                        # If here restore started successfully. Waiting for
+                        # callbacks.
 
                     else:
-                        # User rejected restoring with unconnected PVs. Not an error state.
-                        self.sts_log.log_msgs("Restore rejected by user.", time.time())
+                        # User rejected restoring with unconnected PVs. Not an
+                        # error state.
+                        self.sts_log.log_msgs(
+                            "Restore rejected by user.", time.time())
                         self.sts_info.clear_status()
                         self.restore_all_button.setEnabled(True)
                         self.restore_button.setEnabled(True)
 
                 elif status == ActionStatus.no_data:
-                    self.sts_log.log_msgs("ERROR: Nothing to restore.", time.time())
-                    self.sts_info.set_status("Restore rejected", 3000, "#F06464")
+                    self.sts_log.log_msgs(
+                        "ERROR: Nothing to restore.", time.time())
+                    self.sts_info.set_status(
+                        "Restore rejected", 3000, "#F06464")
                     self.restore_all_button.setEnabled(True)
                     self.restore_button.setEnabled(True)
 
                 elif status == ActionStatus.busy:
-                    self.sts_log.log_msgs("ERROR: Restore rejected. Previous restore not finished.", time.time())
+                    self.sts_log.log_msgs(
+                        "ERROR: Restore rejected. Previous restore not finished.", time.time())
                     self.restore_all_button.setEnabled(True)
                     self.restore_button.setEnabled(True)
 
@@ -316,14 +329,16 @@ class SnapshotRestoreWidget(QWidget):
         for pvname, sts in status.items():
             if sts == PvStatus.access_err:
                 error = not forced  # if here and not in force mode, then this is error state
-                msgs.append("WARNING: {}: Not restored (no connection or no write access).".format(pvname))
+                msgs.append(
+                    "WARNING: {}: Not restored (no connection or no write access).".format(pvname))
                 msg_times.append(time.time())
                 status_txt = "Restore error"
                 status_background = "#F06464"
 
             elif sts == PvStatus.type_err:
                 error = True
-                msgs.append("WARNING: {}: Not restored (type problem).".format(pvname))
+                msgs.append(
+                    "WARNING: {}: Not restored (type problem).".format(pvname))
                 msg_times.append(time.time())
                 status_txt = "Restore error"
                 status_background = "#F06464"
@@ -362,7 +377,8 @@ class SnapshotRestoreWidget(QWidget):
             if file_data:
                 selected_data[file_name] = file_data
 
-        # First update other GUI components (compare widget) and then pass pvs to compare to the snapshot core
+        # First update other GUI components (compare widget) and then pass pvs
+        # to compare to the snapshot core
         self.files_selected.emit(selected_data)
 
     def rebuild_file_list(self, already_parsed_files=None):
@@ -396,7 +412,8 @@ class SnapshotRestoreFileSelector(QWidget):
         self.filter_input = SnapshotFileFilterWidget(
             self.common_settings, self)
 
-        self.filter_input.file_filter_updated.connect(self.filter_file_list_selector)
+        self.filter_input.file_filter_updated.connect(
+            self.filter_file_list_selector)
 
         # Create list with: file names, comment, labels, machine params.
         # This is done with a single-level QTreeWidget instead of QTableWidget
@@ -676,7 +693,8 @@ class SnapshotRestoreFileSelector(QWidget):
     def delete_files(self):
         if self.selected_files:
             msg = "Do you want to delete selected files?"
-            reply = QMessageBox.question(self, 'Message', msg, QMessageBox.Yes, QMessageBox.No)
+            reply = QMessageBox.question(
+                self, 'Message', msg, QMessageBox.Yes, QMessageBox.No)
             if reply == QMessageBox.Yes:
                 background_workers.suspend()
                 symlink_file = self.common_settings["save_file_prefix"] \
@@ -721,7 +739,8 @@ class SnapshotRestoreFileSelector(QWidget):
                     self.file_list.get(self.selected_files[0])["meta_data"],
                     self.common_settings, self)
                 settings_window.resize(800, 200)
-                # if OK was pressed, update actual file and reflect changes in the list
+                # if OK was pressed, update actual file and reflect changes in
+                # the list
                 if settings_window.exec_():
                     background_workers.suspend()
                     file_data = self.file_list.get(self.selected_files[0])

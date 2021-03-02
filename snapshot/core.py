@@ -178,7 +178,7 @@ def get_machine_param_data(machine_params):
     background_workers.resume()
 
     return {p: {key: (v.get(key) if v is not None else None)
-                for key in('value', 'units', 'precision')}
+                for key in ('value', 'units', 'precision')}
             for p, v in zip(machine_params.keys(), results)}
 
 
@@ -188,6 +188,7 @@ class SnapshotError(Exception):
     Parent exception class of all snapshot exceptions.
     """
     pass
+
 
 class PvStatus(Enum):
     """
@@ -205,6 +206,8 @@ class PvStatus(Enum):
     type_err = 4
 
 # Subclass PV to be to later add info if needed
+
+
 class SnapshotPv(PV):
     """
     Extended PV class with non-blocking methods to save and restore pvs. It
@@ -324,7 +327,8 @@ class SnapshotPv(PV):
             if self.read_access:
                 saved_value = self.get(use_monitor=False)
                 if saved_value is None:
-                    logging.debug('No value returned for channel ' + self.pvname)
+                    logging.debug(
+                        'No value returned for channel ' + self.pvname)
                     return saved_value, PvStatus.no_value
                 else:
                     return saved_value, PvStatus.ok
@@ -352,7 +356,12 @@ class SnapshotPv(PV):
 
                 elif not self.compare_to_curr(value):
                     try:
-                        self.put(value, wait=False, callback=callback, callback_data={"status": PvStatus.ok})
+                        self.put(
+                            value,
+                            wait=False,
+                            callback=callback,
+                            callback_data={
+                                "status": PvStatus.ok})
 
                     except TypeError as e:
                         callback(pvname=self.pvname, status=PvStatus.type_err)

@@ -58,7 +58,8 @@ class SnapshotCompareWidget(QWidget):
         self._proxy.setSourceModel(self.model)
         self._proxy.filtered.connect(self.pvs_filtered)
 
-        # Build model and set default visualization on view (column widths, etc)
+        # Build model and set default visualization on view (column widths,
+        # etc)
         self.model.set_pvs(snapshot.pvs.values())
         self.view.setModel(self._proxy)
 
@@ -109,15 +110,18 @@ class SnapshotCompareWidget(QWidget):
 
         # #### Selector for comparison filter
         self.compare_filter_inp = QComboBox(self)
-        self.compare_filter_inp.addItems(["Show all", "Different only", "Equal only"])
+        self.compare_filter_inp.addItems(
+            ["Show all", "Different only", "Equal only"])
 
-        self.compare_filter_inp.currentIndexChanged.connect(self._proxy.set_eq_filter)
+        self.compare_filter_inp.currentIndexChanged.connect(
+            self._proxy.set_eq_filter)
         self.compare_filter_inp.setMaximumWidth(200)
 
         # ### Show disconnected selector
         self.show_disconn_inp = QCheckBox("Show disconnected PVs.", self)
         self.show_disconn_inp.setChecked(True)
-        self.show_disconn_inp.stateChanged.connect(self._proxy.set_disconn_filter)
+        self.show_disconn_inp.stateChanged.connect(
+            self._proxy.set_disconn_filter)
         self.show_disconn_inp.setMaximumWidth(500)
 
         # Tolerance setting
@@ -176,7 +180,7 @@ class SnapshotCompareWidget(QWidget):
             try:
                 srch_filter = re.compile(txt)
                 self.pv_filter_inp.setPalette(self._inp_palette_ok)
-            except:
+            except BaseException:
                 # Syntax error (happens a lot during typing an expression). In such cases make compiler which will
                 # not match any pv name
                 srch_filter = re.compile("")
@@ -254,7 +258,9 @@ class SnapshotPvTableView(QTableView):
         # for performance reasons. It is done once when the model is reset, and
         # once per snapshot column when it is added.
         self.setSortingEnabled(True)
-        self.sortByColumn(PvTableColumns.name, Qt.AscendingOrder)  # default sorting
+        self.sortByColumn(
+            PvTableColumns.name,
+            Qt.AscendingOrder)  # default sorting
         self.verticalHeader().setVisible(False)
         self.verticalHeader().setDefaultSectionSize(20)
         self.horizontalHeader().setHighlightSections(False)
@@ -285,14 +291,15 @@ class SnapshotPvTableView(QTableView):
         source.columnsInserted.connect(self._set_single_column_width)
         source.columnsRemoved.connect(self._apply_selection_to_full_row)
         source.modelReset.connect(self._set_columns_width)
-        self.sortByColumn(PvTableColumns.name, Qt.AscendingOrder)  # default sorting
-
+        self.sortByColumn(
+            PvTableColumns.name,
+            Qt.AscendingOrder)  # default sorting
 
     def dataChanged(self, mode_idx, mode_idx1, roles):
         """
         Force update of the view on any data change in the model. If self.viewport().update() is not called here
         the view is not updated if application window is not in focus.
- 
+
         :param mode_idx:
         :param mode_idx1:
         :return:
@@ -331,11 +338,16 @@ class SnapshotPvTableView(QTableView):
 
         if selected_rows:
             menu.addAction("Copy PV name", self._copy_pv_name)
-            if len(selected_rows) == 1 and len(self.model().sourceModel().get_snap_file_names()) == 1:
-                    menu.addAction("Restore selected PV", self._restore_selected_pvs)
+            if len(selected_rows) == 1 and len(
+                    self.model().sourceModel().get_snap_file_names()) == 1:
+                menu.addAction(
+                    "Restore selected PV",
+                    self._restore_selected_pvs)
 
             elif len(self.model().sourceModel().get_snap_file_names()) == 1:
-                menu.addAction("Restore selected PVs", self._restore_selected_pvs)
+                menu.addAction(
+                    "Restore selected PVs",
+                    self._restore_selected_pvs)
 
             menu.addAction("Process records of selected PVs",
                            self._process_selected_records)
@@ -354,7 +366,9 @@ class SnapshotPvTableView(QTableView):
         cb = QApplication.clipboard()
         cb.clear(mode=cb.Clipboard)
         idx = self.indexAt(self._menu_click_pos)
-        cb.setText(self._get_pvname_with_selection_model_idx(idx), mode=cb.Clipboard)
+        cb.setText(
+            self._get_pvname_with_selection_model_idx(idx),
+            mode=cb.Clipboard)
 
     def _selected_pvnames(self):
         names = (self._get_pvname_with_selection_model_idx(idx)
@@ -364,8 +378,10 @@ class SnapshotPvTableView(QTableView):
     def _get_pvname_with_selection_model_idx(self, idx: QtCore.QModelIndex):
         # Map index from selection model to original model
         # Access original model through proxy model and get pv name.
-        # Doing it this way is safer than just reading row content, since in future visualization can change.
-        return self.model().sourceModel().get_pvname(self.selectionModel().model().mapToSource(idx).row())
+        # Doing it this way is safer than just reading row content, since in
+        # future visualization can change.
+        return self.model().sourceModel().get_pvname(
+            self.selectionModel().model().mapToSource(idx).row())
 
     def _process_selected_records(self):
         for pvname in self._selected_pvnames():
@@ -504,7 +520,8 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         pvs_list, _, errors = parse_from_save_file(file_data['file_path'])
 
         for pv_name_raw, pv_data in pvs_list.items():
-            pvs_list_full_names[SnapshotPv.macros_substitution(pv_name_raw, macros)] = pv_data
+            pvs_list_full_names[SnapshotPv.macros_substitution(
+                pv_name_raw, macros)] = pv_data
 
         return pvs_list_full_names, errors
 
@@ -519,7 +536,8 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         if role == QtCore.Qt.DisplayRole:
             return self._data[index.row()].data[index.column()].get('data', '')
         elif role == QtCore.Qt.DecorationRole:
-            return self._data[index.row()].data[index.column()].get('icon', None)
+            return self._data[index.row()].data[index.column()
+                                                ].get('icon', None)
 
     def _handle_pv_update(self, new_values):
         for value, line in zip(new_values, self._data):
@@ -700,7 +718,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             tolerance = self.tolerance_from_precision()
             connected = self._pv_ref.connected
             for i in range(1, len(values)):
-                comparison = SnapshotPv.compare(values[i-1], values[i],
+                comparison = SnapshotPv.compare(values[i - 1], values[i],
                                                 tolerance)
                 snap = self.data[PvTableColumns.snapshots + i - 1]
                 if i == 1 and not connected:
@@ -813,9 +831,12 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
                 name_match = self._name_filter in row_model.pvname
             else:
                 # regex parser
-                name_match = (self._name_filter.fullmatch(row_model.pvname) is not None)
+                name_match = (
+                    self._name_filter.fullmatch(
+                        row_model.pvname) is not None)
 
-            # Connected is shown in both cases, disconnected only if in show all mode
+            # Connected is shown in both cases, disconnected only if in show
+            # all mode
             connected_match = row_model.conn or self._disconn_filter
 
             if n_files > 1:  # multi-file mode
@@ -824,7 +845,9 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
                                  ((self._eq_filter == PvCompareFilter.show_neq) and not files_equal) or
                                  (self._eq_filter == PvCompareFilter.show_all))
 
-                result = name_match and ((row_model.conn and compare_match) or (not row_model.conn and connected_match))
+                result = name_match and (
+                    (row_model.conn and compare_match) or (
+                        not row_model.conn and connected_match))
 
             elif n_files == 1:  # "pv-compare" mode
                 compare = row_model.is_snap_eq_to_pv(0)
@@ -832,7 +855,9 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
                                  ((self._eq_filter == PvCompareFilter.show_neq) and not compare) or
                                  (self._eq_filter == PvCompareFilter.show_all))
 
-                result = name_match and ((row_model.conn and compare_match) or (not row_model.conn and connected_match))
+                result = name_match and (
+                    (row_model.conn and compare_match) or (
+                        not row_model.conn and connected_match))
             else:
                 # Only name and connection filters apply
                 result = name_match and connected_match

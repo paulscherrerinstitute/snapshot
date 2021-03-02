@@ -14,7 +14,8 @@ save_file_suffix = '.snap'
 
 
 class SnapshotReqFile(object):
-    def __init__(self, path: str, parent=None, macros: dict = None, changeable_macros: list = None):
+    def __init__(self, path: str, parent=None, macros: dict = None,
+                 changeable_macros: list = None):
         """
         Class providing parsing methods for request files.
 
@@ -222,19 +223,23 @@ class SnapshotReqFile(object):
         return (pvs, metadata, includes)
 
     def _format_err(self, line: tuple, msg: str):
-        return '{} [line {}: {}]: {}'.format(self._trace, line[0], line[1], msg)
+        return '{} [line {}: {}]: {}'.format(
+            self._trace, line[0], line[1], msg)
 
     def _validate_macros_in_txt(self, txt: str):
         invalid_macros = list()
         macro_rgx = re.compile('\$\(.*?\)')  # find all of type $()
         raw_macros = macro_rgx.findall(txt)
         for raw_macro in raw_macros:
-            if raw_macro not in self._macros.values() and raw_macro[2:-1] not in self._c_macros:
+            if raw_macro not in self._macros.values(
+            ) and raw_macro[2:-1] not in self._c_macros:
                 # There are unknown macros which were not substituted
                 invalid_macros.append(raw_macro)
 
         if invalid_macros:
-            raise MacroError('Following macros were not defined: {}'.format(', '.join(invalid_macros)))
+            raise MacroError(
+                'Following macros were not defined: {}'.format(
+                    ', '.join(invalid_macros)))
 
     def _check_looping(self, path):
         path = os.path.normpath(os.path.abspath(path))
@@ -246,7 +251,8 @@ class SnapshotReqFile(object):
                     msg = 'Infinity loop detected. File {} was already called from {}'.format(path,
                                                                                               ancestor._parent._path)
                 else:
-                    msg = 'Infinity loop detected. File {} was already loaded as root request file.'.format(path)
+                    msg = 'Infinity loop detected. File {} was already loaded as root request file.'.format(
+                        path)
 
                 return msg
             else:
@@ -271,8 +277,10 @@ def parse_macros(macros_str):
             if len(split_macro) == 2:
                 macros[split_macro[0]] = split_macro[1]
             else:
-                raise MacroError('Following string cannot be parsed to macros: {}'.format(macros_str))
+                raise MacroError(
+                    'Following string cannot be parsed to macros: {}'.format(macros_str))
     return macros
+
 
 class MacroError(SnapshotError):
     """
@@ -541,7 +549,7 @@ def parse_to_save_file(pvs, save_file_path, macros=None,
             no_error = True
             try:
                 os.symlink(save_file_path, symlink_path)
-            except:
+            except BaseException:
                 logging.warning("unable to create link")
                 no_error = False
 
