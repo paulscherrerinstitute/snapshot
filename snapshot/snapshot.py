@@ -1,10 +1,8 @@
 import argparse
 import re
 import sys
+import epics.ca
 import epics.utils3
-
-# from .ca_core import parse_macros, MacroError
-# close with ctrl+C
 import signal
 
 signal.signal(signal.SIGINT, signal.SIG_DFL)
