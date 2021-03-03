@@ -8,7 +8,7 @@ import numpy
 import time
 import logging
 from itertools import chain
-
+import json
 
 save_file_suffix = '.snap'
 
@@ -48,6 +48,23 @@ class SnapshotReqFile(object):
         self._curr_line_n = 0
         self._curr_line_txt = ''
         self._err = list()
+        self._is_json, self._file_data = self.is_json()
+
+    def is_json(self):
+        with open(self._path) as f:
+            try:
+                json_object = json.loads(f.read())
+                return (True, json_object)
+            except ValueError as e:
+                msg = f"{self._path}: Could not parse JSON file."
+                pass
+            try:
+                file_data = f.read()
+                return (False, file_data)
+            except OSError as e:
+                msg = f"{self._path}: Could not parse req file."
+                pass
+            return ReqParseError(msg)
 
     def read(self):
         """
@@ -71,7 +88,7 @@ class SnapshotReqFile(object):
         pvs, metadata, includes = result
         while includes:
             results = global_thread_pool.map(lambda f: f._read_only_self(),
-                                             includes)
+                                            includes)
             old_includes = includes
             includes = []
             for result, inc in zip(results, old_includes):
@@ -128,7 +145,7 @@ class SnapshotReqFile(object):
         except OSError as e:
             return e
 
-        if file_data.lstrip().startswith('{'):
+        if self._is_json:
             try:
                 md = file_data.lstrip()
                 metadata, end_of_metadata = \
@@ -166,8 +183,10 @@ class SnapshotReqFile(object):
                 except MacroError as e:
                     return ReqParseError(self._format_err(
                         (self._curr_line_n, self._curr_line), e))
-
-                pvs.append(pvname)
+                if not self._is_json:
+                    pvs.append(pvname)
+                else:
+                    pvs = self._extract_pvs_from_json()
 
             elif self._curr_line.startswith('!'):
                 # Calling another req file
@@ -221,6 +240,16 @@ class SnapshotReqFile(object):
                             (self._curr_line, self._curr_line_n), e))
 
         return (pvs, metadata, includes)
+
+    def _extract_pvs_from_json(self):
+        list_of_pvs = []
+        if self._is_json:
+            for ioc_name in self._file_data.keys():
+                for pv_name in self._file_data[ioc_name]:
+                    list_of_pvs.append(ioc_name+":"+pv_name)
+            return list_of_pvs
+        msg = f"{self._path}: Could not parse Json file."
+        return JsonParseError(msg)
 
     def _format_err(self, line: tuple, msg: str):
         return '{} [line {}: {}]: {}'.format(
@@ -295,6 +324,11 @@ class ReqParseError(SnapshotError):
     """
     pass
 
+class JsonParseError(SnapshotError):
+    """
+    Parent exception class for exceptions that can happen while parsing a json file.
+    """
+    pass
 
 class ReqFileFormatError(ReqParseError):
     """
