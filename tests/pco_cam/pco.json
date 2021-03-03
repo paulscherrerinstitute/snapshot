@@ -1,0 +1,12 @@
+{
+    "MTEST-CAQTDM-CAMERA": [
+                    "CAMERA",
+                    "FILEFORMAT",
+                    "RECMODE",
+                    "STOREMODE",
+                    "CLEARMEM",
+                    "SAVESTOP",
+                    "SET_PARAM",
+                    "FTRANSFER"
+                ]
+}
