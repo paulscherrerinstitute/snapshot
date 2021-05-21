@@ -20,7 +20,7 @@ def save(req_file_path, save_file_path='.', macros=None,
         save_file_path += '/{}_{}.snap'.format(os.path.splitext(os.path.basename(req_file_path))[0],
                                                datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M%S'))
 
-    labels = list()
+    labels = []
     if labels_str.strip():
         list_labels = labels_str.split(',')
         for label in list_labels:
@@ -66,7 +66,7 @@ def save(req_file_path, save_file_path='.', macros=None,
         logging.info("Machine parameters are not accessible or have "
                      "invalid values. Force mode is on, proceeding.\n"
                      + '\n'.join(pv_errors))
-        for p in invalid_params.keys():
+        for p in invalid_params:
             params_data[p] = None
 
     status, pv_status = snapshot.save_pvs(save_file_path,

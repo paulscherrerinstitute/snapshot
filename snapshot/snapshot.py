@@ -1,9 +1,10 @@
 import argparse
 import re
+import signal
 import sys
+
 import epics.ca
 import epics.utils3
-import signal
 
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 

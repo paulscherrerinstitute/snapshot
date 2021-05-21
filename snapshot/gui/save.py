@@ -10,13 +10,22 @@ import time
 
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QLineEdit, QLabel, QHBoxLayout, QVBoxLayout, QFrame, QGroupBox, QMessageBox, QPushButton, \
-    QWidget
+from PyQt5.QtWidgets import (
+    QFrame,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
+from ..ca_core import ActionStatus, PvStatus
 from ..core import get_machine_param_data
-from ..ca_core import PvStatus, ActionStatus
 from ..parser import save_file_suffix
-from .utils import SnapshotKeywordSelectorWidget, DetailedMsgBox
+from .utils import DetailedMsgBox, SnapshotKeywordSelectorWidget
 
 
 class SnapshotSaveWidget(QWidget):

@@ -7,12 +7,29 @@ import os
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QLabel, QLineEdit, QDialogButtonBox, QMessageBox, \
-    QWidget, QFormLayout, QCheckBox, QToolButton, QFileDialog, QComboBox, QFrame, QGroupBox, QSizePolicy, QTextEdit, \
-    QVBoxLayout
+from PyQt5.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QFormLayout,
+    QFrame,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QSizePolicy,
+    QTextEdit,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
+
+from snapshot.parser import MacroError
 
 from ..ca_core import parse_macros
-from snapshot.parser import MacroError
 
 
 def parse_dict_macros_to_text(macros):
@@ -24,9 +41,9 @@ def parse_dict_macros_to_text(macros):
     :return: macro string
     """
 
-    macros_str = ""
-    for macro, subs in macros.items():
-        macros_str += macro + "=" + subs + ","
+    macros_str = "".join(
+        macro + "=" + subs + "," for macro, subs in macros.items()
+    )
 
     if macros_str:
         # Clear last comma
@@ -199,8 +216,8 @@ class SnapshotKeywordSelectorWidget(QComboBox):
         self.common_settings = common_settings
 
         # data holders
-        self.selectedKeywords = list()
-        self.keywordWidgets = dict()
+        self.selectedKeywords = []
+        self.keywordWidgets = {}
 
         # Main layout
         # [selected widgets][input][drop down arrow (part of QComboBox)]

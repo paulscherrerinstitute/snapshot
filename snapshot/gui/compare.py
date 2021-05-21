@@ -4,26 +4,44 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+import enum
 import json
 import os
 import re
-import enum
+import time
 
 import numpy
 from PyQt5 import QtCore
-from PyQt5.QtCore import Qt, QSortFilterProxyModel, QItemSelectionModel, \
-    QItemSelectionRange, QItemSelection
-from PyQt5.QtGui import QIcon, QCursor, QPalette, QColor
-from PyQt5.QtWidgets import QApplication, QHeaderView, QAbstractItemView, \
-    QMenu, QTableView, QVBoxLayout, QFrame, QHBoxLayout, QCheckBox, \
-    QComboBox, QLineEdit, QLabel, QSizePolicy, QWidget, QSpinBox
+from PyQt5.QtCore import (
+    QItemSelection,
+    QItemSelectionModel,
+    QItemSelectionRange,
+    QSortFilterProxyModel,
+    Qt,
+)
+from PyQt5.QtGui import QColor, QCursor, QIcon, QPalette
+from PyQt5.QtWidgets import (
+    QAbstractItemView,
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMenu,
+    QSizePolicy,
+    QSpinBox,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
+)
 
 from ..ca_core import Snapshot
-from ..core import SnapshotPv, PvUpdater, process_record
+from ..core import PvUpdater, SnapshotPv, process_record
 from ..parser import parse_from_save_file, save_file_suffix
-from .utils import show_snapshot_parse_errors, make_separator
-
-import time
+from .utils import make_separator, show_snapshot_parse_errors
 
 
 class PvCompareFilter(enum.Enum):

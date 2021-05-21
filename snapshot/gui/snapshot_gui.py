@@ -11,19 +11,37 @@ import sys
 
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtWidgets import QApplication, QStatusBar, QLabel, QVBoxLayout, \
-    QPlainTextEdit, QWidget, QMessageBox, QDialog, QSplitter, QCheckBox, \
-    QAction, QMenu, QMainWindow, QFormLayout
+from PyQt5.QtWidgets import (
+    QAction,
+    QApplication,
+    QCheckBox,
+    QDialog,
+    QFormLayout,
+    QLabel,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QPlainTextEdit,
+    QSplitter,
+    QStatusBar,
+    QVBoxLayout,
+    QWidget,
+)
 
 from snapshot.ca_core import Snapshot
-from snapshot.core import SnapshotError, background_workers, global_thread_pool
-from snapshot.parser import ReqParseError, initialize_config, get_save_files
+from snapshot.core import (
+    SnapshotError,
+    background_workers,
+    enable_tracing,
+    global_thread_pool,
+    since_start,
+)
+from snapshot.parser import ReqParseError, get_save_files, initialize_config
+
 from .compare import SnapshotCompareWidget
 from .restore import SnapshotRestoreWidget
 from .save import SnapshotSaveWidget
-from .utils import SnapshotConfigureDialog, DetailedMsgBox, make_separator
-
-from snapshot.core import since_start, enable_tracing
+from .utils import DetailedMsgBox, SnapshotConfigureDialog, make_separator
 
 
 class SnapshotGui(QMainWindow):

@@ -1,9 +1,9 @@
-import unittest
 import logging
-
-logging.basicConfig(level=logging.DEBUG)
+import unittest
 
 from snapshot.parser import SnapshotReqFile
+
+logging.basicConfig(level=logging.DEBUG)
 
 
 class TestSnapshotReqFile(unittest.TestCase):
@@ -16,10 +16,7 @@ class TestSnapshotReqFile(unittest.TestCase):
         # request_file = SnapshotReqFile("testfiles/SF_timing.req")
         pvs = request_file.read()
 
-        pv_dict = dict()
-        for pv in pvs:
-            pv_dict[pv] = 1
-
+        pv_dict = {pv: 1 for pv in pvs}
         print()
         print(pvs)
         print(len(pvs))

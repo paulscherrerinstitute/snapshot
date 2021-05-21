@@ -6,24 +6,42 @@
 
 import copy
 import datetime
-import os
-import time
 import enum
-import re
 import json
+import os
+import re
+import time
 
 from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QCursor, QGuiApplication, QPalette, QColor
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QHBoxLayout, \
-    QFormLayout, QMessageBox, QTreeWidget, QTreeWidgetItem, QMenu, QLineEdit
+from PyQt5.QtGui import QColor, QCursor, QGuiApplication, QPalette
+from PyQt5.QtWidgets import (
+    QFormLayout,
+    QHBoxLayout,
+    QLineEdit,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
-from ..ca_core import PvStatus, ActionStatus, SnapshotPv
-from ..core import background_workers, BackgroundThread, since_start
-from ..parser import get_save_files, list_save_files, parse_from_save_file, \
-    save_file_suffix
-from .utils import SnapshotKeywordSelectorWidget, SnapshotEditMetadataDialog, \
-    DetailedMsgBox, show_snapshot_parse_errors
+from ..ca_core import ActionStatus, PvStatus, SnapshotPv
+from ..core import BackgroundThread, background_workers, since_start
+from ..parser import (
+    get_save_files,
+    list_save_files,
+    parse_from_save_file,
+    save_file_suffix,
+)
+from .utils import (
+    DetailedMsgBox,
+    SnapshotEditMetadataDialog,
+    SnapshotKeywordSelectorWidget,
+    show_snapshot_parse_errors,
+)
 
 
 @enum.unique
