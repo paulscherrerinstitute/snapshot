@@ -10,13 +10,22 @@ import time
 
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QLineEdit, QLabel, QHBoxLayout, QVBoxLayout, QFrame, QGroupBox, QMessageBox, QPushButton, \
-    QWidget
+from PyQt5.QtWidgets import (
+    QFrame,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
+from ..ca_core import ActionStatus, PvStatus
 from ..core import get_machine_param_data
-from ..ca_core import PvStatus, ActionStatus
 from ..parser import save_file_suffix
-from .utils import SnapshotKeywordSelectorWidget, DetailedMsgBox
+from .utils import DetailedMsgBox, SnapshotKeywordSelectorWidget
 
 
 class SnapshotSaveWidget(QWidget):
@@ -65,7 +74,8 @@ class SnapshotSaveWidget(QWidget):
 
         # Create collapsible group with advanced options,
         # then update output file name and finish adding widgets to layout
-        self.advanced = SnapshotAdvancedSaveSettings(self.common_settings, self)
+        self.advanced = SnapshotAdvancedSaveSettings(
+            self.common_settings, self)
 
         self.name_extension = ''
         self.update_name()
@@ -136,7 +146,8 @@ class SnapshotSaveWidget(QWidget):
                     params_data[p] = None
 
             force = self.common_settings["force"]
-            # Start saving process with default "force" flag and notify when finished
+            # Start saving process with default "force" flag and notify when
+            # finished
             status, pvs_status = self.snapshot.save_pvs(self.file_path,
                                                         force=force,
                                                         labels=labels,
@@ -157,7 +168,8 @@ class SnapshotSaveWidget(QWidget):
                 reply = msg_window.exec_()
 
                 if reply != QMessageBox.No:
-                    # Start saving process in forced mode and notify when finished
+                    # Start saving process in forced mode and notify when
+                    # finished
                     status, pvs_status = self.snapshot.save_pvs(self.file_path,
                                                                 force=True,
                                                                 labels=labels,
@@ -171,8 +183,10 @@ class SnapshotSaveWidget(QWidget):
                     # finished in forced mode
                     self.save_done(pvs_status, True)
                 else:
-                    # User rejected saving with unconnected PVs. Not an error state.
-                    self.sts_log.log_msgs("Save rejected by user.", time.time())
+                    # User rejected saving with unconnected PVs. Not an error
+                    # state.
+                    self.sts_log.log_msgs(
+                        "Save rejected by user.", time.time())
                     self.sts_info.clear_status()
                     self.save_button.setEnabled(True)
 
@@ -207,7 +221,8 @@ class SnapshotSaveWidget(QWidget):
                 if sts == PvStatus.access_err:
                     # if here and not in force mode, then this is error state
                     success = success and not forced
-                    msgs.append("WARNING: {}: Not saved (no connection or no read access)".format(pvname))
+                    msgs.append(
+                        "WARNING: {}: Not saved (no connection or no read access)".format(pvname))
                 else:
                     success = False
                     msgs.append("WARNING: {}: Not saved, error status {}."

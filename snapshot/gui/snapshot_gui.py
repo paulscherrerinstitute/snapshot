@@ -11,19 +11,37 @@ import sys
 
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtWidgets import QApplication, QStatusBar, QLabel, QVBoxLayout, \
-    QPlainTextEdit, QWidget, QMessageBox, QDialog, QSplitter, QCheckBox, \
-    QAction, QMenu, QMainWindow, QFormLayout
+from PyQt5.QtWidgets import (
+    QAction,
+    QApplication,
+    QCheckBox,
+    QDialog,
+    QFormLayout,
+    QLabel,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QPlainTextEdit,
+    QSplitter,
+    QStatusBar,
+    QVBoxLayout,
+    QWidget,
+)
 
 from snapshot.ca_core import Snapshot
-from snapshot.core import SnapshotError, background_workers, global_thread_pool
-from snapshot.parser import ReqParseError, initialize_config, get_save_files
+from snapshot.core import (
+    SnapshotError,
+    background_workers,
+    enable_tracing,
+    global_thread_pool,
+    since_start,
+)
+from snapshot.parser import ReqParseError, get_save_files, initialize_config
+
 from .compare import SnapshotCompareWidget
 from .restore import SnapshotRestoreWidget
 from .save import SnapshotSaveWidget
-from .utils import SnapshotConfigureDialog, DetailedMsgBox, make_separator
-
-from snapshot.core import since_start, enable_tracing
+from .utils import DetailedMsgBox, SnapshotConfigureDialog, make_separator
 
 
 class SnapshotGui(QMainWindow):
@@ -120,7 +138,8 @@ class SnapshotGui(QMainWindow):
                                                     self.common_settings, self)
 
         self.compare_widget.pvs_filtered.connect(self.handle_pvs_filtered)
-        self.compare_widget.restore_requested.connect(self._handle_restore_request)
+        self.compare_widget.restore_requested.connect(
+            self._handle_restore_request)
 
         self.save_widget = SnapshotSaveWidget(self.snapshot,
                                               self.common_settings, self)
@@ -251,11 +270,17 @@ class SnapshotGui(QMainWindow):
             reopen_config = True
 
         except SnapshotError as e:
-            QMessageBox.warning(self, "Warning", str(e), QMessageBox.Ok, QMessageBox.NoButton)
+            QMessageBox.warning(
+                self,
+                "Warning",
+                str(e),
+                QMessageBox.Ok,
+                QMessageBox.NoButton)
             reopen_config = True
 
         if reopen_config:
-            configure_dialog = SnapshotConfigureDialog(self, init_path=req_file_path, init_macros=req_macros)
+            configure_dialog = SnapshotConfigureDialog(
+                self, init_path=req_file_path, init_macros=req_macros)
             configure_dialog.accepted.connect(self.init_snapshot)
             if configure_dialog.exec_() == QDialog.Rejected:
                 self.close()
@@ -324,8 +349,16 @@ class SnapshotStatusLog(QWidget):
         if not isinstance(msg_times, list):
             msg_times = [msg_times] * len(msgs)
 
-        msg_times = (datetime.datetime.fromtimestamp(t).strftime('%H:%M:%S.%f') for t in msg_times)
-        self.sts_log.insertPlainText("\n".join("[{}] {}".format(*t) for t in zip(msg_times, msgs)) + "\n")
+        msg_times = (datetime.datetime.fromtimestamp(
+            t).strftime('%H:%M:%S.%f') for t in msg_times)
+        self.sts_log.insertPlainText(
+            "\n".join(
+                "[{}] {}".format(
+                    *
+                    t) for t in zip(
+                    msg_times,
+                    msgs)) +
+            "\n")
         self.sts_log.ensureCursorVisible()
 
 
@@ -341,7 +374,8 @@ class SnapshotStatus(QStatusBar):
         self.addWidget(self.status_txt)
         self.set_status()
 
-    def set_status(self, text="Ready", duration=0, background="rgba(0, 0, 0, 30)"):
+    def set_status(self, text="Ready", duration=0,
+                   background="rgba(0, 0, 0, 30)"):
         # Stop any existing timers
         self.timer.stop()
 
@@ -377,7 +411,8 @@ def start_gui(*args, **kwargs):
     default_style_path = os.path.join(default_style_path, "qss/default.qss")
     app.setStyleSheet("file:///" + default_style_path)
 
-    # IMPORTANT the reference to the SnapshotGui Object need to be retrieved otherwise the GUI will not show up
+    # IMPORTANT the reference to the SnapshotGui Object need to be retrieved
+    # otherwise the GUI will not show up
     _ = SnapshotGui(config)
 
     since_start("GUI constructed")

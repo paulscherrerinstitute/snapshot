@@ -22,10 +22,11 @@ import logging
 
 from snapshot.core import since_start
 
-ca.AUTO_CLEANUP = True  # For pyepics versions older than 3.2.4, this was set to True only for
-                        # python 2 but not for python 3, which resulted in errors when closing
-                        # the application. If true, ca.finalize_libca() is called when app is
-                        # closed
+# For pyepics versions older than 3.2.4, this was set to True only for
+ca.AUTO_CLEANUP = True
+# python 2 but not for python 3, which resulted in errors when closing
+# the application. If true, ca.finalize_libca() is called when app is
+# closed
 
 
 class ActionStatus(Enum):
@@ -58,7 +59,8 @@ class Snapshot(object):
         """
 
         if isinstance(macros, str):
-            macros = parse_macros(macros)  # Raises MacroError in case of problems
+            # Raises MacroError in case of problems
+            macros = parse_macros(macros)
         elif macros is None:
             macros = dict()
 
@@ -155,7 +157,8 @@ class Snapshot(object):
 
         pvs_status = dict()
         disconn_pvs = self.get_disconnected_pvs_names()
-        # At this point core can provide not connected status for PVs from self.get_disconnected_pvs_names()
+        # At this point core can provide not connected status for PVs from
+        # self.get_disconnected_pvs_names()
         for pvname in disconn_pvs:
             pvs_status[pvname] = PvStatus.access_err
 
@@ -169,7 +172,8 @@ class Snapshot(object):
 
         background_workers.suspend()
         pvs_data = dict()
-        logging.debug("Create snapshot for %d channels" % len(self.pvs.items()))
+        logging.debug("Create snapshot for %d channels" %
+                      len(self.pvs.items()))
         for pvname, pv_ref in self.pvs.items():
             # Get current value, status of operation.
             value, status = pv_ref.save_pv()
@@ -189,7 +193,12 @@ class Snapshot(object):
 
         logging.debug("Writing snapshot to file")
         try:
-            parse_to_save_file(pvs_data, save_file_path, self.macros, symlink_path, **kw)
+            parse_to_save_file(
+                pvs_data,
+                save_file_path,
+                self.macros,
+                symlink_path,
+                **kw)
             status = ActionStatus.ok
         except OSError:
             status = ActionStatus.os_error
@@ -198,7 +207,8 @@ class Snapshot(object):
 
         return status, pvs_status
 
-    def restore_pvs(self, pvs_raw, force=False, callback=None, custom_macros=None):
+    def restore_pvs(self, pvs_raw, force=False,
+                    callback=None, custom_macros=None):
         """
         Restore PVs form snapshot file or dictionary. If restore is successfully started (ActionStatus.ok returned),
         then restore stressfulness will be returned in callback as: status={'pvname': PvStatus}, forced=was_restore?
@@ -229,7 +239,8 @@ class Snapshot(object):
 
         if isinstance(pvs_raw, str):
             pvs_raw, meta_data, err = parse_from_save_file(pvs_raw)
-            custom_macros = meta_data.get('macros', dict())  # if no self.macros use ones from file
+            # if no self.macros use ones from file
+            custom_macros = meta_data.get('macros', dict())
 
         pvs = dict()
 
@@ -241,7 +252,8 @@ class Snapshot(object):
         if macros:
             # Replace macros
             for pvname_raw, pv_data in pvs_raw.items():
-                pvs[SnapshotPv.macros_substitution(pvname_raw, macros)] = pv_data
+                pvs[SnapshotPv.macros_substitution(
+                    pvname_raw, macros)] = pv_data
         else:
             pvs = pvs_raw
 
@@ -256,7 +268,8 @@ class Snapshot(object):
 
         disconn_pvs = self.get_disconnected_pvs_names(pvs)
         # At this point core can provide not connected status for PVs from self.get_disconnected_pvs_names()
-        # Should be dict to follow the same format of error reporting ass save_pvs
+        # Should be dict to follow the same format of error reporting ass
+        # save_pvs
         pvs_status = dict()
         for pvname in disconn_pvs:
             pvs_status[pvname] = PvStatus.access_err
@@ -294,7 +307,8 @@ class Snapshot(object):
             self._restore_started = False
             background_workers.resume()
 
-    def restore_pvs_blocking(self, pvs_raw=None, force=False, timeout=10, custom_macros=None):
+    def restore_pvs_blocking(
+            self, pvs_raw=None, force=False, timeout=10, custom_macros=None):
         """
         Similar as restore_pvs, but block until restore finished or timeout.
 
@@ -354,7 +368,8 @@ class Snapshot(object):
         not_connected_list = list()
         for pvname, pv_ref in self.pvs.items():
             if not pv_ref.connected and ((pvname in selected) or not selected):
-                not_connected_list.append(pvname)  # Need to check only subset (selected) of pvs?
+                # Need to check only subset (selected) of pvs?
+                not_connected_list.append(pvname)
         return not_connected_list
 
     def replace_metadata(self, save_file_path, metadata):

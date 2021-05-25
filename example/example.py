@@ -1,10 +1,11 @@
-from snapshot.ca_core import Snapshot, ActionStatus, SnapshotReqFile
+from snapshot.ca_core import ActionStatus, Snapshot, SnapshotReqFile
 
 
 def restore_done(status, forced):
     print('Restore finished [forced mode: {}]'.format(status, forced))
     for pvname, sts in status.items():
         print('{}  -> {}'.format(pvname, sts.name))
+
 
 macros = {'SYS': 'TST', 'A': 'B'}  # can aslo be macros = "SYS=TST,A=B"
 snap = Snapshot('./test.req', macros)
@@ -13,7 +14,8 @@ snap = Snapshot('./test.req', macros)
 print("------- Saving to file -------")
 
 # Save to snap file in force mode and create a symlink
-sts, pvs_sts = snap.save_pvs('./test_1.snap', force=True, symlink_path='./test_latest.snap')
+sts, pvs_sts = snap.save_pvs(
+    './test_1.snap', force=True, symlink_path='./test_latest.snap')
 print('Save finished with status: ' + sts.name)
 for pvname, pv_sts in pvs_sts.items():
     print('{}  -> {}'.format(pvname, pv_sts.name))
@@ -23,7 +25,8 @@ print("------- Non-blocking restore -------")
 
 
 # Non-blocking restore from snap file
-sts, pvs_sts = snap.restore_pvs('./test_1.snap', force=True, callback=restore_done)
+sts, pvs_sts = snap.restore_pvs(
+    './test_1.snap', force=True, callback=restore_done)
 # Will not wait for restore to finish. If restore started successfully, then pvs_sts
 # is returned in callback.
 print('Restore started with status {}'.format(sts))
@@ -48,6 +51,3 @@ print("------- Parsing request file -------")
 req_file = SnapshotReqFile('./test.req', macros=macros)
 pvs_list = req_file.read()
 print(pvs_list)
-
-
-

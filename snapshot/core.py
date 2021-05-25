@@ -1,12 +1,12 @@
-from epics import PV, ca, caput, caget_many
-import numpy
-from enum import Enum
 import json
 import logging
-from time import monotonic, sleep, time
-from threading import Thread, Lock
 from concurrent.futures import ThreadPoolExecutor
+from enum import Enum
+from threading import Lock, Thread
+from time import monotonic, sleep, time
 
+import numpy
+from epics import PV, ca, caget_many, caput
 
 _start_time = time()
 _print_trace = False
@@ -178,7 +178,7 @@ def get_machine_param_data(machine_params):
     background_workers.resume()
 
     return {p: {key: (v.get(key) if v is not None else None)
-                for key in('value', 'units', 'precision')}
+                for key in ('value', 'units', 'precision')}
             for p, v in zip(machine_params.keys(), results)}
 
 
@@ -188,6 +188,7 @@ class SnapshotError(Exception):
     Parent exception class of all snapshot exceptions.
     """
     pass
+
 
 class PvStatus(Enum):
     """
@@ -205,6 +206,8 @@ class PvStatus(Enum):
     type_err = 4
 
 # Subclass PV to be to later add info if needed
+
+
 class SnapshotPv(PV):
     """
     Extended PV class with non-blocking methods to save and restore pvs. It
@@ -324,7 +327,8 @@ class SnapshotPv(PV):
             if self.read_access:
                 saved_value = self.get(use_monitor=False)
                 if saved_value is None:
-                    logging.debug('No value returned for channel ' + self.pvname)
+                    logging.debug(
+                        'No value returned for channel ' + self.pvname)
                     return saved_value, PvStatus.no_value
                 else:
                     return saved_value, PvStatus.ok
@@ -352,7 +356,12 @@ class SnapshotPv(PV):
 
                 elif not self.compare_to_curr(value):
                     try:
-                        self.put(value, wait=False, callback=callback, callback_data={"status": PvStatus.ok})
+                        self.put(
+                            value,
+                            wait=False,
+                            callback=callback,
+                            callback_data={
+                                "status": PvStatus.ok})
 
                     except TypeError as e:
                         callback(pvname=self.pvname, status=PvStatus.type_err)
@@ -403,7 +412,7 @@ class SnapshotPv(PV):
                 # abbreviate long arrays
                 return f'[{fmt} ... {fmt}]'.format(value[0], value[-1])
             else:
-                return '[' + ' '.join([fmt.format(x) for x in value]) + ']'
+                return '[' + ' '.join(fmt.format(x) for x in value) + ']'
         else:
             return str(value)
 
@@ -450,11 +459,7 @@ class SnapshotPv(PV):
         :param callback:
         :return: Connection callback index
         """
-        if self.conn_callbacks:
-            idx = 1 + max(self.conn_callbacks.keys())
-        else:
-            idx = 0
-
+        idx = 1 + max(self.conn_callbacks.keys()) if self.conn_callbacks else 0
         self.conn_callbacks[idx] = callback
         return idx
 
@@ -547,30 +552,29 @@ class PvUpdater(BackgroundThread):
     @staticmethod
     def _get_complete(pv, wait=False):
         try:
-            if pv.connected and pv._pvget_completer:
-                timeout = PvUpdater.timeout if wait is False else None
-                md = ca.get_complete_with_metadata(pv.chid, as_numpy=True,
-                                                   timeout=timeout)
-                if md is None:
-                    return None
-                pv._pvget_completer = None
-                val = md['value']
-
-                # Handle arrays. See comment in SnapshotPv.get()
-                if val is not None and pv.is_array:
-                    if numpy.size(val) == 0:
-                        val = None
-                    elif (numpy.size(val) == 1 and
-                          not isinstance(val, numpy.ndarray)):
-                        val = numpy.asarray([val])
-                    elif not(isinstance(val, numpy.ndarray)):
-                        val = numpy.asarray(val)
-
-                pv._last_value = val
-                return val
-
-            else:
+            if not pv.connected or not pv._pvget_completer:
                 return None
+            timeout = PvUpdater.timeout if wait is False else None
+            md = ca.get_complete_with_metadata(pv.chid, as_numpy=True,
+                                               timeout=timeout)
+            if md is None:
+                return None
+            pv._pvget_completer = None
+            val = md['value']
+
+            # Handle arrays. See comment in SnapshotPv.get()
+            if val is not None and pv.is_array:
+                if numpy.size(val) == 0:
+                    val = None
+                elif (numpy.size(val) == 1 and
+                      not isinstance(val, numpy.ndarray)):
+                    val = numpy.asarray([val])
+                elif not(isinstance(val, numpy.ndarray)):
+                    val = numpy.asarray(val)
+
+            pv._last_value = val
+            return val
+
         except (ca.ChannelAccessException, ca.ChannelAccessGetFailure):
             # The GetFailure exception happens on pyepics 3.4 if PVs reconnect
             # between _get_start() and _get_complete(). Which is good: older
