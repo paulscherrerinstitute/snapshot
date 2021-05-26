@@ -353,9 +353,9 @@ class Snapshot(object):
         :return: List of not connected PV names.
         """
         if selected is None:
-            selected = list()
+            selected = []
 
-        not_connected_list = list()
+        not_connected_list = []
         for pvname, pv_ref in self.pvs.items():
             if not pv_ref.connected and ((pvname in selected) or not selected):
                 # Need to check only subset (selected) of pvs?
