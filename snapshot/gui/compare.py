@@ -240,12 +240,12 @@ class SnapshotCompareWidget(QWidget):
             # pass text of filter to the input
             self.pv_filter_sel.setCurrentIndex(0)
             self.regex.setChecked(True)
-            self.pv_filter_inp.setText(txt)
         else:
             # Imitate same behaviour
             self.pv_filter_sel.setCurrentIndex(0)
             self.regex.setChecked(False)
-            self.pv_filter_inp.setText(txt)
+
+        self.pv_filter_inp.setText(txt)
 
     def filter_update(self):
         self._proxy.apply_filter()
@@ -331,7 +331,7 @@ class SnapshotPvTableView(QTableView):
         self._apply_selection_to_full_row()
 
     def _apply_selection_to_full_row(self):
-        rows = list()
+        rows = []
         selection = QItemSelection()
         for idx in self.selectedIndexes():
             if idx.row() not in rows:
@@ -440,8 +440,8 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
     def __init__(self, snapshot: Snapshot, parent=None):
         super().__init__(parent)
         self.snapshot = snapshot
-        self._data = list()
-        self._file_names = list()
+        self._data = []
+        self._file_names = []
         self._tolerance_f = 1
 
         self._headers = [''] * PvTableColumns.snapshots
@@ -518,7 +518,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             self.file_parse_errors.emit(errors)
 
     def clear_snap_files(self):
-        self._file_names = list()
+        self._file_names = []
         self.beginRemoveColumns(QtCore.QModelIndex(), PvTableColumns.snapshots,
                                 self.columnCount(self.createIndex(-1, -1)) - 1)
         # remove all snap files
@@ -687,11 +687,9 @@ class SnapshotPvTableLine(QtCore.QObject):
             sval = SnapshotPvTableLine.string_repr_snap_value(value,
                                                               self.precision)
             self.data[column_idx]['data'] = sval
-            self.data[column_idx]['raw_value'] = value
         else:
             self.data[column_idx]['data'] = ''
-            self.data[column_idx]['raw_value'] = value
-
+        self.data[column_idx]['raw_value'] = value
         # Do compare
         self._compare()
 
@@ -701,15 +699,14 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     def are_snap_values_eq(self):
         n_files = self.get_snap_count()
-        if n_files < 2:
-            return True
-        else:
+        if n_files >= 2:
             first_data = self.data[PvTableColumns.snapshots]['raw_value']
             for data in self.data[PvTableColumns.snapshots + 1:]:
                 if not SnapshotPv.compare(first_data, data['raw_value'],
                                           self.tolerance_from_precision()):
                     return False
-            return True
+
+        return True
 
     def is_snap_eq_to_pv(self, idx):
         idx = PvTableColumns.snap_index(idx)

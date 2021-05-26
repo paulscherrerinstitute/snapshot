@@ -276,7 +276,7 @@ class SnapshotReqFile(object):
             self._trace, line[0], line[1], msg)
 
     def _validate_macros_in_txt(self, txt: str):
-        invalid_macros = list()
+        invalid_macros = []
         macro_rgx = re.compile('\$\(.*?\)')  # find all of type $()
         raw_macros = macro_rgx.findall(txt)
         for raw_macro in raw_macros:
@@ -408,16 +408,16 @@ def initialize_config(config_path=None, save_dir=None, force=False,
 
     config['save_file_prefix'] = ''
     config['req_file_path'] = ''
-    config['req_file_macros'] = dict()
-    config['existing_labels'] = list()  # labels that are already in snap files
+    config['req_file_macros'] = {}
+    config['existing_labels'] = []  # labels that are already in snap files
     config['force'] = force
-    config['init_path'] = init_path if init_path else ''
+    config['init_path'] = init_path or ''
 
     if isinstance(default_labels, str):
         default_labels = default_labels.split(',')
 
     elif not isinstance(default_labels, list):
-        default_labels = list()
+        default_labels = []
 
     # default labels also in config file? Add them
     config['default_labels'] = \
@@ -435,7 +435,7 @@ def initialize_config(config_path=None, save_dir=None, force=False,
             config['predefined_filters'][fltype] = []
 
     if req_file_macros is None:
-        req_file_macros = dict()
+        req_file_macros = {}
     elif isinstance(req_file_macros, str):
         # Try to parse macros. If problem, just pass to configure window
         # which will force user to do it right way.
@@ -453,11 +453,7 @@ def initialize_config(config_path=None, save_dir=None, force=False,
         # Default save dir (do this once we have valid req file)
         save_dir = os.path.dirname(config['req_file_path'])
 
-    if not save_dir:
-        config['save_dir'] = None
-    else:
-        config['save_dir'] = os.path.abspath(save_dir)
-
+    config['save_dir'] = None if not save_dir else os.path.abspath(save_dir)
     return config
 
 
@@ -476,9 +472,9 @@ def parse_from_save_file(save_file_path, metadata_only=False):
         err: list of strings (each entry one error)
     """
 
-    saved_pvs = dict()
-    meta_data = dict()  # If macros were used they will be saved in meta_data
-    err = list()
+    saved_pvs = {}
+    meta_data = {}  # If macros were used they will be saved in meta_data
+    err = []
     meta_loaded = False
 
     try:
@@ -671,8 +667,8 @@ def get_save_files(save_dir, req_file_path):
                         err)
 
     results = global_thread_pool.map(process_file, file_paths, modif_times)
-    err_to_report = list()
-    parsed_save_files = dict()
+    err_to_report = []
+    parsed_save_files = {}
     for r in results:
         if r is not None:
             file_name, info, err = r

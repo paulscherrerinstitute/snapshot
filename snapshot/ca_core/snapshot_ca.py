@@ -5,22 +5,19 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import numpy
 import json
+import logging
 import os
 import time
-from enum import Enum
 from collections import OrderedDict
+from enum import Enum
 
+import numpy
 from epics import PV, ca, dbr
 
-from snapshot.core import SnapshotPv, PvStatus, background_workers
-from snapshot.parser import SnapshotReqFile, parse_macros, \
-    parse_from_save_file, parse_to_save_file
+from snapshot.core import PvStatus, SnapshotPv, background_workers, since_start
+from snapshot.parser import SnapshotReqFile, parse_from_save_file, parse_macros, parse_to_save_file
 
-import logging
-
-from snapshot.core import since_start
 
 # For pyepics versions older than 3.2.4, this was set to True only for
 ca.AUTO_CLEANUP = True
@@ -62,9 +59,9 @@ class Snapshot(object):
             # Raises MacroError in case of problems
             macros = parse_macros(macros)
         elif macros is None:
-            macros = dict()
+            macros = {}
 
-        self.pvs = dict()
+        self.pvs = {}
         self.macros = macros
         self.req_file_path = ''
         self.req_file_metadata = {}
@@ -72,11 +69,11 @@ class Snapshot(object):
         # Other important states
         self._restore_started = False
         self._restore_blocking_done = False
-        self._blocking_restore_pvs_status = dict()
+        self._blocking_restore_pvs_status = {}
         self._restore_callback = None
         self._current_restore_forced = False
 
-        self.restored_pvs_list = list()
+        self.restored_pvs_list = []
         self.restore_callback = None
 
         if req_file_path:
@@ -235,20 +232,16 @@ class Snapshot(object):
 
         # Prepare restore data
         if custom_macros is None:
-            custom_macros = dict()
+            custom_macros = {}
 
         if isinstance(pvs_raw, str):
             pvs_raw, meta_data, err = parse_from_save_file(pvs_raw)
             # if no self.macros use ones from file
             custom_macros = meta_data.get('macros', dict())
 
-        pvs = dict()
+        pvs = {}
 
-        if self.macros:
-            macros = self.macros
-        else:
-            macros = custom_macros
-
+        macros = self.macros or custom_macros
         if macros:
             # Replace macros
             for pvname_raw, pv_data in pvs_raw.items():
@@ -270,10 +263,7 @@ class Snapshot(object):
         # At this point core can provide not connected status for PVs from self.get_disconnected_pvs_names()
         # Should be dict to follow the same format of error reporting ass
         # save_pvs
-        pvs_status = dict()
-        for pvname in disconn_pvs:
-            pvs_status[pvname] = PvStatus.access_err
-
+        pvs_status = {pvname: PvStatus.access_err for pvname in disconn_pvs}
         if not force and disconn_pvs:
             self._restore_started = False
             return ActionStatus.no_conn, pvs_status
@@ -281,7 +271,7 @@ class Snapshot(object):
         # Do a restore. It is started here, but is completed
         # in _check_restore_complete()
         background_workers.suspend()
-        self.restored_pvs_list = list()
+        self.restored_pvs_list = []
         self.restore_callback = callback
         for pvname, pv_ref in self.pvs.items():
             save_data = pvs.get(pvname)  # Check if this pv is to be restored
@@ -325,20 +315,20 @@ class Snapshot(object):
 
         """
         self._restore_blocking_done = False
-        self._blocking_restore_pvs_status = dict()
+        self._blocking_restore_pvs_status = {}
         status, pvs_status = self.restore_pvs(pvs_raw, force=force, custom_macros=custom_macros,
                                               callback=self._set_restore_blocking_done)
-        if status == ActionStatus.ok:
-            end_time = time.time() + timeout
-            while not self._restore_blocking_done and time.time() < end_time:
-                time.sleep(0.2)
-
-            if self._restore_blocking_done:
-                return ActionStatus.ok, self._blocking_restore_pvs_status
-            else:
-                return ActionStatus.timeout, pvs_status
-        else:
+        if status != ActionStatus.ok:
             return status, pvs_status
+
+        end_time = time.time() + timeout
+        while not self._restore_blocking_done and time.time() < end_time:
+            time.sleep(0.2)
+
+        if self._restore_blocking_done:
+            return ActionStatus.ok, self._blocking_restore_pvs_status
+        else:
+            return ActionStatus.timeout, pvs_status
 
     def _set_restore_blocking_done(self, status, forced):
         # If this was called, then restore is done
@@ -363,9 +353,9 @@ class Snapshot(object):
         :return: List of not connected PV names.
         """
         if selected is None:
-            selected = list()
+            selected = []
 
-        not_connected_list = list()
+        not_connected_list = []
         for pvname, pv_ref in self.pvs.items():
             if not pv_ref.connected and ((pvname in selected) or not selected):
                 # Need to check only subset (selected) of pvs?
