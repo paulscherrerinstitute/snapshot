@@ -4,7 +4,7 @@ import signal
 import sys
 
 import epics.ca
-import epics.utils3
+import epics.utils
 
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
@@ -26,7 +26,7 @@ def _support_old_args(args_replacements):
             sys.argv[idx + 1] = arg_replacement
 
 
-def save(args):
+def save_ref(args):
     from .cmd import save
     save(
         args.FILE,
@@ -60,7 +60,7 @@ def main():
     # back to whatever they were when writing to CA. This also allows
     # transparent (de)serialization of arbitrary encodings. Display is broken,
     # of course, because you can't display a string with undefined encoding.
-    epics.utils3.EPICS_STR_ENCODING = 'raw_unicode_escape'
+    epics.utils.EPICS_STR_ENCODING = 'raw_unicode_escape'
 
     args_pars = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -99,7 +99,7 @@ def main():
     # Save
     save_pars = subparsers.add_parser(
         'save', help='save current state of PVs to file without using GUI')
-    save_pars.set_defaults(func=save)
+    save_pars.set_defaults(func=save_ref)
     save_pars.add_argument('FILE', help='request file.')
     save_pars.add_argument('-m', '--macro',
                            help="macros for request file e.g.: \"SYS=TEST,DEV=D1\"")
