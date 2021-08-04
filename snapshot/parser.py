@@ -251,25 +251,24 @@ class SnapshotReqFile(object):
 
     def _extract_pvs_from_yaml(self):
         try:
-            list_of_pvs = []
-            for ioc_name in self._file_data.keys():
-                for pv_name in self._file_data[ioc_name]:
-                    list_of_pvs.append(ioc_name+":"+pv_name)
-            return list_of_pvs
+            return self._get_pvs_list()
         except Exception as e:
             msg = f"{self._path}: Could not parse YML file."
             return JsonParseError(msg)
 
     def _extract_pvs_from_json(self):
         try:
-            list_of_pvs = []
-            for ioc_name in self._file_data.keys():
-                for pv_name in self._file_data[ioc_name]:
-                    list_of_pvs.append(ioc_name+":"+pv_name)
-            return list_of_pvs
+            return self._get_pvs_list()
         except Exception as e:
             msg = f"{self._path}: Could not parse Json file."
             return JsonParseError(msg)
+
+    def _get_pvs_list(self):
+        list_of_pvs = []
+        for ioc_name in self._file_data.keys():
+            for pv_name in self._file_data[ioc_name]:
+                list_of_pvs.append(ioc_name + ':' + pv_name)
+        return list_of_pvs
 
     def _format_err(self, line: tuple, msg: str):
         return '{} [line {}: {}]: {}'.format(
