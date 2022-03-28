@@ -4,7 +4,7 @@ import signal
 import sys
 
 import epics.ca
-import epics.utils3
+import epics.utils
 
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
@@ -60,7 +60,7 @@ def main():
     # back to whatever they were when writing to CA. This also allows
     # transparent (de)serialization of arbitrary encodings. Display is broken,
     # of course, because you can't display a string with undefined encoding.
-    epics.utils3.EPICS_STR_ENCODING = 'raw_unicode_escape'
+    epics.utils.EPICS_STR_ENCODING = 'raw_unicode_escape'
 
     args_pars = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter)

@@ -26,11 +26,13 @@ from PyQt5.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFrame,
+    QFileDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
     QMenu,
+    QMessageBox,
     QSizePolicy,
     QSpinBox,
     QTableView,
@@ -370,6 +372,12 @@ class SnapshotPvTableView(QTableView):
             menu.addAction("Process records of selected PVs",
                            self._process_selected_records)
 
+            menu.addAction("Export selected PVs",
+                            self._export_pvs,)
+
+            menu.addAction("Export selected PVs and current values",
+                            self._export_pvs_values)
+
         self._menu_click_pos = point
         menu.exec(QCursor.pos())
         menu.deleteLater()
@@ -393,6 +401,16 @@ class SnapshotPvTableView(QTableView):
                  for idx in self.selectedIndexes())
         return list(set(names))
 
+    def _selected_pvvalues(self):
+        values = (self._get_value_with_selection_model_idx(idx)
+                 for idx in self.selectedIndexes())
+        return list(values)
+
+    def _selected_pvprecision(self):
+        precision = (self._get_precision_with_selection_model_idx(idx)
+                 for idx in self.selectedIndexes())
+        return list(precision)
+
     def _get_pvname_with_selection_model_idx(self, idx: QtCore.QModelIndex):
         # Map index from selection model to original model
         # Access original model through proxy model and get pv name.
@@ -401,9 +419,60 @@ class SnapshotPvTableView(QTableView):
         return self.model().sourceModel().get_pvname(
             self.selectionModel().model().mapToSource(idx).row())
 
+    def _get_value_with_selection_model_idx(self, idx: QtCore.QModelIndex):
+        # Map index from selection model to original model
+        # Access original model through proxy model and get pv name.
+        # Doing it this way is safer than just reading row content, since in
+        # future visualization can change.
+        return self.model().sourceModel().get_pv_ref_value(
+            self.selectionModel().model().mapToSource(idx).row())
+
+    def _get_precision_with_selection_model_idx(self, idx: QtCore.QModelIndex):
+        # Map index from selection model to original model
+        # Access original model through proxy model and get pv name.
+        # Doing it this way is safer than just reading row content, since in
+        # future visualization can change.
+        return self.model().sourceModel().get_pv_precision(
+            self.selectionModel().model().mapToSource(idx).row())
+
     def _process_selected_records(self):
         for pvname in self._selected_pvnames():
             process_record(pvname)
+
+    def _export_pvs(self):
+        name, fileFilter = QFileDialog().getSaveFileName(self, "Save file", 
+        "", "Comma-separated values (*.csv)")
+        try:
+            with open(name,'w') as f:
+                f.write("PV\n")
+                for pvname in self._selected_pvnames():
+                    str_content=f'{pvname}\n'
+                    f.write(str_content)
+                f.close()
+        except OSError as e:
+            warn = "Problem defining file to be exported: \n" + str(e)
+            QMessageBox.warning(self, "Warning", warn,
+                        QMessageBox.Ok,
+                        QMessageBox.NoButton)
+        
+
+    def _export_pvs_values(self):
+        name, fileFilter = QFileDialog().getSaveFileName(self, "Save file", 
+        "", "Comma-separated values (*.csv)")
+        try:
+            with open(name,'w') as f:
+                f.write("PV,Values\n")
+                for pvname, pv_value, pv_precision in zip(self._selected_pvnames(), self._selected_pvvalues(), self._selected_pvprecision()):
+                    line_content=pvname+','
+                    line_content+=SnapshotPv.value_to_display_str(pv_value, pv_precision)
+                    line_content+='\n'
+                    f.write(line_content)
+                f.close()
+        except OSError as e:
+            warn = "Problem defining file to be exported: \n" + str(e)
+            QMessageBox.warning(self, "Warning", warn,
+                        QMessageBox.Ok,
+                        QMessageBox.NoButton)
 
 
 # Wrap PvUpdater into QObject for threadsafe signalling
@@ -463,6 +532,12 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
 
     def get_pvname(self, line: int):
         return self.get_pv_line_model(line).pvname
+
+    def get_pv_ref_value(self, line: int):
+        return self.get_pv_line_model(line)._pv_ref.value
+    
+    def get_pv_precision(self, line: int):
+        return self.get_pv_line_model(line)._pv_ref.precision
 
     def get_pv_line_model(self, line: int):
         return self._data[line]
