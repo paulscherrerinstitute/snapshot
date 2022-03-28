@@ -58,20 +58,20 @@ class SnapshotReqFile(object):
                 content = json.loads(open(self._path, 'r').read())
             except Exception as e:
                 msg = f'{self._path}: Could not read load json file.'
-                raise ReqParseError(msg, e)
+                return ReqParseError(msg, e)
         elif extension in ['yaml', 'yml']:
             # yaml
             try:
                 content = yaml.safe_load(open(self._path, 'r'))[0]
             except Exception as e:
                 msg = f'{self._path}: Could not safe_load yaml file.'
-                raise ReqParseError(msg, e)
+                return ReqParseError(msg, e)
         elif extension == 'req':
             try:
                 content = open(self._path, 'r').read()
             except Exception as e:
                 msg = f'{self._path}: Could not read req file.'
-                raise ReqParseError(msg, e)
+                return ReqParseError(msg, e)
         return (extension, content)
 
     def read(self):
@@ -120,7 +120,7 @@ class SnapshotReqFile(object):
                     metadata['machine_params'].items())):
                 raise ReqParseError
         except Exception:
-            return ReqParseError('Invalid format of machine parameter list, '
+            raise ReqParseError('Invalid format of machine parameter list, '
                                 'must be a list of ["name", "pv_name"] pairs.')
 
         forbidden_chars = " ,.()"

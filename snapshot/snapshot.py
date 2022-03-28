@@ -4,7 +4,7 @@ import signal
 import sys
 
 import epics.ca
-import epics.utils
+import epics.utils3
 
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
@@ -26,7 +26,7 @@ def _support_old_args(args_replacements):
             sys.argv[idx + 1] = arg_replacement
 
 
-def save_ref(args):
+def save_caller(args):
     from .cmd import save
     save(
         args.FILE,
@@ -38,7 +38,7 @@ def save_ref(args):
         args.comment)
 
 
-def restore(args):
+def restore_caller(args):
     from .cmd import restore
     restore(args.FILE, args.force, args.timeout)
 
@@ -60,7 +60,7 @@ def main():
     # back to whatever they were when writing to CA. This also allows
     # transparent (de)serialization of arbitrary encodings. Display is broken,
     # of course, because you can't display a string with undefined encoding.
-    epics.utils.EPICS_STR_ENCODING = 'raw_unicode_escape'
+    epics.utils3.EPICS_STR_ENCODING = 'raw_unicode_escape'
 
     args_pars = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -99,7 +99,7 @@ def main():
     # Save
     save_pars = subparsers.add_parser(
         'save', help='save current state of PVs to file without using GUI')
-    save_pars.set_defaults(func=save_ref)
+    save_pars.set_defaults(func=save_caller)
     save_pars.add_argument('FILE', help='request file.')
     save_pars.add_argument('-m', '--macro',
                            help="macros for request file e.g.: \"SYS=TEST,DEV=D1\"")
@@ -122,7 +122,7 @@ def main():
     # Restore
     rest_pars = subparsers.add_parser(
         'restore', help='restore saved state of PVs from file without using GUI')
-    rest_pars.set_defaults(func=restore)
+    rest_pars.set_defaults(func=restore_caller)
     rest_pars.add_argument('FILE', help='saved snapshot file')
     rest_pars.add_argument('-f', '--force',
                            help="force restore in case of disconnected PVs after timeout", action='store_true')
