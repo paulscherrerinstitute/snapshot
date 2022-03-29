@@ -970,9 +970,6 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
                 result = (name_match and 
                         ((not row_model.conn and self._disconn_filter) or (
                         row_model.conn and self._conn_filter)))
-        
-        if row_model.conn == False:
-            print(row_model.pvname)
 
         
         if result:
