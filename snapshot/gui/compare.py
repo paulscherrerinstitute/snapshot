@@ -137,12 +137,21 @@ class SnapshotCompareWidget(QWidget):
             self._proxy.set_eq_filter)
         self.compare_filter_inp.setMaximumWidth(200)
 
-        # ### Show disconnected selector
-        self.show_disconn_inp = QCheckBox("Show disconnected PVs.", self)
-        self.show_disconn_inp.setChecked(True)
-        self.show_disconn_inp.stateChanged.connect(
-            self._proxy.set_disconn_filter)
-        self.show_disconn_inp.setMaximumWidth(500)
+        # ### Selector for viewing
+        self.show_filter_inp = QComboBox(self)
+        self.show_filter_inp.addItems(
+            ["Show all", "Hide disconnected PVs", "Show only disconnected PVs"]
+        )
+        self.show_filter_inp.currentIndexChanged.connect(
+            self._proxy.set_eq_filter)
+        self.show_filter_inp.setMaximumWidth(200)
+
+        # # ### Show disconnected selector
+        # self.show_disconn_inp = QCheckBox("Show disconnected PVs.", self)
+        # self.show_disconn_inp.setChecked(True)
+        # self.show_disconn_inp.stateChanged.connect(
+        #     self._proxy.set_disconn_filter)
+        # self.show_disconn_inp.setMaximumWidth(500)
 
         # Tolerance setting
         tol_label = QLabel("Tolerance:")
@@ -165,7 +174,9 @@ class SnapshotCompareWidget(QWidget):
 
         filter_layout.addWidget(self.compare_filter_inp)
 
-        filter_layout.addWidget(self.show_disconn_inp)
+        # filter_layout.addWidget(self.show_disconn_inp)
+        filter_layout.addWidget(self.show_filter_inp)
+        
         filter_layout.setAlignment(Qt.AlignLeft)
         filter_layout.setSpacing(10)
 
@@ -879,6 +890,7 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._disconn_filter = True  # show disconnected?
+        self._conn_filter = False # Hide connected
         self._name_filter = ''  # string or regex object
         self._eq_filter = PvCompareFilter.show_all
         self._filtered_pvs = set()
@@ -893,6 +905,10 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
 
     def set_eq_filter(self, mode):
         self._eq_filter = PvCompareFilter(mode)
+        self.apply_filter()
+
+    def set_conn_filter(self, state):
+        self._conn_filter = state
         self.apply_filter()
 
     def set_disconn_filter(self, state):
