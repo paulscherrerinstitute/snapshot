@@ -51,6 +51,11 @@ class PvCompareFilter(enum.Enum):
     show_neq = 1
     show_eq = 2
 
+class PvShowFilter(enum.Enum):
+    show_all = 0
+    show_conn = 1
+    show_disconn = 2
+
 
 class SnapshotCompareWidget(QWidget):
     pvs_filtered = QtCore.pyqtSignal(set)
@@ -137,21 +142,19 @@ class SnapshotCompareWidget(QWidget):
             self._proxy.set_eq_filter)
         self.compare_filter_inp.setMaximumWidth(200)
 
-        # ### Selector for viewing
-        self.show_filter_inp = QComboBox(self)
-        self.show_filter_inp.addItems(
-            ["Show all", "Hide disconnected PVs", "Show only disconnected PVs"]
-        )
-        self.show_filter_inp.currentIndexChanged.connect(
-            self._proxy.set_eq_filter)
-        self.show_filter_inp.setMaximumWidth(200)
-
         # # ### Show disconnected selector
-        # self.show_disconn_inp = QCheckBox("Show disconnected PVs.", self)
-        # self.show_disconn_inp.setChecked(True)
-        # self.show_disconn_inp.stateChanged.connect(
-        #     self._proxy.set_disconn_filter)
-        # self.show_disconn_inp.setMaximumWidth(500)
+        self.show_disconn_inp = QCheckBox("Show disconnected PVs.", self)
+        self.show_disconn_inp.setChecked(True)
+        self.show_disconn_inp.stateChanged.connect(
+            self._proxy.set_disconn_filter)
+        self.show_disconn_inp.setMaximumWidth(500)
+
+        # #### Show connected selector
+        self.show_conn_inp = QCheckBox("Show connected PVs.", self)
+        self.show_conn_inp.setChecked(True)
+        self.show_conn_inp.stateChanged.connect(
+            self._proxy.set_conn_filter)
+        self.show_conn_inp.setMaximumWidth(500)
 
         # Tolerance setting
         tol_label = QLabel("Tolerance:")
@@ -174,8 +177,8 @@ class SnapshotCompareWidget(QWidget):
 
         filter_layout.addWidget(self.compare_filter_inp)
 
-        # filter_layout.addWidget(self.show_disconn_inp)
-        filter_layout.addWidget(self.show_filter_inp)
+        filter_layout.addWidget(self.show_disconn_inp)
+        filter_layout.addWidget(self.show_conn_inp)
         
         filter_layout.setAlignment(Qt.AlignLeft)
         filter_layout.setSpacing(10)
@@ -890,7 +893,7 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._disconn_filter = True  # show disconnected?
-        self._conn_filter = False # Hide connected
+        self._conn_filter = True # show connected
         self._name_filter = ''  # string or regex object
         self._eq_filter = PvCompareFilter.show_all
         self._filtered_pvs = set()
@@ -941,10 +944,6 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
                     self._name_filter.fullmatch(
                         row_model.pvname) is not None)
 
-            # Connected is shown in both cases, disconnected only if in show
-            # all mode
-            connected_match = row_model.conn or self._disconn_filter
-
             if n_files > 1:  # multi-file mode
                 files_equal = row_model.are_snap_values_eq()
                 compare_match = (((self._eq_filter == PvCompareFilter.show_eq) and files_equal) or
@@ -953,7 +952,8 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
 
                 result = name_match and (
                     (row_model.conn and compare_match) or (
-                        not row_model.conn and connected_match))
+                        not row_model.conn and self._disconn_filter) or (
+                            row_model.conn and self._conn_filter))
 
             elif n_files == 1:  # "pv-compare" mode
                 compare = row_model.is_snap_eq_to_pv(0)
@@ -963,11 +963,18 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
 
                 result = name_match and (
                     (row_model.conn and compare_match) or (
-                        not row_model.conn and connected_match))
+                        not row_model.conn and self._disconn_filter) or (
+                            row_model.conn and self._conn_filter))
             else:
                 # Only name and connection filters apply
-                result = name_match and connected_match
+                result = (name_match and 
+                        ((not row_model.conn and self._disconn_filter) or (
+                        row_model.conn and self._conn_filter)))
+        
+        if row_model.conn == False:
+            print(row_model.pvname)
 
+        
         if result:
             self._filtered_pvs.add(row_model.pvname)
         else:
