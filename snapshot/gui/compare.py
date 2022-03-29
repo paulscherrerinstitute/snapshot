@@ -51,12 +51,6 @@ class PvCompareFilter(enum.Enum):
     show_neq = 1
     show_eq = 2
 
-class PvShowFilter(enum.Enum):
-    show_all = 0
-    show_conn = 1
-    show_disconn = 2
-
-
 class SnapshotCompareWidget(QWidget):
     pvs_filtered = QtCore.pyqtSignal(set)
     restore_requested = QtCore.pyqtSignal(list)
@@ -143,14 +137,14 @@ class SnapshotCompareWidget(QWidget):
         self.compare_filter_inp.setMaximumWidth(200)
 
         # # ### Show disconnected selector
-        self.show_disconn_inp = QCheckBox("Show disconnected PVs.", self)
+        self.show_disconn_inp = QCheckBox("Show disconnected PVs", self)
         self.show_disconn_inp.setChecked(True)
         self.show_disconn_inp.stateChanged.connect(
             self._proxy.set_disconn_filter)
         self.show_disconn_inp.setMaximumWidth(500)
 
         # #### Show connected selector
-        self.show_conn_inp = QCheckBox("Show connected PVs.", self)
+        self.show_conn_inp = QCheckBox("Show connected PVs", self)
         self.show_conn_inp.setChecked(True)
         self.show_conn_inp.stateChanged.connect(
             self._proxy.set_conn_filter)
