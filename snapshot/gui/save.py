@@ -148,16 +148,16 @@ class SnapshotSaveWidget(QWidget):
             force = self.common_settings["force"]
             # Start saving process with default "force" flag and notify when
             # finished
+            output_file = os.path.join(self.common_settings["save_dir"],
+                self.common_settings["save_file_prefix"] +
+                'latest' + save_file_suffix)
             status, pvs_status = self.snapshot.save_pvs(self.file_path,
                                                         force=force,
                                                         labels=labels,
                                                         comment=comment,
                                                         machine_params=params_data,
-                                                        symlink_path=os.path.join(
-                                                            self.common_settings["save_dir"],
-                                                            self.common_settings["save_file_prefix"] +
-                                                            'latest' + save_file_suffix))
-
+                                                        symlink_path=output_file)
+            
             if status == ActionStatus.no_conn:
                 # Prompt user and ask if he wants to save in force mode
                 msg = "Some PVs are not connected (see details). " \
@@ -175,13 +175,10 @@ class SnapshotSaveWidget(QWidget):
                                                                 labels=labels,
                                                                 comment=comment,
                                                                 machine_params=params_data,
-                                                                symlink_path=os.path.join(
-                                                                    self.common_settings["save_dir"],
-                                                                    self.common_settings["save_file_prefix"] +
-                                                                    'latest' + save_file_suffix))
+                                                                symlink_path=output_file)
 
                     # finished in forced mode
-                    self.save_done(pvs_status, True)
+                    self.save_done(pvs_status, True, output_file)
                 else:
                     # User rejected saving with unconnected PVs. Not an error
                     # state.
@@ -192,7 +189,7 @@ class SnapshotSaveWidget(QWidget):
 
             elif status == ActionStatus.ok:
                 # Save done in "default force mode"
-                self.save_done(pvs_status, force)
+                self.save_done(pvs_status, force, output_file)
 
             elif status == ActionStatus.os_error:
                 msg = f"Could not write to file {self.file_path}."
@@ -209,7 +206,7 @@ class SnapshotSaveWidget(QWidget):
             # Not an error state.
             self.sts_info.clear_status()
 
-    def save_done(self, status, forced):
+    def save_done(self, status, forced, output_file):
         # Enable save button, and update status widgets
         success = True
         msgs = list()
@@ -234,7 +231,7 @@ class SnapshotSaveWidget(QWidget):
 
         if success:
             self.sts_log.log_msgs("Save finished.", time.time())
-            status_txt = "Save done"
+            status_txt = f'Save done (output file: {output_file})'
             status_background = "#64C864"
 
         self.save_button.setEnabled(True)

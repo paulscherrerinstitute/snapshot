@@ -112,6 +112,11 @@ class SnapshotGui(QMainWindow):
         open_new_req_file_action.triggered.connect(self.open_new_req_file)
         file_menu.addAction(open_new_req_file_action)
 
+        save_menu_action = QAction("Set output directory", file_menu)
+        save_menu_action.setMenuRole(QAction.NoRole)
+        save_menu_action.triggered.connect(self.save_new_output_dir)
+        file_menu.addAction(save_menu_action)
+
         quit_action = QAction("Quit", file_menu)
         quit_action.setMenuRole(QAction.NoRole)
         quit_action.triggered.connect(self.close)
