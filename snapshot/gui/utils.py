@@ -334,6 +334,9 @@ class SnapshotKeywordSelectorWidget(QComboBox):
         labels.sort()
         self.addItems(labels)
 
+        # resize the qcombobox dropdown to show more items
+        self.setMaxVisibleItems(len(labels)+1 if len(labels) < 30 else 30)
+
     def clear_keywords(self):
         keywords_to_remove = copy.copy(self.get_keywords())
         for keyword in keywords_to_remove:
