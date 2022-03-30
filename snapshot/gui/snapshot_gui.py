@@ -299,7 +299,7 @@ class SnapshotGui(QMainWindow):
         req_filters = self.snapshot.req_file_metadata.get('filters', {})
         if req_filters:
             filters = self.common_settings['predefined_filters']
-            for fltype in ('filters', 'rgx-filters'):
+            for fltype in ('filters', 'rgx-filters', 'rgx-filters-names'):
                 filters[fltype] = req_filters.get(fltype, [])
 
         self.common_settings['machine_params'] = \

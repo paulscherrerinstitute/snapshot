@@ -189,13 +189,16 @@ class SnapshotCompareWidget(QWidget):
         self.pv_filter_sel.blockSignals(True)
         self.pv_filter_sel.clear()
         self.pv_filter_sel.addItem(None)
-        for rgx in predefined_filters.get('rgx-filters', list()):
-            self.pv_filter_sel.addItem(SnapshotCompareWidget.rgx_icon, rgx)
+        for rgx, names  in zip(predefined_filters.get('rgx-filters', list()),
+            predefined_filters.get('rgx-filters-names', list())):
+            label = names + "   |   " + rgx
+            self.pv_filter_sel.addItem(SnapshotCompareWidget.rgx_icon, label)
         self.pv_filter_sel.addItems(predefined_filters.get('filters', list()))
         self.pv_filter_sel.blockSignals(False)
 
     def _handle_regex_change(self, state):
         txt = self.pv_filter_inp.text()
+        self.pv_filter_inp.setText(txt)
         if state and txt.strip() == '':
             self.pv_filter_inp.setText('.*')
         elif not state and txt.strip() == '.*':
@@ -204,6 +207,8 @@ class SnapshotCompareWidget(QWidget):
             self._create_name_filter(txt)
 
     def _create_name_filter(self, txt):
+        txt = txt.split("|")[-1].strip() if "|" in txt else txt
+        self.pv_filter_inp.setText(txt)
         if self.regex.isChecked():
             try:
                 srch_filter = re.compile(txt)
