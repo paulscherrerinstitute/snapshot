@@ -180,12 +180,8 @@ class Snapshot(object):
             pvs_data[pvname] = OrderedDict()
             pvs_data[pvname]['raw_name'] = pv_ref.pvname
             if status == PvStatus.ok or pv_ref.initialized:
-                pvs_data[pvname]['egu'] = pv_ref.units
-                pvs_data[pvname]['prec'] = pv_ref.precision
                 pvs_data[pvname]['val'] = value
             else:
-                pvs_data[pvname]['egu'] = None
-                pvs_data[pvname]['prec'] = None
                 pvs_data[pvname]['val'] = None
 
         logging.debug("Writing snapshot to file")
