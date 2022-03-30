@@ -210,6 +210,10 @@ class SnapshotGui(QMainWindow):
         else:
             background_workers.suspend_one('pv_updater')
 
+    def save_new_output_dir(self):
+        self.output_path = QFileDialog.getExistingDirectory(self, 'Select Folder')
+        self.common_settings['save_dir'] = self.output_path
+
     def open_new_req_file(self):
         configure_dialog = SnapshotConfigureDialog(self, init_path=self.common_settings['req_file_path'],
                                                    init_macros=self.common_settings['req_file_macros'])
