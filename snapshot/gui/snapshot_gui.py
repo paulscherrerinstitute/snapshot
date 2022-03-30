@@ -16,7 +16,7 @@ from PyQt5.QtWidgets import (
     QApplication,
     QCheckBox,
     QDialog,
-    QFormLayout,
+    QFileDialog,
     QLabel,
     QMainWindow,
     QMenu,
@@ -206,8 +206,16 @@ class SnapshotGui(QMainWindow):
 
     def toggle_autorefresh(self, checked):
         if checked:
+            self.autorefresh.setText("Periodic PV update")
+            self.autorefresh.setStyleSheet("")
             background_workers.resume_one('pv_updater')
         else:
+            current_text = self.autorefresh.text()
+            time_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            self.autorefresh.setText(current_text+f'   (last update: {time_str})')
+            # background color to medium gray when not activated
+            self.autorefresh.setStyleSheet("QCheckBox {background-color : #868482;}")
+            # self.autorefresh.setStyleSheet("QCheckBox {border-left-color: darkgray;}")
             background_workers.suspend_one('pv_updater')
 
     def save_new_output_dir(self):
