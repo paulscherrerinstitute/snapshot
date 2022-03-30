@@ -149,27 +149,8 @@ class SnapshotReqFile(object):
         pvs = []
         
         if self._type == 'json':
-            pvs = self._extract_pvs_from_json()
-            try:
-                with open(self._path) as f:
-                        file_data = f.read()
-            except OSError as e:
-                return e
-            try:
-                md = file_data.lstrip()
-                metadata, end_of_metadata = \
-                    json.JSONDecoder().raw_decode(md)
-            except json.JSONDecodeError:
-                msg = f"{self._path}: Could not parse JSON metadata header."
-                return ReqParseError(msg)
-            actual_data = md[end_of_metadata:].lstrip()
-            actual_data_index = file_data.find(actual_data)
-            self._curr_line_n = len(file_data[:actual_data_index]
-                                    .splitlines())
-            file_data = file_data[actual_data_index:]
-        elif self._type in ['yml', 'yaml']:
-            pvs = self._extract_pvs_from_yaml()
-            metadata = self._file_data
+            # //TODO replace macros             
+            metadata, pvs = self._extract_meta_pvs_from_json()
         elif self._type == 'req':
             metadata = {}
             self._curr_line_n = 0
@@ -248,15 +229,7 @@ class SnapshotReqFile(object):
             return list_of_pvs
         
 
-
-    def _extract_pvs_from_yaml(self):
-        try:
-            return self._get_pvs_list()
-        except Exception as e:
-            msg = f"{self._path}: Could not parse YML file."
-            return JsonParseError(msg)
-
-    def _extract_pvs_from_json(self):
+    def _extract_meta_pvs_from_json(self):
         try:
             return self._get_pvs_list()
         except Exception as e:
@@ -265,10 +238,29 @@ class SnapshotReqFile(object):
 
     def _get_pvs_list(self):
         list_of_pvs = []
+        metadata = {}
+        metadata['filters'] = {}
         for ioc_name in self._file_data.keys():
-            for pv_name in self._file_data[ioc_name]:
-                list_of_pvs.append(ioc_name + ':' + pv_name)
-        return list_of_pvs
+            if ioc_name == 'filters':
+                metadata['filters'].update({f'{ioc_name}' : self._file_data[ioc_name] })
+            elif ioc_name == 'rgx-filters':
+                list_rgx = []
+                list_rgx_names = []
+                for rgx_pattern in self._file_data[ioc_name]:
+                    list_rgx.append(rgx_pattern[1])
+                    list_rgx_names.append(rgx_pattern[0])
+                metadata['filters'].update({f'{ioc_name}' : list_rgx })
+                metadata['filters'].update({f'{ioc_name}-names' : list_rgx_names })
+            elif ioc_name in ['labels','force-labels']:
+                metadata['labels'] = {f'{ioc_name}' : self._file_data[ioc_name] }
+            elif ioc_name in ['machine_params']:
+                metadata['machine_params'] = self._file_data[ioc_name]
+            else:
+                for pv_name in self._file_data[ioc_name]:
+                    list_of_pvs.append(ioc_name + ':' + pv_name)
+
+                
+        return metadata, list_of_pvs
 
     def _format_err(self, line: tuple, msg: str):
         return '{} [line {}: {}]: {}'.format(
@@ -429,7 +421,7 @@ def initialize_config(config_path=None, save_dir=None, force=False,
 
     # Predefined filters. Ensure entries exist.
     config['predefined_filters'] = new_settings.get('filters', {})
-    for fltype in ('filters', 'rgx-filters'):
+    for fltype in ('filters', 'rgx-filters', 'rgx-filters-names'):
         if fltype not in config['predefined_filters']:
             config['predefined_filters'][fltype] = []
 
@@ -476,6 +468,7 @@ def parse_from_save_file(save_file_path, metadata_only=False):
     err = []
     meta_loaded = False
 
+
     try:
         saved_file = open(save_file_path)
     except OSError:
@@ -483,6 +476,7 @@ def parse_from_save_file(save_file_path, metadata_only=False):
         return saved_pvs, meta_data, err
 
     for line in saved_file:
+        
         # first line with # is metadata (as json dump of dict)
         if line.startswith('#') and not meta_loaded:
             line = line[1:]
@@ -617,10 +611,10 @@ def list_save_files(save_dir, req_file_path):
 
     req_file_name = os.path.basename(req_file_path)
     file_dir = os.path.join(save_dir, os.path.splitext(req_file_name)[0])
-    file_paths = [path for path in glob.glob(file_dir + '*' + save_file_suffix)
+    file_paths = [path for path in glob.glob(file_dir + '/*' + save_file_suffix)
                   if os.path.isfile(path)]
     modif_times = [os.path.getmtime(path) for path in file_paths]
-    return file_paths, modif_times
+    return req_file_name, file_paths, modif_times
 
 
 def get_save_files(save_dir, req_file_path):
@@ -628,10 +622,8 @@ def get_save_files(save_dir, req_file_path):
     Parses all new or modified files. Parsed files are returned as a
     dictionary.
     """
-
     since_start("Started parsing snaps")
-    file_paths, modif_times = list_save_files(save_dir, req_file_path)
-    req_file_name = os.path.basename(req_file_path)
+    req_file_name, file_paths, modif_times = list_save_files(save_dir, req_file_path)
 
     def process_file(file_path, modif_time):
         file_name = os.path.basename(file_path)
@@ -664,7 +656,6 @@ def get_save_files(save_dir, req_file_path):
                             'meta_data': meta_data,
                             'modif_time': modif_time},
                         err)
-
     results = global_thread_pool.map(process_file, file_paths, modif_times)
     err_to_report = []
     parsed_save_files = {}
