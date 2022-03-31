@@ -6,7 +6,7 @@
     "configurations": [
         {
             "name": "Python: Module",
-            "args":["gui", "-b", "/home/hax_l/software/snapshot/tests/pco_cam/pco.json"],
+            "args":["gui", "-b", "/home/hax_l/software/snapshot/tests/sf_config/SF_LM.req"],
             "type": "python",
             "request": "launch",
             "module": "snapshot.snapshot",
