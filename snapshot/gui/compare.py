@@ -269,6 +269,7 @@ class SnapshotCompareWidget(QWidget):
 class PvTableColumns(enum.IntEnum):
     name = 0
     unit = enum.auto()
+    effective_tol = enum.auto()
     value = enum.auto()
     snapshots = enum.auto()
 
@@ -529,6 +530,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self._headers = [''] * PvTableColumns.snapshots
         self._headers[PvTableColumns.name] = 'PV'
         self._headers[PvTableColumns.unit] = 'Unit'
+        self._headers[PvTableColumns.effective_tol] = 'Eff. Tol.'
         self._headers[PvTableColumns.value] = 'Current value'
 
         self._updater = ModelUpdater(self)
@@ -639,7 +641,10 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         return len(self._headers)
 
     def data(self, index, role):
-        if role == QtCore.Qt.DisplayRole:
+        if role == QtCore.Qt.ToolTipRole and \
+            index.column() == 2:
+            return self._data[index.row()].eff_tol_tooltip
+        elif role == QtCore.Qt.DisplayRole:
             return self._data[index.row()].data[index.column()].get('data', '')
         elif role == QtCore.Qt.DecorationRole:
             return self._data[index.row()].data[index.column()
@@ -655,7 +660,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self._emit_dataChanged()
 
     def _emit_dataChanged(self):
-        # No need to update PV names and units.
+        # No need to update PV names, units and effective tolerance.
         self.dataChanged.emit(self.createIndex(0, PvTableColumns.value),
                               self.createIndex(len(self._data),
                                                self.columnCount() - 1))
@@ -718,6 +723,7 @@ class SnapshotPvTableLine(QtCore.QObject):
         self.data = [None] * PvTableColumns.snapshots
         self.data[PvTableColumns.name] = {'data': pv_ref.pvname}
         self.data[PvTableColumns.unit] = {'data': 'UNDEF', 'icon': None}
+        self.data[PvTableColumns.effective_tol] = {'data': self.effective_tolerance}
         self.data[PvTableColumns.value] = {'data': 'PV disconnected',
                                            'icon': self._WARN_ICON}
 
@@ -744,6 +750,14 @@ class SnapshotPvTableLine(QtCore.QObject):
         return self._is_array
 
     @property
+    def effective_tolerance(self):
+        return (self.precision * self._tolerance_f if self.precision is not None else 0)
+
+    @property
+    def eff_tol_tooltip(self):
+        return str(self.precision)+" × " + str(self._tolerance_f)
+
+    @property
     def precision(self):
         self.is_array  # precision is cached by is_array
         return self._precision
@@ -762,7 +776,8 @@ class SnapshotPvTableLine(QtCore.QObject):
     def append_snap_value(self, value):
         if value is not None:
             sval = SnapshotPvTableLine.string_repr_snap_value(value,
-                                                              self.precision)
+                                                              self.precision,
+                                                              self.effective_tolerance)
             self.data.append({'data': sval, 'raw_value': value})
         else:
             self.data.append({'data': '', 'raw_value': None})
@@ -773,7 +788,8 @@ class SnapshotPvTableLine(QtCore.QObject):
     def change_snap_value(self, column_idx, value):
         if value is not None:
             sval = SnapshotPvTableLine.string_repr_snap_value(value,
-                                                              self.precision)
+                                                              self.precision,
+                                                              self.effective_tolerance)
             self.data[column_idx]['data'] = sval
         else:
             self.data[column_idx]['data'] = ''
@@ -852,6 +868,7 @@ class SnapshotPvTableLine(QtCore.QObject):
     def update_pv_value(self, pv_value):
         value_col = self.data[PvTableColumns.value]
         unit_col = self.data[PvTableColumns.unit]
+        eff_col = self.data[PvTableColumns.effective_tol]
 
         if pv_value is None:
             value_col['data'] = ''
@@ -865,6 +882,8 @@ class SnapshotPvTableLine(QtCore.QObject):
 
         if value_col['data'] == new_value:
             return False
+
+        eff_col['data'] = self.effective_tolerance
 
         value_col['data'] = new_value
         self._compare(pv_value)
