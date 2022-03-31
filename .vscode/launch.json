@@ -11,7 +11,11 @@
             "request": "launch",
             "module": "snapshot.snapshot",
             "justMyCode": true,
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "env": {
+                "DISPLAY": "localhost:10.0",
+                "EPICS_CA_ADDR_LIST": "sf-cagw.psi.ch:5062"
+            },
         }
     ]
 }
