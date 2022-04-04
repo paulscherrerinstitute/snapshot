@@ -25,6 +25,9 @@
         "AL3-MPS-GAIN-A",
         "AL3-MPS-GAIN-B"
     ],
+    "SARFE10-PBPG050":[
+        "PHOTON-ENERGY-PER-PULSE-AVG"
+    ],
     "rgx-filters":[
         ["Gain B", "S10.*-B"],
         ["Gain A", "S10.*-A"],

@@ -392,7 +392,10 @@ class SnapshotPv(PV):
         if value is None:
             return ''
         elif isinstance(value, float):
-            if precision and precision > 0:
+            # old behavior was causing error with float
+            # and precision zero. now a float
+            #  with precision 0 is shown as integer
+            if precision >= 0:
                 fmt = f'{{:.{precision}f}}'
             else:
                 fmt = '{:f}'

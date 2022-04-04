@@ -51,6 +51,7 @@ class PvCompareFilter(enum.Enum):
     show_neq = 1
     show_eq = 2
 
+
 class SnapshotCompareWidget(QWidget):
     pvs_filtered = QtCore.pyqtSignal(set)
     restore_requested = QtCore.pyqtSignal(list)
@@ -173,7 +174,7 @@ class SnapshotCompareWidget(QWidget):
 
         filter_layout.addWidget(self.show_disconn_inp)
         filter_layout.addWidget(self.show_conn_inp)
-        
+
         filter_layout.setAlignment(Qt.AlignLeft)
         filter_layout.setSpacing(10)
 
@@ -189,8 +190,8 @@ class SnapshotCompareWidget(QWidget):
         self.pv_filter_sel.blockSignals(True)
         self.pv_filter_sel.clear()
         self.pv_filter_sel.addItem(None)
-        for rgx, names  in zip(predefined_filters.get('rgx-filters', list()),
-            predefined_filters.get('rgx-filters-names', list())):
+        for rgx, names in zip(predefined_filters.get('rgx-filters', list()),
+                              predefined_filters.get('rgx-filters-names', list())):
             label = names + "   |   " + rgx
             self.pv_filter_sel.addItem(SnapshotCompareWidget.rgx_icon, label)
         self.pv_filter_sel.addItems(predefined_filters.get('filters', list()))
@@ -387,10 +388,10 @@ class SnapshotPvTableView(QTableView):
                            self._process_selected_records)
 
             menu.addAction("Export selected PVs",
-                            self._export_pvs,)
+                           self._export_pvs,)
 
             menu.addAction("Export selected PVs and current values",
-                            self._export_pvs_values)
+                           self._export_pvs_values)
 
         self._menu_click_pos = point
         menu.exec(QCursor.pos())
@@ -417,12 +418,12 @@ class SnapshotPvTableView(QTableView):
 
     def _selected_pvvalues(self):
         values = (self._get_value_with_selection_model_idx(idx)
-                 for idx in self.selectedIndexes())
+                  for idx in self.selectedIndexes())
         return list(values)
 
     def _selected_pvprecision(self):
         precision = (self._get_precision_with_selection_model_idx(idx)
-                 for idx in self.selectedIndexes())
+                     for idx in self.selectedIndexes())
         return list(precision)
 
     def _get_pvname_with_selection_model_idx(self, idx: QtCore.QModelIndex):
@@ -454,39 +455,39 @@ class SnapshotPvTableView(QTableView):
             process_record(pvname)
 
     def _export_pvs(self):
-        name, fileFilter = QFileDialog().getSaveFileName(self, "Save file", 
-        "", "Comma-separated values (*.csv)")
+        name, fileFilter = QFileDialog().getSaveFileName(self, "Save file",
+                                                         "", "Comma-separated values (*.csv)")
         try:
-            with open(name,'w') as f:
+            with open(name, 'w') as f:
                 f.write("PV\n")
                 for pvname in self._selected_pvnames():
-                    str_content=f'{pvname}\n'
+                    str_content = f'{pvname}\n'
                     f.write(str_content)
                 f.close()
         except OSError as e:
             warn = "Problem defining file to be exported: \n" + str(e)
             QMessageBox.warning(self, "Warning", warn,
-                        QMessageBox.Ok,
-                        QMessageBox.NoButton)
-        
+                                QMessageBox.Ok,
+                                QMessageBox.NoButton)
 
     def _export_pvs_values(self):
-        name, fileFilter = QFileDialog().getSaveFileName(self, "Save file", 
-        "", "Comma-separated values (*.csv)")
+        name, fileFilter = QFileDialog().getSaveFileName(self, "Save file",
+                                                         "", "Comma-separated values (*.csv)")
         try:
-            with open(name,'w') as f:
+            with open(name, 'w') as f:
                 f.write("PV,Values\n")
                 for pvname, pv_value, pv_precision in zip(self._selected_pvnames(), self._selected_pvvalues(), self._selected_pvprecision()):
-                    line_content=pvname+','
-                    line_content+=SnapshotPv.value_to_display_str(pv_value, pv_precision)
-                    line_content+='\n'
+                    line_content = pvname+','
+                    line_content += SnapshotPv.value_to_display_str(
+                        pv_value, pv_precision)
+                    line_content += '\n'
                     f.write(line_content)
                 f.close()
         except OSError as e:
             warn = "Problem defining file to be exported: \n" + str(e)
             QMessageBox.warning(self, "Warning", warn,
-                        QMessageBox.Ok,
-                        QMessageBox.NoButton)
+                                QMessageBox.Ok,
+                                QMessageBox.NoButton)
 
 
 # Wrap PvUpdater into QObject for threadsafe signalling
@@ -550,7 +551,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
 
     def get_pv_ref_value(self, line: int):
         return self.get_pv_line_model(line)._pv_ref.value
-    
+
     def get_pv_precision(self, line: int):
         return self.get_pv_line_model(line)._pv_ref.precision
 
@@ -642,7 +643,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
 
     def data(self, index, role):
         if role == QtCore.Qt.ToolTipRole and \
-            index.column() == 2:
+                index.column() == 2:
             return self._data[index.row()].eff_tol_tooltip
         elif role == QtCore.Qt.DisplayRole:
             return self._data[index.row()].data[index.column()].get('data', '')
@@ -719,11 +720,13 @@ class SnapshotPvTableLine(QtCore.QObject):
         # first needed. They are exposed as properties.
         self._is_array = None
         self._precision = None
+        self._precision_loaded = False
 
         self.data = [None] * PvTableColumns.snapshots
         self.data[PvTableColumns.name] = {'data': pv_ref.pvname}
         self.data[PvTableColumns.unit] = {'data': 'UNDEF', 'icon': None}
-        self.data[PvTableColumns.effective_tol] = {'data': self.effective_tolerance}
+        self.data[PvTableColumns.effective_tol] = {
+            'data': self.effective_tolerance}
         self.data[PvTableColumns.value] = {'data': 'PV disconnected',
                                            'icon': self._WARN_ICON}
 
@@ -738,6 +741,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             self.conn = pv_ref.connected
             self.data[PvTableColumns.value]['data'] = ''
             self.data[PvTableColumns.value]['icon'] = None
+            self._precision = self._pv_ref.precision
 
         else:
             self.conn = False
@@ -755,7 +759,7 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     @property
     def eff_tol_tooltip(self):
-        return str(self.precision)+" × " + str(self._tolerance_f)
+        return "Precision ("+str(self.precision)+") × Tolerance (" + str(self._tolerance_f) + ")"
 
     @property
     def precision(self):
@@ -870,6 +874,13 @@ class SnapshotPvTableLine(QtCore.QObject):
         unit_col = self.data[PvTableColumns.unit]
         eff_col = self.data[PvTableColumns.effective_tol]
 
+        # Since sometimees the precision fails to load
+        # properly at the beginning, this will reload it
+        #  on the first updated
+        if not self._precision_loaded:
+            self._precision = self._pv_ref.precision
+            self._precision_loaded = True
+
         if pv_value is None:
             value_col['data'] = ''
             self._compare(None, get_missing=False)
@@ -887,6 +898,7 @@ class SnapshotPvTableLine(QtCore.QObject):
 
         value_col['data'] = new_value
         self._compare(pv_value)
+
         return True
 
     def _conn_callback(self, **kwargs):
@@ -911,7 +923,7 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._disconn_filter = True  # show disconnected?
-        self._conn_filter = True # show connected
+        self._conn_filter = True  # show connected
         self._name_filter = ''  # string or regex object
         self._eq_filter = PvCompareFilter.show_all
         self._filtered_pvs = set()
@@ -985,11 +997,10 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
                             row_model.conn and self._conn_filter))
             else:
                 # Only name and connection filters apply
-                result = (name_match and 
-                        ((not row_model.conn and self._disconn_filter) or (
-                        row_model.conn and self._conn_filter)))
+                result = (name_match and
+                          ((not row_model.conn and self._disconn_filter) or (
+                              row_model.conn and self._conn_filter)))
 
-        
         if result:
             self._filtered_pvs.add(row_model.pvname)
         else:
