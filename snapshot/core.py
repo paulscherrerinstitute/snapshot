@@ -416,7 +416,7 @@ class SnapshotPv(PV):
                 return f'[{fmt} ... {fmt}]'.format(value[0], value[-1])
             else:
                 return '[' + ' '.join(fmt.format(x) for x in value) + ']'
-        else:
+        else:  # integer values come here
             return str(value)
 
     def compare_to_curr(self, value):

@@ -886,7 +886,18 @@ class SnapshotPvTableLine(QtCore.QObject):
             self._compare(None, get_missing=False)
             return True
 
-        new_value = SnapshotPv.value_to_display_str(pv_value, self.precision)
+        # if enum strings available, use the value to
+        # get the desired str representation of it
+        new_value = SnapshotPv.value_to_display_str(
+            pv_value, self.precision
+        )
+
+        try:
+            enum_str_value = self._pv_ref.enum_strs[pv_value]
+        except TypeError:
+            pass
+        else:
+            new_value = enum_str_value
 
         if unit_col['data'] == 'UNDEF':
             unit_col['data'] = self._pv_ref.units
