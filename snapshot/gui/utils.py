@@ -105,6 +105,8 @@ class SnapshotConfigureDialog(QDialog):
             file_path = self.file_selector.file_path
 
         if os.path.isfile(file_path):
+            if file_path.endswith('.req'):
+                self._show_deprecation_messagebox()
             try:
                 self.accepted.emit(
                     file_path, parse_macros(
@@ -130,6 +132,14 @@ class SnapshotConfigureDialog(QDialog):
 
     def focusInEvent(self, event):
         self.file_selector.setFocus()
+
+    def _show_deprecation_messagebox(self):
+        QMessageBox.warning(self,
+                            "Warning",
+                            'Warning "*.req" files are deprecated! Next release will remove support for these files. '
+                            'Please convert to json/yaml.',
+                            QMessageBox.Ok,
+                            QMessageBox.NoButton)
 
 
 class SnapshotFileSelector(QWidget):
