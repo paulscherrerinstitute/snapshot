@@ -100,6 +100,7 @@ class SnapshotCompareWidget(QWidget):
         self.pv_filter_sel = QComboBox(self)
         self.pv_filter_sel.setEditable(True)
         self.pv_filter_sel.setIconSize(QtCore.QSize(35, 15))
+        self.pv_filter_sel.setMaxVisibleItems(30)
         self.pv_filter_inp = self.pv_filter_sel.lineEdit()
         self.pv_filter_inp.setPlaceholderText("Filter by PV name")
 
