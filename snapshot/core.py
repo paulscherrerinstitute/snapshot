@@ -403,7 +403,7 @@ class SnapshotPv(PV):
             else:
                 return '[' + ' '.join(fmt.format(x) for x in value) + ']'
         else:  # integer values come here
-            return float(f'{value:.0f}')
+            return f'{value:.0f}'
             # return str(value)
 
     def compare_to_curr(self, value):
