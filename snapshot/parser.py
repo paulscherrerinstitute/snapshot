@@ -218,7 +218,7 @@ class SnapshotReqFile(object):
                         return OSError(
                             self._format_err(
                                 (self._curr_line, self._curr_line_n), e))
-        return (pvs, metadata, includes)
+        return pvs, metadata, includes
 
     def _extract_pvs_from_req(self):
         try:
