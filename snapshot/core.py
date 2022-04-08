@@ -6,7 +6,7 @@ from threading import Lock, Thread
 from time import monotonic, sleep, time
 
 import numpy
-from epics import PV, ca, caget_many, caput
+from epics import PV, ca, caput
 
 _start_time = time()
 _print_trace = False
@@ -33,7 +33,7 @@ global_thread_pool = ThreadPoolExecutor(16)
 def process_record(pvname):
     "Assuming 'pvname' is part of an EPICS record, write to its PROC field."
     record = pvname.split('.')[0]
-    caput(record + '.PROC', 1)
+    caput(f'{record}.PROC', 1)
 
 
 class _BackgroundWorkers:
@@ -218,7 +218,8 @@ class SnapshotPv(PV):
     """
 
     def __init__(self, pvname, connection_callback=None, **kw):
-        self.conn_callbacks = dict()  # dict {idx: callback}
+        # dict format {idx: callback}
+        self.conn_callbacks = {}
         if connection_callback:
             self.add_conn_callback(connection_callback)
         self.is_array = False
@@ -249,9 +250,7 @@ class SnapshotPv(PV):
         This method is never used when we _really_ want a value. In such cases,
         use get().
         """
-        if self._initialized:
-            return self._last_value
-        return None
+        return self._last_value if self._initialized else None
 
     def get(self, *args, **kwargs):
         """
@@ -299,16 +298,12 @@ class SnapshotPv(PV):
     @PV.precision.getter
     def precision(self):
         "Override so as to not block until PvUpdater initializes ctrlvars."
-        if self._initialized:
-            return super().precision
-        return None
+        return super().precision if self._initialized else None
 
     @PV.units.getter
     def units(self):
         "Override so as to not block until PvUpdater initializes ctrlvars."
-        if self._initialized:
-            return super().units
-        return None
+        return super().units if self._initialized else None
 
     def save_pv(self):
         """
@@ -321,19 +316,13 @@ class SnapshotPv(PV):
 
             status: Status of save action as PvStatus type.
         """
-        if self.connected:
-            # Must be after connection test. If checking access when not
-            # connected pyepics tries to reconnect which takes some time.
-            if self.read_access:
-                saved_value = self.get(use_monitor=False)
-                if saved_value is None:
-                    logging.debug(
-                        'No value returned for channel ' + self.pvname)
-                    return saved_value, PvStatus.no_value
-                else:
-                    return saved_value, PvStatus.ok
+        if self.connected and self.read_access:
+            saved_value = self.get(use_monitor=False)
+            if saved_value is None:
+                logging.debug(f'No value returned for channel {self.pvname}')
+                return saved_value, PvStatus.no_value
             else:
-                return None, PvStatus.access_err
+                return saved_value, PvStatus.ok
         else:
             return None, PvStatus.access_err
 
@@ -392,22 +381,19 @@ class SnapshotPv(PV):
         if value is None:
             return ''
         elif isinstance(value, float):
+            # return PrintFloat(value, precision)
+
             # old behavior was causing error with float
             # and precision zero. now a float
             #  with precision 0 is shown as integer
-            if precision >= 0:
-                fmt = f'{{:.{precision}f}}'
-            else:
-                fmt = '{:f}'
-            return fmt.format(value)
+            fmt = f'{{:.{precision}f}}' if precision >= 0 else '{:f}'
+            return str(fmt.format(value))
+
         elif isinstance(value, str):
             return value
         elif isinstance(value, numpy.ndarray):
             if value.dtype.kind == 'f':
-                if precision and precision > 0:
-                    fmt = f'{{:.{precision}f}}'
-                else:
-                    fmt = '{:f}'
+                fmt = f'{{:.{precision}f}}' if precision and precision > 0 else '{:f}'
             else:
                 fmt = '{}'
 
@@ -417,7 +403,8 @@ class SnapshotPv(PV):
             else:
                 return '[' + ' '.join(fmt.format(x) for x in value) + ']'
         else:  # integer values come here
-            return str(value)
+            return float(f'{value:.0f}')
+            # return str(value)
 
     def compare_to_curr(self, value):
         """
@@ -517,7 +504,7 @@ class SnapshotPv(PV):
         :return: txt with replaced macros.
         """
         for key in macros:
-            macro = "$(" + key + ")"
+            macro = f"$({key})"
             txt = txt.replace(macro, macros[key])
         return txt
 
