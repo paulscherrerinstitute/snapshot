@@ -192,7 +192,7 @@ class SnapshotCompareWidget(QWidget):
         self.pv_filter_sel.addItem(None)
         for rgx, names in zip(predefined_filters.get('rgx-filters', list()),
                               predefined_filters.get('rgx-filters-names', list())):
-            label = names + "   |   " + rgx
+            label = f'{names}   |   {rgx}'
             self.pv_filter_sel.addItem(SnapshotCompareWidget.rgx_icon, label)
         self.pv_filter_sel.addItems(predefined_filters.get('filters', list()))
         self.pv_filter_sel.blockSignals(False)
@@ -293,6 +293,7 @@ class SnapshotPvTableView(QTableView):
         # for performance reasons. It is done once when the model is reset, and
         # once per snapshot column when it is added.
         self.setSortingEnabled(True)
+        self.setAlternatingRowColors(True)
         self.sortByColumn(
             PvTableColumns.name,
             Qt.AscendingOrder)  # default sorting
@@ -477,7 +478,7 @@ class SnapshotPvTableView(QTableView):
             with open(name, 'w') as f:
                 f.write("PV,Values\n")
                 for pvname, pv_value, pv_precision in zip(self._selected_pvnames(), self._selected_pvvalues(), self._selected_pvprecision()):
-                    line_content = pvname+','
+                    line_content = f'{pvname},'
                     line_content += SnapshotPv.value_to_display_str(
                         pv_value, pv_precision)
                     line_content += '\n'
@@ -486,8 +487,7 @@ class SnapshotPvTableView(QTableView):
         except OSError as e:
             warn = "Problem defining file to be exported: \n" + str(e)
             QMessageBox.warning(self, "Warning", warn,
-                                QMessageBox.Ok,
-                                QMessageBox.NoButton)
+                                QMessageBox.Ok, QMessageBox.NoButton)
 
 
 # Wrap PvUpdater into QObject for threadsafe signalling
@@ -616,21 +616,16 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         for pv_line in self._data:
             pv_line.clear_snap_values()
 
-        self._headers = self._headers[0:PvTableColumns.snapshots]
+        self._headers = self._headers[:PvTableColumns.snapshots]
         self.endRemoveColumns()
 
     def _replace_macros_on_file_data(self, file_data):
-        if self.snapshot.macros:
-            macros = self.snapshot.macros
-        else:
-            macros = file_data["meta_data"].get("macros", dict())
-
-        pvs_list_full_names = dict()  # PVS data mapped to real pvs names (no macros)
+        macros = self.snapshot.macros or file_data["meta_data"].get(
+            "macros", dict())
         pvs_list, _, errors = parse_from_save_file(file_data['file_path'])
-
-        for pv_name_raw, pv_data in pvs_list.items():
-            pvs_list_full_names[SnapshotPv.macros_substitution(
-                pv_name_raw, macros)] = pv_data
+        # PVS data mapped to real pvs names (no macros)
+        pvs_list_full_names = {SnapshotPv.macros_substitution(
+            pv_name_raw, macros): pv_data for pv_name_raw, pv_data in pvs_list.items()}
 
         return pvs_list_full_names, errors
 
@@ -723,7 +718,8 @@ class SnapshotPvTableLine(QtCore.QObject):
         self._precision_loaded = False
 
         self.data = [None] * PvTableColumns.snapshots
-        self.data[PvTableColumns.name] = {'data': pv_ref.pvname}
+        self.data[PvTableColumns.name] = {
+            'data': pv_ref.pvname}
         self.data[PvTableColumns.unit] = {'data': 'UNDEF', 'icon': None}
         self.data[PvTableColumns.effective_tol] = {
             'data': self.effective_tolerance}
@@ -755,11 +751,16 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     @property
     def effective_tolerance(self):
-        return (self.precision * self._tolerance_f if self.precision is not None else 0)
+        try:
+            eff_tol_value = self.precision * \
+                self._tolerance_f if self.precision is not None else 0
+        except TypeError:
+            eff_tol_value = 0
+        return eff_tol_value
 
     @property
     def eff_tol_tooltip(self):
-        return "Precision ("+str(self.precision)+") × Tolerance (" + str(self._tolerance_f) + ")"
+        return f'Eff. Tol. = Precision ({self.precision}) × Tolerance ({self._tolerance_f}).'
 
     @property
     def precision(self):
@@ -802,7 +803,7 @@ class SnapshotPvTableLine(QtCore.QObject):
         self._compare()
 
     def clear_snap_values(self):
-        self.data = self.data[0:PvTableColumns.snapshots]
+        self.data = self.data[:PvTableColumns.snapshots]
         self._compare()
 
     def are_snap_values_eq(self):
@@ -886,12 +887,11 @@ class SnapshotPvTableLine(QtCore.QObject):
             self._compare(None, get_missing=False)
             return True
 
-        # if enum strings available, use the value to
-        # get the desired str representation of it
         new_value = SnapshotPv.value_to_display_str(
             pv_value, self.precision
         )
-
+        # if enum strings available, use the value to
+        # get the desired str representation of it
         try:
             enum_str_value = self._pv_ref.enum_strs[pv_value]
         except TypeError:
@@ -917,11 +917,9 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     def _handle_conn_callback(self, data):
         self.conn = data.get('conn')
-        if not self.conn:
-            self.data[PvTableColumns.value] = {'data': 'PV disconnected',
-                                               'icon': self._WARN_ICON}
-        else:
-            self.data[PvTableColumns.value] = {'data': '', 'icon': None}
+        self.data[PvTableColumns.value] = {'data': '', 'icon': None} if self.conn else {
+            'data': 'PV disconnected', 'icon': self._WARN_ICON}
+
         self.connectionStatusChanged.emit(self)
 
 

@@ -340,23 +340,23 @@ class SnapshotRestoreWidget(QWidget):
         # When snapshot finishes restore, GUI must be updated with
         # status of the restore action.
         error = False
-        msgs = list()
-        msg_times = list()
+        msgs = []
+        msg_times = []
         status_txt = ""
         status_background = ""
         for pvname, sts in status.items():
             if sts == PvStatus.access_err:
                 error = not forced  # if here and not in force mode, then this is error state
                 msgs.append(
-                    "WARNING: {}: Not restored (no connection or no write access).".format(pvname))
+                    f"WARNING: {pvname}: Not restored (no connection or no write access).")
+
                 msg_times.append(time.time())
                 status_txt = "Restore error"
                 status_background = "#F06464"
 
             elif sts == PvStatus.type_err:
                 error = True
-                msgs.append(
-                    "WARNING: {}: Not restored (type problem).".format(pvname))
+                msgs.append(f"WARNING: {pvname}: Not restored (type problem).")
                 msg_times.append(time.time())
                 status_txt = "Restore error"
                 status_background = "#F06464"
@@ -709,80 +709,81 @@ class SnapshotRestoreFileSelector(QWidget):
         self.files_selected.emit(self.selected_files)
 
     def delete_files(self):
-        if self.selected_files:
-            msg = "Do you want to delete selected files?"
-            reply = QMessageBox.question(
-                self, 'Message', msg, QMessageBox.Yes, QMessageBox.No)
-            if reply == QMessageBox.Yes:
-                background_workers.suspend()
-                symlink_file = self.common_settings["save_file_prefix"] \
-                    + 'latest' + save_file_suffix
-                symlink_path = os.path.join(self.common_settings["save_dir"],
-                                            symlink_file)
-                symlink_target = os.path.realpath(symlink_path)
+        if not self.selected_files:
+            return
+        msg = "Do you want to delete selected files?"
+        reply = QMessageBox.question(
+            self, 'Message', msg, QMessageBox.Yes, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            background_workers.suspend()
+            symlink_file = self.common_settings["save_file_prefix"] \
+                + 'latest' + save_file_suffix
+            symlink_path = os.path.join(self.common_settings["save_dir"],
+                                        symlink_file)
+            symlink_target = os.path.realpath(symlink_path)
 
-                files = self.selected_files[:]
-                paths = [os.path.join(self.common_settings["save_dir"],
-                                      selected_file)
-                         for selected_file in self.selected_files]
+            files = self.selected_files[:]
+            paths = [os.path.join(self.common_settings["save_dir"],
+                                  selected_file)
+                     for selected_file in self.selected_files]
 
-                if any((path == symlink_target for path in paths)) \
-                   and symlink_file not in files:
-                    files.append(symlink_file)
-                    paths.append(symlink_path)
+            if symlink_target in paths and symlink_file not in files:
+                files.append(symlink_file)
+                paths.append(symlink_path)
 
-                for selected_file, file_path in zip(files, paths):
-                    try:
-                        os.remove(file_path)
-                        self.file_list.pop(selected_file)
-                        self.pvs = dict()
-                        items = self.file_selector.findItems(
-                            selected_file, Qt.MatchCaseSensitive,
-                            FileSelectorColumns.filename)
-                        self.file_selector.takeTopLevelItem(
-                            self.file_selector.indexOfTopLevelItem(items[0]))
+            for selected_file, file_path in zip(files, paths):
+                try:
+                    os.remove(file_path)
+                    self.file_list.pop(selected_file)
+                    self.pvs = {}
+                    items = self.file_selector.findItems(
+                        selected_file, Qt.MatchCaseSensitive,
+                        FileSelectorColumns.filename)
+                    self.file_selector.takeTopLevelItem(
+                        self.file_selector.indexOfTopLevelItem(items[0]))
 
-                    except OSError as e:
-                        warn = "Problem deleting file:\n" + str(e)
-                        QMessageBox.warning(self, "Warning", warn,
-                                                  QMessageBox.Ok,
-                                                  QMessageBox.NoButton)
-                self.files_updated.emit(self.file_list)
-                background_workers.resume()
-
-    def update_file_metadata(self):
-        if self.selected_files:
-            if len(self.selected_files) == 1:
-                settings_window = SnapshotEditMetadataDialog(
-                    self.file_list.get(self.selected_files[0])["meta_data"],
-                    self.common_settings, self)
-                settings_window.resize(800, 200)
-                # if OK was pressed, update actual file and reflect changes in
-                # the list
-                if settings_window.exec_():
-                    background_workers.suspend()
-                    file_data = self.file_list.get(self.selected_files[0])
-                    try:
-                        self.snapshot.replace_metadata(file_data['file_path'],
-                                                       file_data['meta_data'])
-                    except OSError as e:
-                        warn = "Problem modifying file:\n" + str(e)
-                        QMessageBox.warning(self, "Warning", warn,
-                                            QMessageBox.Ok,
-                                            QMessageBox.NoButton)
-
-                    self.rebuild_file_list()
-                    background_workers.resume()
-            else:
-                QMessageBox.information(self, "Information", "Please select one file only",
+                except OSError as e:
+                    warn = "Problem deleting file:\n" + str(e)
+                    QMessageBox.warning(self, "Warning", warn,
                                               QMessageBox.Ok,
                                               QMessageBox.NoButton)
+            self.files_updated.emit(self.file_list)
+            background_workers.resume()
+
+    def update_file_metadata(self):
+        if not self.selected_files:
+            return
+        if len(self.selected_files) == 1:
+            settings_window = SnapshotEditMetadataDialog(
+                self.file_list.get(self.selected_files[0])["meta_data"],
+                self.common_settings, self)
+            settings_window.resize(800, 200)
+            # if OK was pressed, update actual file and reflect changes in
+            # the list
+            if settings_window.exec_():
+                background_workers.suspend()
+                file_data = self.file_list.get(self.selected_files[0])
+                try:
+                    self.snapshot.replace_metadata(file_data['file_path'],
+                                                   file_data['meta_data'])
+                except OSError as e:
+                    warn = "Problem modifying file:\n" + str(e)
+                    QMessageBox.warning(self, "Warning", warn,
+                                        QMessageBox.Ok,
+                                        QMessageBox.NoButton)
+
+                self.rebuild_file_list()
+                background_workers.resume()
+        else:
+            QMessageBox.information(self, "Information", "Please select one file only",
+                                          QMessageBox.Ok,
+                                          QMessageBox.NoButton)
 
     def clear_file_selector(self):
         self.file_selector.clear()  # Clears and "deselects" itmes on file selector
         self.select_files()  # Process new,empty list of selected files
-        self.pvs = dict()
-        self.file_list = dict()
+        self.pvs = {}
+        self.file_list = {}
 
 
 def num_or_string(string):
@@ -883,7 +884,7 @@ class SnapshotFileFilterWidget(QWidget):
         layout.addLayout(right_layout)
 
         # Init filters
-        self.file_filter = dict()
+        self.file_filter = {}
         self.file_filter["keys"] = list()
         self.file_filter["comment"] = ""
         self.file_filter["name"] = ""
@@ -927,10 +928,7 @@ class SnapshotFileFilterWidget(QWidget):
             self.param_input.setPalette(self._inp_palette_err)
 
     def update_filter(self):
-        if self.keys_input.get_keywords():
-            self.file_filter["keys"] = self.keys_input.get_keywords()
-        else:
-            self.file_filter["keys"] = list()
+        self.file_filter["keys"] = self.keys_input.get_keywords() or list()
         self.file_filter["comment"] = self.comment_input.text().strip('')
         self.file_filter["name"] = self.name_input.text().strip('')
         self.file_filter["params"] = \
