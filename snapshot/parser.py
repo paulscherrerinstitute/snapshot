@@ -11,6 +11,8 @@ import yaml
 
 from snapshot.core import SnapshotError, SnapshotPv, global_thread_pool, since_start
 
+from PyQt5.QtWidgets import QMessageBox
+
 save_file_suffix = '.snap'
 
 
@@ -40,8 +42,8 @@ class SnapshotReqFile(object):
         self._c_macros = changeable_macros
 
         if parent:
-            self._trace = '{} [line {}: {}] >> {}'.format(parent._trace, parent._curr_line_n, parent._curr_line,
-                                                          self._path)
+            self._trace = f'{parent._trace} [line {parent._curr_line_n}: {parent._curr_line}] >> {self._path}'
+
         else:
             self._trace = self._path
 
@@ -52,7 +54,7 @@ class SnapshotReqFile(object):
         self._type, self._file_data = self.read_input()
 
     def read_input(self):
-        extension = os.path.splitext(self._path)[1].replace('.','')
+        extension = os.path.splitext(self._path)[1].replace('.', '')
         if extension == 'json':
             try:
                 content = json.loads(open(self._path, 'r').read())
@@ -72,6 +74,9 @@ class SnapshotReqFile(object):
             except Exception as e:
                 msg = f'{self._path}: Could not read req file.'
                 return ReqParseError(msg, e)
+        else:
+            error_msg = f"Could not read the file ({self._path})!"
+            raise ReqParseError(error_msg)
         return (extension, content)
 
     def read(self):
@@ -147,9 +152,9 @@ class SnapshotReqFile(object):
         """
         includes = []
         pvs = []
-        
+
         if self._type == 'json':
-            # //TODO replace macros             
+            # //TODO replace macros
             metadata, pvs = self._extract_meta_pvs_from_json()
         elif self._type == 'req':
             metadata = {}
@@ -160,7 +165,7 @@ class SnapshotReqFile(object):
 
                 # skip comments, empty lines and "data{}" stuff
                 if not self._curr_line.startswith(('#', "data{", "}", "!")) \
-                and self._curr_line.strip():
+                        and self._curr_line.strip():
                     # First replace macros, then check if any unreplaced macros
                     # which are not "global"
                     pvname = SnapshotPv.macros_substitution(
@@ -204,14 +209,17 @@ class SnapshotReqFile(object):
                                     (self._curr_line_n, self._curr_line), e))
                     else:
                         macros = {}
-                    path = os.path.join(os.path.dirname(self._path), split_line[0])
+                    path = os.path.join(
+                        os.path.dirname(self._path),
+                        split_line[0])
                     msg = self._check_looping(path)
                     if msg:
                         return ReqFileInfLoopError(
                             self._format_err(
                                 (self._curr_line_n, self._curr_line), msg))
                     try:
-                        sub_f = SnapshotReqFile(path, parent=self, macros=macros)
+                        sub_f = SnapshotReqFile(
+                            path, parent=self, macros=macros)
                         includes.append(sub_f)
 
                     except OSError as e:
@@ -227,7 +235,6 @@ class SnapshotReqFile(object):
             return ReqParseError(e)
         else:
             return list_of_pvs
-        
 
     def _extract_meta_pvs_from_json(self):
         try:
@@ -238,33 +245,37 @@ class SnapshotReqFile(object):
 
     def _get_pvs_list(self):
         list_of_pvs = []
-        metadata = {}
-        metadata['filters'] = {}
-        for ioc_name in self._file_data.keys():
-            if ioc_name == 'filters':
-                metadata['filters'].update({f'{ioc_name}' : self._file_data[ioc_name] })
-            elif ioc_name == 'rgx-filters':
+        metadata = {'filters': {}}
+        get_metadata_dict = self._file_data.get("CONFIG", {})
+        # CONFIGURATIONS
+        for config in get_metadata_dict.keys():
+            # // test filters
+            if config == 'filters':
+                list_filters = list(get_metadata_dict[config])
+                metadata['filters'].update(
+                    {f'{config}': list_filters})
+            elif config == 'rgx-filters':
                 list_rgx = []
                 list_rgx_names = []
-                for rgx_pattern in self._file_data[ioc_name]:
+                for rgx_pattern in get_metadata_dict[config]:
                     list_rgx.append(rgx_pattern[1])
                     list_rgx_names.append(rgx_pattern[0])
-                metadata['filters'].update({f'{ioc_name}' : list_rgx })
-                metadata['filters'].update({f'{ioc_name}-names' : list_rgx_names })
-            elif ioc_name in ['labels','force-labels']:
-                metadata['labels'] = {f'{ioc_name}' : self._file_data[ioc_name] }
-            elif ioc_name in ['machine_params']:
-                metadata['machine_params'] = self._file_data[ioc_name]
-            else:
-                for pv_name in self._file_data[ioc_name]:
-                    list_of_pvs.append(ioc_name + ':' + pv_name)
+                metadata['filters'].update({f'{config}': list_rgx})
+                metadata['filters'].update({f'{config}-names': list_rgx_names})
+            elif config in ['labels', 'force-labels']:
+                metadata['labels'] = {f'{config}': get_metadata_dict[config]}
+            elif config in ['machine_params']:
+                metadata['machine_params'] = get_metadata_dict[config]
 
-                
+        # LIST OF PVS
+        get_pvs_dict = self._file_data.get("PVS", {})
+        for ioc in get_pvs_dict.keys():
+            list_of_pvs.extend(f'{ioc}:{pv_name}'
+                               for pv_name in get_pvs_dict[ioc])
         return metadata, list_of_pvs
 
     def _format_err(self, line: tuple, msg: str):
-        return '{} [line {}: {}]: {}'.format(
-            self._trace, line[0], line[1], msg)
+        return f'{self._trace} [line {line[0]}: {line[1]}]: {msg}'
 
     def _validate_macros_in_txt(self, txt: str):
         invalid_macros = []
@@ -288,13 +299,10 @@ class SnapshotReqFile(object):
         while ancestor is not None:
             if os.path.normpath(os.path.abspath(ancestor._path)) == path:
                 if ancestor._parent:
-                    return 'Infinity loop detected. File {} was already called from {}'.format(
-                        path, ancestor._parent._path
-                    )
+                    return f'Infinity loop detected. File {path} was already called from {ancestor._parent._path}'
                 else:
-                    return 'Infinity loop detected. File {} was already loaded as root request file.'.format(
-                        path
-                    )
+                    return f'Infinity loop detected. File {path} was already loaded as root request file.'
+
             else:
                 ancestor = ancestor._parent
 
@@ -318,7 +326,7 @@ def parse_macros(macros_str):
                 macros[split_macro[0]] = split_macro[1]
             else:
                 raise MacroError(
-                    'Following string cannot be parsed to macros: {}'.format(macros_str))
+                    f'Following string cannot be parsed to macros: {macros_str}')
     return macros
 
 
@@ -444,7 +452,7 @@ def initialize_config(config_path=None, save_dir=None, force=False,
         # Default save dir (do this once we have valid req file)
         save_dir = os.path.dirname(config['req_file_path'])
 
-    config['save_dir'] = None if not save_dir else os.path.abspath(save_dir)
+    config['save_dir'] = os.path.abspath(save_dir) if save_dir else None
     return config
 
 
@@ -468,7 +476,6 @@ def parse_from_save_file(save_file_path, metadata_only=False):
     err = []
     meta_loaded = False
 
-
     try:
         saved_file = open(save_file_path)
     except OSError:
@@ -476,7 +483,7 @@ def parse_from_save_file(save_file_path, metadata_only=False):
         return saved_pvs, meta_data, err
 
     for line in saved_file:
-        
+
         # first line with # is metadata (as json dump of dict)
         if line.startswith('#') and not meta_loaded:
             line = line[1:]
@@ -611,8 +618,9 @@ def list_save_files(save_dir, req_file_path):
 
     req_file_name = os.path.basename(req_file_path)
     file_dir = os.path.join(save_dir, os.path.splitext(req_file_name)[0])
-    file_paths = [path for path in glob.glob(file_dir + '/*' + save_file_suffix)
-                  if os.path.isfile(path)]
+    file_paths = [path for path in glob.glob(
+        f'{file_dir}/*{save_file_suffix}') if os.path.isfile(path)]
+
     modif_times = [os.path.getmtime(path) for path in file_paths]
     return req_file_name, file_paths, modif_times
 
@@ -623,7 +631,8 @@ def get_save_files(save_dir, req_file_path):
     dictionary.
     """
     since_start("Started parsing snaps")
-    req_file_name, file_paths, modif_times = list_save_files(save_dir, req_file_path)
+    req_file_name, file_paths, modif_times = list_save_files(
+        save_dir, req_file_path)
 
     def process_file(file_path, modif_time):
         file_name = os.path.basename(file_path)
