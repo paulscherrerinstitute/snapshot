@@ -1,65 +1,74 @@
 {
-    "MTEST-CAQTDM-CAMERA": [
-                    "CAMERA",
-                    "FILEFORMAT",
-                    "RECMODE",
-                    "STOREMODE",
-                    "CLEARMEM",
-                    "SAVESTOP",
-                    "SET_PARAM",
-                    "FTRANSFER"
-    ],
-    "S10CB04-DBLM130": [
-        "AL0-MPS-GAIN-A",
-        "AL0-MPS-GAIN-B",
-        "AL1-MPS-GAIN-A",
-        "AL1-MPS-GAIN-B"
-    ],
-    "S10BC01-DBLM184": [
-        "AL0-MPS-GAIN-A",
-        "AL0-MPS-GAIN-B",
-        "AL1-MPS-GAIN-A",
-        "AL1-MPS-GAIN-B",
-        "AL2-MPS-GAIN-A",
-        "AL2-MPS-GAIN-B",
-        "AL3-MPS-GAIN-A",
-        "AL3-MPS-GAIN-B"
-    ],
-    "SARFE10-PBPG050":[
-        "PHOTON-ENERGY-PER-PULSE-AVG"
-    ],
-    "rgx-filters":[
-        ["Gain B", "S10.*-B"],
-        ["Gain A", "S10.*-A"],
-        ["CAM PCO", "MTEST.*"],
-        ["IOC 130",".*130.*"],
-        ["IOC 140",".*140.*"],
-        ["name4","S.*-DBLM.*MPS-PMT-GAIN"]
-    ],
-    "force-labels":true,
-    "labels":[
-        "MODE-GUN",
-        "MODE-BC1",
-        "MODE-BC2",
-        "MODE-AR-LINAC",
-        "MODE-AR-UND",
-        "MODE-AT-LINAC",
-        "MODE-AT-UND",
-        "BC1-ON",
-        "BC1-OFF",
-        "BC2-ON",
-        "BC2-OFF",
-        "LH-ON",
-        "LH-OFF",
-        "REFERENCE",
-        "K1L"
-    ],
-    "machine_params":[
-        ["AT_pulse", "SATFE10-PEPG046:PHOTON-ENERGY-PER-PULSE-AVG"],
-        ["AT_phot1", "SATUN06-UIND030:FELPHOTENE"],
-        ["AT_phot2", "SATUN15-UIND030:FELPHOTENE"],
-        ["AT_energy", "SATCL01-MBND100:P-READ"],
-        ["AT_charge", "SINSB01-DBPM150:Q-AT"],
-        ["AT_rate", "SIN-TIMAST-TMA:Bunch-2-Exp-Freq-RB"]
-    ]
+    "PVS":{
+        "MTEST-CAQTDM-CAMERA": [
+                        "CAMERA",
+                        "FILEFORMAT",
+                        "RECMODE",
+                        "STOREMODE",
+                        "CLEARMEM",
+                        "SAVESTOP",
+                        "SET_PARAM",
+                        "FTRANSFER"
+        ],
+        "S10CB04-DBLM130": [
+            "AL0-MPS-GAIN-A",
+            "AL0-MPS-GAIN-B",
+            "AL1-MPS-GAIN-A",
+            "AL1-MPS-GAIN-B"
+        ],
+        "S10BC01-DBLM184": [
+            "AL0-MPS-GAIN-A",
+            "AL0-MPS-GAIN-B",
+            "AL1-MPS-GAIN-A",
+            "AL1-MPS-GAIN-B",
+            "AL2-MPS-GAIN-A",
+            "AL2-MPS-GAIN-B",
+            "AL3-MPS-GAIN-A",
+            "AL3-MPS-GAIN-B"
+        ],
+        "SARFE10-PBPG050":[
+            "PHOTON-ENERGY-PER-PULSE-AVG"
+        ]
+    },
+    "CONFIG":{
+        "filters":[
+            "AL0-MPS-GAIN-A",
+            "AL0-MPS-GAIN-B"
+        ],
+        "rgx-filters":[
+            ["Gain B", "S10.*-B"],
+            ["Gain A", "S10.*-A"],
+            ["IOC 120",".*120.*"],
+            ["CAM PCO", "MTEST.*"],
+            ["IOC 130",".*130.*"],
+            ["IOC 140",".*140.*"],
+            ["name4","S.*-DBLM.*MPS-PMT-GAIN"]
+        ],
+        "force-labels":true,
+        "labels":[
+            "MODE-GUN",
+            "MODE-BC1",
+            "MODE-BC2",
+            "MODE-AR-LINAC",
+            "MODE-AR-UND",
+            "MODE-AT-LINAC",
+            "MODE-AT-UND",
+            "BC1-ON",
+            "BC1-OFF",
+            "BC2-ON",
+            "BC2-OFF",
+            "LH-ON",
+            "LH-OFF",
+            "REFERENCE",
+            "K1L"
+        ],
+        "machine_params":[
+            ["AT_pulse", "SATFE10-PEPG046:PHOTON-ENERGY-PER-PULSE-AVG"],
+            ["AT_phot1", "SATUN06-UIND030:FELPHOTENE"],
+            ["AT_phot2", "SATUN15-UIND030:FELPHOTENE"],
+            ["AT_energy", "SATCL01-MBND100:P-READ"],
+            ["AT_charge", "SINSB01-DBPM150:Q-AT"],
+            ["AT_rate", "SIN-TIMAST-TMA:Bunch-2-Exp-Freq-RB"]
+        ]
+    }
 }
