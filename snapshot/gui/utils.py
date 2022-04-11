@@ -70,7 +70,8 @@ class SnapshotConfigureDialog(QDialog):
         self.macros_input = QLineEdit(self)
         self.macros_input.setPlaceholderText("MACRO1=M1,MACRO2=M2,...")
         self.file_selector = SnapshotFileSelector(
-            self, label_width=macros_label.sizeHint().width(), init_path=init_path)
+            self, label_width=macros_label.sizeHint().width(),
+            init_path=init_path)
 
         macros_layout.addWidget(macros_label)
         macros_layout.addWidget(self.macros_input)
@@ -99,11 +100,7 @@ class SnapshotConfigureDialog(QDialog):
 
     def _config_accepted(self):
         # Save to file path to local variable and emit signal
-        if not self.file_selector.file_path:
-            file_path = ""
-        else:
-            file_path = self.file_selector.file_path
-
+        file_path = self.file_selector.file_path or ""
         if os.path.isfile(file_path):
             if file_path.endswith('.req'):
                 self._show_deprecation_messagebox()
@@ -118,7 +115,7 @@ class SnapshotConfigureDialog(QDialog):
                                           QMessageBox.NoButton)
 
         else:
-            warn = "File {} does not exist!".format(file_path)
+            warn = f"File {file_path} does not exist!"
             QMessageBox.warning(
                 self,
                 "Warning",
@@ -134,11 +131,9 @@ class SnapshotConfigureDialog(QDialog):
         self.file_selector.setFocus()
 
     def _show_deprecation_messagebox(self):
-        QMessageBox.warning(self,
-                            "Warning",
+        QMessageBox.warning(self, "Warning",
                             'Warning "*.req" files are deprecated! Next release will remove support for these files. '
-                            'Please convert to json/yaml.',
-                            QMessageBox.Ok,
+                            'Please convert to json/yaml.', QMessageBox.Ok,
                             QMessageBox.NoButton)
 
 
@@ -147,8 +142,8 @@ class SnapshotFileSelector(QWidget):
 
     path_changed = QtCore.pyqtSignal()
 
-    def __init__(self, parent=None, label_text="File:", button_text="...", label_width=None,
-                 init_path=None, show_files=True, **kw):
+    def __init__(self, parent=None, label_text="File:", button_text="...",
+                 label_width=None, init_path=None, show_files=True, **kw):
         QWidget.__init__(self, parent, **kw)
         self.file_path = init_path
 
@@ -321,8 +316,6 @@ class SnapshotKeywordSelectorWidget(QComboBox):
             self.layout.removeWidget(key_widget)
             key_widget.deleteLater()
             self.keywords_changed.emit()
-            if not self.selectedKeywords:
-                self.setItemText(0, "Select labels ...")
 
     def setPlaceholderText(self, text):
         # Placeholder tefirst_itemxt is always in the input field
@@ -369,8 +362,9 @@ class SnapshotKeywordSelectorInput(QLineEdit):
 
     def keyPressEvent(self, event):
         # Pass special key events to the main widget, handle others.
-        if event.key() in [Qt.Key_Tab, Qt.Key_Enter, Qt.Key_Return, Qt.Key_Space, Qt.Key_Escape] or \
-                (not self.text().strip() and event.key() == Qt.Key_Backspace):
+        if event.key() in [Qt.Key_Tab, Qt.Key_Enter, Qt.Key_Return, Qt.Key_Space,
+                           Qt.Key_Escape] or (not self.text().strip() and event.key() == Qt.
+                                              Key_Backspace):
             self.callback(event)
         else:
             QLineEdit.keyPressEvent(self, event)
@@ -441,9 +435,10 @@ class SnapshotEditMetadataDialog(QDialog):
 
         # Make field for labels
         # If default labels are defined, then force default labels
-        self.labels_input = SnapshotKeywordSelectorWidget(common_settings,
-                                                          defaults_only=self.common_settings['force_default_labels'],
-                                                          parent=self)
+        self.labels_input = SnapshotKeywordSelectorWidget(
+            common_settings, defaults_only=self.common_settings
+            ['force_default_labels'],
+            parent=self)
         for label in metadata["labels"]:
             self.labels_input.add_to_selected(label, force=True)
         form_layout.addRow("Labels:", self.labels_input)
