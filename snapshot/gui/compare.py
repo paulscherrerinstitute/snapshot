@@ -41,7 +41,7 @@ from PyQt5.QtWidgets import (
 )
 
 from ..ca_core import Snapshot
-from ..core import PvUpdater, SnapshotPv, process_record
+from ..core import PrintFloat, PvUpdater, SnapshotPv, process_record
 from ..parser import parse_from_save_file, save_file_suffix
 from .utils import make_separator, show_snapshot_parse_errors
 
@@ -130,6 +130,14 @@ class SnapshotCompareWidget(QWidget):
         self.regex.stateChanged.connect(self._handle_regex_change)
 
         # #### Selector for comparison filter
+        compare_layout = QHBoxLayout()
+        compare_layout.setSpacing(10)
+
+        compare_label = QLabel(self)
+        compare_label.setText("Comparison:")
+        compare_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
+        compare_layout.addWidget(compare_label)
+
         self.compare_filter_inp = QComboBox(self)
         self.compare_filter_inp.addItems(
             ["Show all", "Different only", "Equal only"])
@@ -137,20 +145,24 @@ class SnapshotCompareWidget(QWidget):
         self.compare_filter_inp.currentIndexChanged.connect(
             self._proxy.set_eq_filter)
         self.compare_filter_inp.setMaximumWidth(200)
+        compare_layout.addWidget(self.compare_filter_inp)
 
-        # # ### Show disconnected selector
-        self.show_disconn_inp = QCheckBox("Show disconnected PVs", self)
-        self.show_disconn_inp.setChecked(True)
-        self.show_disconn_inp.stateChanged.connect(
-            self._proxy.set_disconn_filter)
-        self.show_disconn_inp.setMaximumWidth(500)
+        connected_layout = QHBoxLayout()
+        connected_layout.setSpacing(10)
 
-        # #### Show connected selector
-        self.show_conn_inp = QCheckBox("Show connected PVs", self)
-        self.show_conn_inp.setChecked(True)
-        self.show_conn_inp.stateChanged.connect(
-            self._proxy.set_conn_filter)
-        self.show_conn_inp.setMaximumWidth(500)
+        connected_label = QLabel(self)
+        connected_label.setText("View:")
+        connected_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
+        connected_layout.addWidget(connected_label)
+
+        self.connected_filter_inp = QComboBox(self)
+        self.connected_filter_inp.addItems(
+            ["Show all", "Connected", "Disconnected"])
+
+        self.connected_filter_inp.currentIndexChanged.connect(
+            self._proxy.set_view_filter)
+        self.connected_filter_inp.setMaximumWidth(200)
+        connected_layout.addWidget(self.connected_filter_inp)
 
         # Tolerance setting
         tol_label = QLabel("Tolerance:")
@@ -160,7 +172,7 @@ class SnapshotCompareWidget(QWidget):
         tol.valueChanged[int].connect(self.model.change_tolerance)
         self.model.change_tolerance(tol.value())
 
-        # ### Put all tolerance and filter selectors in one layout
+        # Put all tolerance and filter selectors in one layout
         filter_layout = QHBoxLayout()
         filter_layout.addWidget(tol_label)
         filter_layout.addWidget(tol)
@@ -171,10 +183,10 @@ class SnapshotCompareWidget(QWidget):
 
         filter_layout.addWidget(make_separator(self, 'vertical'))
 
-        filter_layout.addWidget(self.compare_filter_inp)
-
-        filter_layout.addWidget(self.show_disconn_inp)
-        filter_layout.addWidget(self.show_conn_inp)
+        # Comparison dropdown
+        filter_layout.addLayout(compare_layout)
+        # Connected dropdown
+        filter_layout.addLayout(connected_layout)
 
         filter_layout.setAlignment(Qt.AlignLeft)
         filter_layout.setSpacing(10)
@@ -191,8 +203,9 @@ class SnapshotCompareWidget(QWidget):
         self.pv_filter_sel.blockSignals(True)
         self.pv_filter_sel.clear()
         self.pv_filter_sel.addItem(None)
-        for rgx, names in zip(predefined_filters.get('rgx-filters', list()),
-                              predefined_filters.get('rgx-filters-names', list())):
+        for rgx, names in zip(
+                predefined_filters.get('rgx-filters', list()),
+                predefined_filters.get('rgx-filters-names', list())):
             label = f'{names}   |   {rgx}'
             self.pv_filter_sel.addItem(SnapshotCompareWidget.rgx_icon, label)
         self.pv_filter_sel.addItems(predefined_filters.get('filters', list()))
@@ -341,7 +354,6 @@ class SnapshotPvTableView(QTableView):
         :param mode_idx1:
         :return:
         """
-
         super().dataChanged(mode_idx, mode_idx1, roles)
         self.viewport().update()
 
@@ -357,8 +369,8 @@ class SnapshotPvTableView(QTableView):
                 rows.append(idx.row())
                 selection.append(QItemSelectionRange(idx))
 
-        self.selectionModel().select(selection,
-                                     QItemSelectionModel.Rows | QItemSelectionModel.ClearAndSelect)
+        self.selectionModel().select(selection, QItemSelectionModel.Rows |
+                                     QItemSelectionModel.ClearAndSelect)
 
     def _set_columns_width(self):
         self.resizeColumnsToContents()
@@ -457,8 +469,8 @@ class SnapshotPvTableView(QTableView):
             process_record(pvname)
 
     def _export_pvs(self):
-        name, fileFilter = QFileDialog().getSaveFileName(self, "Save file",
-                                                         "", "Comma-separated values (*.csv)")
+        name, fileFilter = QFileDialog().getSaveFileName(
+            self, "Save file", "", "Comma-separated values (*.csv)")
         try:
             with open(name, 'w') as f:
                 f.write("PV\n")
@@ -473,12 +485,15 @@ class SnapshotPvTableView(QTableView):
                                 QMessageBox.NoButton)
 
     def _export_pvs_values(self):
-        name, fileFilter = QFileDialog().getSaveFileName(self, "Save file",
-                                                         "", "Comma-separated values (*.csv)")
+        name, fileFilter = QFileDialog().getSaveFileName(
+            self, "Save file", "", "Comma-separated values (*.csv)")
         try:
             with open(name, 'w') as f:
                 f.write("PV,Values\n")
-                for pvname, pv_value, pv_precision in zip(self._selected_pvnames(), self._selected_pvvalues(), self._selected_pvprecision()):
+                for pvname, pv_value, pv_precision in zip(
+                        self._selected_pvnames(),
+                        self._selected_pvvalues(),
+                        self._selected_pvprecision()):
                     line_content = f'{pvname},'
                     line_content += SnapshotPv.value_to_display_str(
                         pv_value, pv_precision)
@@ -625,8 +640,9 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             "macros", dict())
         pvs_list, _, errors = parse_from_save_file(file_data['file_path'])
         # PVS data mapped to real pvs names (no macros)
-        pvs_list_full_names = {SnapshotPv.macros_substitution(
-            pv_name_raw, macros): pv_data for pv_name_raw, pv_data in pvs_list.items()}
+        pvs_list_full_names = {
+            SnapshotPv.macros_substitution(pv_name_raw, macros): pv_data
+            for pv_name_raw, pv_data in pvs_list.items()}
 
         return pvs_list_full_names, errors
 
@@ -657,10 +673,11 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self._emit_dataChanged()
 
     def _emit_dataChanged(self):
-        # No need to update PV names, units and effective tolerance.
-        self.dataChanged.emit(self.createIndex(0, PvTableColumns.value),
-                              self.createIndex(len(self._data),
-                                               self.columnCount() - 1))
+        # No need to update PV names, units
+        self.dataChanged.emit(
+            self.createIndex(0, PvTableColumns.value),
+            self.createIndex(len(self._data),
+                             self.columnCount() - 1))
 
     def handle_pv_connection_status(self, line_model):
         row = self._data.index(line_model)
@@ -679,7 +696,6 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self._tolerance_f = tol_f
         for line in self._data:
             line.change_tolerance(tol_f)
-
         self._emit_dataChanged()
 
 
@@ -753,15 +769,15 @@ class SnapshotPvTableLine(QtCore.QObject):
     @property
     def effective_tolerance(self):
         try:
-            eff_tol_value = self.precision * \
-                self._tolerance_f if self.precision is not None else 0
+            eff_tol_value = 10**(-self.precision) * self._tolerance_f if (
+                self.precision is not None and self.precision >= 0) else 1*self._tolerance_f
         except TypeError:
             eff_tol_value = 0
         return eff_tol_value
 
     @property
     def eff_tol_tooltip(self):
-        return f'Eff. Tol. = Precision ({self.precision}) × Tolerance ({self._tolerance_f}).'
+        return f'Eff. Tol. = 10^-Precision ({self.precision}) × Tolerance ({self._tolerance_f}).'
 
     @property
     def precision(self):
@@ -777,13 +793,20 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     def change_tolerance(self, tol_f):
         self._tolerance_f = tol_f
+        # update eff. tol column
+        self.data[PvTableColumns.effective_tol] = {
+            'data': self.effective_tolerance}
+        # //TODO VALIDATE IF THIS IS CORRECT
+        # update value
+        self.data[PvTableColumns.value]['data'] = SnapshotPv.value_to_display_str(
+            self._pv_ref.value, self._precision)
+
         self._compare()
 
     def append_snap_value(self, value):
         if value is not None:
-            sval = SnapshotPvTableLine.string_repr_snap_value(value,
-                                                              self.precision,
-                                                              self.effective_tolerance)
+            sval = SnapshotPvTableLine.string_repr_snap_value(
+                value, self.precision)
             self.data.append({'data': sval, 'raw_value': value})
         else:
             self.data.append({'data': '', 'raw_value': None})
@@ -793,9 +816,8 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     def change_snap_value(self, column_idx, value):
         if value is not None:
-            sval = SnapshotPvTableLine.string_repr_snap_value(value,
-                                                              self.precision,
-                                                              self.effective_tolerance)
+            sval = SnapshotPvTableLine.string_repr_snap_value(
+                value, self.precision)
             self.data[column_idx]['data'] = sval
         else:
             self.data[column_idx]['data'] = ''
@@ -950,6 +972,20 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
         self._eq_filter = PvCompareFilter(mode)
         self.apply_filter()
 
+    def set_view_filter(self, mode):
+        # 0 = Show all
+        # 1 = Connected
+        # 2 = Disconnected
+        if mode == 0:
+            self.set_conn_filter(2)
+            self.set_disconn_filter(2)
+        elif mode == 1:
+            self.set_conn_filter(2)
+            self.set_disconn_filter(0)
+        elif mode == 2:
+            self.set_conn_filter(0)
+            self.set_disconn_filter(2)
+
     def set_conn_filter(self, state):
         self._conn_filter = state
         self.apply_filter()
@@ -986,9 +1022,13 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
 
             if n_files > 1:  # multi-file mode
                 files_equal = row_model.are_snap_values_eq()
-                compare_match = (((self._eq_filter == PvCompareFilter.show_eq) and files_equal) or
-                                 ((self._eq_filter == PvCompareFilter.show_neq) and not files_equal) or
-                                 (self._eq_filter == PvCompareFilter.show_all))
+                compare_match = (
+                    ((self._eq_filter == PvCompareFilter.show_eq) and
+                     files_equal)
+                    or (
+                        (self._eq_filter == PvCompareFilter.show_neq)
+                        and not files_equal)
+                    or (self._eq_filter == PvCompareFilter.show_all))
 
                 result = name_match and (
                     (row_model.conn and compare_match) or (
@@ -997,9 +1037,12 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
 
             elif n_files == 1:  # "pv-compare" mode
                 compare = row_model.is_snap_eq_to_pv(0)
-                compare_match = (((self._eq_filter == PvCompareFilter.show_eq) and compare) or
-                                 ((self._eq_filter == PvCompareFilter.show_neq) and not compare) or
-                                 (self._eq_filter == PvCompareFilter.show_all))
+                compare_match = (
+                    ((self._eq_filter == PvCompareFilter.show_eq) and compare)
+                    or (
+                        (self._eq_filter == PvCompareFilter.show_neq)
+                        and not compare)
+                    or (self._eq_filter == PvCompareFilter.show_all))
 
                 result = name_match and (
                     (row_model.conn and compare_match) or (
