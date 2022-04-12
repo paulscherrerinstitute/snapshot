@@ -440,10 +440,9 @@ class SnapshotPv(PV):
             return abs(value1 - value2) <= tolerance
         elif any(isinstance(x, numpy.ndarray) for x in (value1, value2)):
             try:
-                return numpy.allclose(
-                    value1, value2, atol=tolerance, rtol=0)
-            except TypeError:
-                # Non-numeric array (i.e. strings)
+                return numpy.allclose(value1, value2, atol=tolerance, rtol=0)
+            except (TypeError, ValueError):
+                # Array of non-numeric types or with unequal lengths
                 return numpy.array_equal(value1, value2)
         else:
             return value1 == value2
