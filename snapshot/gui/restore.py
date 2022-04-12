@@ -217,8 +217,15 @@ class SnapshotRestoreWidget(QWidget):
         self.rebuild_file_list()
 
     def start_restore_all(self):
-        self.do_restore()
-
+        msgBox = QMessageBox()
+        msgBox.setIcon(QMessageBox.Information)
+        msgBox.setText("Are you sure you want to restore all")
+        msgBox.setWindowTitle("Restore all")
+        msgBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        returnValue = msgBox.exec()
+        if returnValue == QMessageBox.Ok:
+            self.do_restore()
+        
     def start_restore_filtered(self):
         filtered_n = len(self.filtered_pvs)
 
