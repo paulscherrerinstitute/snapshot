@@ -190,7 +190,8 @@ class SnapshotGui(QMainWindow):
         # Show GUI and manage window properties
         self.show()
         self.setWindowTitle(
-            os.path.basename(self.common_settings["req_file_path"]) + ' - Snapshot')
+            os.path.basename(self.common_settings["req_file_path"]) +
+            ' - Snapshot')
 
         # Status log default height should be 100px Set with splitter methods
         widgets_sizes = main_splitter.sizes()
@@ -212,19 +213,23 @@ class SnapshotGui(QMainWindow):
         else:
             current_text = self.autorefresh.text()
             time_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            self.autorefresh.setText(current_text+f'   (last update: {time_str})')
+            self.autorefresh.setText(
+                f'{current_text}   (last update: {time_str})')
             # background color to medium gray when not activated
-            self.autorefresh.setStyleSheet("QCheckBox {background-color : #868482;}")
+            self.autorefresh.setStyleSheet(
+                "QCheckBox {background-color : #868482;}")
             # self.autorefresh.setStyleSheet("QCheckBox {border-left-color: darkgray;}")
             background_workers.suspend_one('pv_updater')
 
     def save_new_output_dir(self):
-        self.output_path = QFileDialog.getExistingDirectory(self, 'Select Folder')
+        self.output_path = QFileDialog.getExistingDirectory(
+            self, 'Select Folder')
         self.common_settings['save_dir'] = self.output_path
 
     def open_new_req_file(self):
-        configure_dialog = SnapshotConfigureDialog(self, init_path=self.common_settings['req_file_path'],
-                                                   init_macros=self.common_settings['req_file_macros'])
+        configure_dialog = SnapshotConfigureDialog(
+            self, init_path=self.common_settings['req_file_path'],
+            init_macros=self.common_settings['req_file_macros'])
         configure_dialog.accepted.connect(self.change_req_file)
         configure_dialog.exec_()  # Do not act on rejected
 
@@ -397,9 +402,9 @@ class SnapshotStatus(QStatusBar):
         self.timer.stop()
 
         if self.common_settings["force"]:
-            text = "[force mode] " + text
+            text = f"[force mode] {text}"
         self.status_txt.setText(text)
-        style = "background-color : " + background
+        style = f"background-color : {background}"
         self.setStyleSheet(style)
 
         # Force GUI updates to show status

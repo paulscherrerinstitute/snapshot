@@ -83,13 +83,13 @@ class Snapshot(object):
                 os.path.normpath(os.path.abspath(req_file_path))
             req_f = SnapshotReqFile(self.req_file_path,
                                     changeable_macros=list(macros.keys()))
-            pvs, metadata = req_f.read()
+            pvs, metadata, pvs_config = req_f.read()
             since_start("Finished parsing reqfile")
 
             self.req_file_metadata = metadata
-            self.add_pvs(pvs)
+            self.add_pvs(pvs, pvs_config)
 
-    def add_pvs(self, pv_list):
+    def add_pvs(self, pv_list, pv_configs):
         """
         Creates SnapshotPv objects for each PV in list.
 
@@ -102,15 +102,25 @@ class Snapshot(object):
 
         # pyepics will handle PVs to have only one connection per PV.
         # If pv not yet on list add it.
-        for pvname_raw in pv_list:
+        if len(pv_list) == len(pv_configs):
+            for pvname_raw, pvname_config in zip(pv_list, pv_configs):
+                p_name = SnapshotPv.macros_substitution(pvname_raw, self.macros)
+                if not self.pvs.get(p_name):
 
-            p_name = SnapshotPv.macros_substitution(pvname_raw, self.macros)
-            if not self.pvs.get(p_name):
+                    pv_ref = SnapshotPv(p_name, pvname_config.get(
+                        p_name, {}))
 
-                pv_ref = SnapshotPv(p_name)
+                # if not self.pvs.get(pv_ref.pvname):
+                    self.pvs[pv_ref.pvname] = pv_ref
+        else:
+            for pvname_raw in pv_list:
+                p_name = SnapshotPv.macros_substitution(pvname_raw, self.macros)
+                if not self.pvs.get(p_name):
 
-            # if not self.pvs.get(pv_ref.pvname):
-                self.pvs[pv_ref.pvname] = pv_ref
+                    pv_ref = SnapshotPv(p_name)
+
+                # if not self.pvs.get(pv_ref.pvname):
+                    self.pvs[pv_ref.pvname] = pv_ref
 
         since_start("Finished adding PVs")
 
@@ -168,7 +178,7 @@ class Snapshot(object):
         kw["req_file_name"] = os.path.basename(self.req_file_path)
 
         background_workers.suspend()
-        pvs_data = dict()
+        pvs_data = {}
         logging.debug("Create snapshot for %d channels" %
                       len(self.pvs.items()))
         for pvname, pv_ref in self.pvs.items():
@@ -312,8 +322,9 @@ class Snapshot(object):
         """
         self._restore_blocking_done = False
         self._blocking_restore_pvs_status = {}
-        status, pvs_status = self.restore_pvs(pvs_raw, force=force, custom_macros=custom_macros,
-                                              callback=self._set_restore_blocking_done)
+        status, pvs_status = self.restore_pvs(
+            pvs_raw, force=force, custom_macros=custom_macros,
+            callback=self._set_restore_blocking_done)
         if status != ActionStatus.ok:
             return status, pvs_status
 

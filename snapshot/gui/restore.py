@@ -140,10 +140,10 @@ class SnapshotRestoreWidget(QWidget):
 
         self.snapshot = snapshot
         self.common_settings = common_settings
-        self.filtered_pvs = list()
+        self.filtered_pvs = []
         # dict of available files to avoid multiple openings of one file when
         # not needed.
-        self.file_list = dict()
+        self.file_list = {}
 
         # Create main layout
         layout = QVBoxLayout(self)
@@ -278,8 +278,8 @@ class SnapshotRestoreWidget(QWidget):
                 self.sts_log.log_msgs("Restore started.", time.time())
                 self.sts_info.set_status("Restoring ...", 0, "orange")
 
-                status, pvs_status = self.snapshot.restore_pvs(pvs_to_restore, callback=self.restore_done_callback,
-                                                               force=force)
+                status, pvs_status = self.snapshot.restore_pvs(
+                    pvs_to_restore, callback=self.restore_done_callback, force=force)
 
                 if status == ActionStatus.no_conn:
                     # Ask user if he wants to force restoring
@@ -290,8 +290,8 @@ class SnapshotRestoreWidget(QWidget):
 
                     if reply != QMessageBox.No:
                         # Force restore
-                        status, pvs_status = self.snapshot.restore_pvs(pvs_to_restore,
-                                                                       callback=self.restore_done_callback, force=True)
+                        status, pvs_status = self.snapshot.restore_pvs(
+                            pvs_to_restore, callback=self.restore_done_callback, force=True)
 
                         # If here restore started successfully. Waiting for
                         # callbacks.
@@ -315,7 +315,8 @@ class SnapshotRestoreWidget(QWidget):
 
                 elif status == ActionStatus.busy:
                     self.sts_log.log_msgs(
-                        "ERROR: Restore rejected. Previous restore not finished.", time.time())
+                        "ERROR: Restore rejected. Previous restore not finished.",
+                        time.time())
                     self.restore_all_button.setEnabled(True)
                     self.restore_button.setEnabled(True)
 
@@ -891,11 +892,7 @@ class SnapshotFileFilterWidget(QWidget):
         layout.addLayout(right_layout)
 
         # Init filters
-        self.file_filter = {}
-        self.file_filter["keys"] = list()
-        self.file_filter["comment"] = ""
-        self.file_filter["name"] = ""
-
+        self.file_filter = {"keys": [], "comment": "", "name": ""}
         # Labels filter
         self.keys_input = SnapshotKeywordSelectorWidget(
             self.common_settings, parent=self)  # No need to force defaults

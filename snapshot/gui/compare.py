@@ -5,12 +5,9 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 import enum
-import json
 import os
 import re
-import time
 
-import numpy
 from PyQt5 import QtCore
 from PyQt5.QtCore import (
     QItemSelection,
@@ -733,6 +730,7 @@ class SnapshotPvTableLine(QtCore.QObject):
         self._is_array = None
         self._precision = None
         self._precision_loaded = False
+        self._config_loaded = False
 
         self.data = [None] * PvTableColumns.snapshots
         self.data[PvTableColumns.name] = {
@@ -902,7 +900,8 @@ class SnapshotPvTableLine(QtCore.QObject):
         # properly at the beginning, this will reload it
         #  on the first updated
         if not self._precision_loaded:
-            self._precision = self._pv_ref.precision
+            if self.precision is None:
+                self._precision = self._pv_ref.precision
             self._precision_loaded = True
 
         if pv_value is None:

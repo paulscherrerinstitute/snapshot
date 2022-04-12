@@ -217,7 +217,7 @@ class SnapshotPv(PV):
     Note: PvUpdater is a "friend class" and uses this class' internals.
     """
 
-    def __init__(self, pvname, connection_callback=None, **kw):
+    def __init__(self, pvname, user_config={}, connection_callback=None, **kw):
         # dict format {idx: callback}
         self.conn_callbacks = {}
         if connection_callback:
@@ -229,6 +229,7 @@ class SnapshotPv(PV):
         self._initialized = False
         self._pvget_lock = Lock()
         self._pvget_completer = None
+        self._user_config = user_config
 
         super().__init__(pvname,
                          connection_callback=self._internal_cnct_callback,
@@ -298,6 +299,9 @@ class SnapshotPv(PV):
     @PV.precision.getter
     def precision(self):
         "Override so as to not block until PvUpdater initializes ctrlvars."
+        prec = self._user_config.get('precision', -1)
+        if prec >= 0:
+            return prec
         return super().precision if self._initialized else None
 
     @PV.units.getter
@@ -353,7 +357,8 @@ class SnapshotPv(PV):
                                 "status": PvStatus.ok})
 
                     except TypeError as e:
-                        callback(pvname=self.pvname, status=PvStatus.type_err)
+                        callback(pvname=self.pvname,
+                                 status=PvStatus.type_err)
 
                 elif callback:
                     # No need to be restored.
@@ -435,7 +440,8 @@ class SnapshotPv(PV):
             return abs(value1 - value2) <= tolerance
         elif any(isinstance(x, numpy.ndarray) for x in (value1, value2)):
             try:
-                return numpy.allclose(value1, value2, atol=tolerance, rtol=0)
+                return numpy.allclose(
+                    value1, value2, atol=tolerance, rtol=0)
             except TypeError:
                 # Non-numeric array (i.e. strings)
                 return numpy.array_equal(value1, value2)

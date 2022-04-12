@@ -98,7 +98,7 @@ class SnapshotReqFile(object):
         if not isinstance(result, tuple):
             raise result
 
-        pvs, metadata, includes = result
+        pvs, metadata, includes, pvs_config = result
         while includes:
             results = global_thread_pool.map(lambda f: f._read_only_self(),
                                              includes)
@@ -136,7 +136,7 @@ class SnapshotReqFile(object):
             raise ReqParseError('Invalid format of machine parameter list, '
                                 'names must not contain space or punctuation.')
 
-        return pvs, metadata
+        return pvs, metadata, pvs_config
 
     def _read_only_self(self):
         """
@@ -152,10 +152,10 @@ class SnapshotReqFile(object):
         """
         includes = []
         pvs = []
-
+        pvs_config = []
         if self._type == 'json':
             # //TODO replace macros
-            metadata, pvs = self._extract_meta_pvs_from_json()
+            metadata, pvs, pvs_config = self._extract_meta_pvs_from_json()
         elif self._type == 'req':
             metadata = {}
             self._curr_line_n = 0
@@ -226,7 +226,7 @@ class SnapshotReqFile(object):
                         return OSError(
                             self._format_err(
                                 (self._curr_line, self._curr_line_n), e))
-        return pvs, metadata, includes
+        return pvs, metadata, includes, pvs_config
 
     def _extract_pvs_from_req(self):
         try:
@@ -244,7 +244,7 @@ class SnapshotReqFile(object):
             return JsonParseError(msg)
 
     def _get_pvs_list(self):
-        list_of_pvs = []
+
         metadata = {'filters': {}}
         get_metadata_dict = self._file_data.get("CONFIG", {})
         # CONFIGURATIONS
@@ -268,11 +268,22 @@ class SnapshotReqFile(object):
                 metadata['machine_params'] = get_metadata_dict[config]
 
         # LIST OF PVS
+        list_of_pvs = []
+        list_of_pvs_config = []
         get_pvs_dict = self._file_data.get("PVS", {})
         for ioc in get_pvs_dict.keys():
-            list_of_pvs.extend(f'{ioc}:{pv_name}'
-                               for pv_name in get_pvs_dict[ioc])
-        return metadata, list_of_pvs
+            # get default configs
+            default_config_dict = get_pvs_dict[ioc].get("DEFAULT_CONFIG", {})
+            # default precision for this ioc (-1 = load from pv)
+            default_precision = default_config_dict.get('default_precision', -1)
+            for channel in get_pvs_dict[ioc].get("CHANNELS", {}):
+                pv_name = channel.get('name', '')
+                precision = channel.get('precision', default_precision)
+                list_of_pvs.append(f'{ioc}:{pv_name}')
+                list_of_pvs_config.append({f'{ioc}:{pv_name}': {
+                    "precision": precision}})
+
+        return metadata, list_of_pvs, list_of_pvs_config
 
     def _format_err(self, line: tuple, msg: str):
         return f'{self._trace} [line {line[0]}: {line[1]}]: {msg}'
@@ -419,13 +430,11 @@ def initialize_config(config_path=None, save_dir=None, force=False,
         default_labels = []
 
     # default labels also in config file? Add them
-    config['default_labels'] = \
-        list(set(default_labels + (new_settings.get('labels', dict())
-                                               .get('labels', list()))))
+    config['default_labels'] = list(
+        set(default_labels + (new_settings.get('labels', dict()) .get('labels', list()))))
 
-    config['force_default_labels'] = \
-        new_settings.get('labels', dict()) \
-                    .get('force-labels', False) or force_default_labels
+    config['force_default_labels'] = new_settings.get('labels', dict()) \
+        .get('force-labels', False) or force_default_labels
 
     # Predefined filters. Ensure entries exist.
     config['predefined_filters'] = new_settings.get('filters', {})
@@ -445,8 +454,8 @@ def initialize_config(config_path=None, save_dir=None, force=False,
         config['req_file_macros'] = req_file_macros
 
     if req_file_path and config['macros_ok']:
-        config['req_file_path'] = \
-            os.path.abspath(os.path.join(config['init_path'], req_file_path))
+        config['req_file_path'] = os.path.abspath(
+            os.path.join(config['init_path'], req_file_path))
 
     if not save_dir:
         # Default save dir (do this once we have valid req file)
@@ -647,8 +656,8 @@ def get_save_files(save_dir, req_file_path):
             # robust, but is backwards compatible.
             have_metadata = "req_file_name" in meta_data \
                 and meta_data["req_file_name"] == req_file_name
-            prefix_matches = \
-                file_name.startswith(req_file_name.split(".")[0] + "_")
+            prefix_matches = file_name.startswith(
+                req_file_name.split(".")[0] + "_")
             if have_metadata or prefix_matches:
                 # we really should have basic meta data
                 # (or filters and some other stuff will silently fail)
