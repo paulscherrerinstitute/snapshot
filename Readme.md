@@ -1,4 +1,5 @@
 # Overview
+
 Snapshot is Python based tool with a graphical user interface which is able to
 store (and later restore) values of Channel Access process variables (PVs).
 
@@ -14,6 +15,7 @@ conda install -c https://conda.anaconda.org/paulscherrerinstitute snapshot
 ```
 
 # Usage
+
 To define a set of PVs which should be saved/restored the _snapshot_ tool
 requires a "request" file. Request files are in the following format. Beside
 accepting explicit channels also the use of macros are possible. From version
@@ -68,10 +70,10 @@ To be used as command line tool it must be run either with `snapshot save` or
 `snapshot restore` depending on action needed.
 
 ```bash
-snapshot save [-h] [-m MACRO] [-o OUT] [-f] [--timeout TIMEOUT] FILE
+usage: snapshot.py save [-h] [-m MACRO] [-o OUT] [-f] [--labels LABELS] [--comment COMMENT] [--timeout TIMEOUT] [--regex REGEX] FILE
 
 positional arguments:
-  FILE                  request file
+  FILE                  request file.
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -82,6 +84,7 @@ optional arguments:
   --labels LABELS       list of comma separated labels e.g.: "label_1,label_2"
   --comment COMMENT     Comment
   --timeout TIMEOUT     max time waiting for PVs to be connected
+  --regex REGEX         Regex filter to be used when saving PVs
 ```
 
 ```bash
@@ -103,23 +106,23 @@ comments. See the [example request file](example/test.req). It may contain the
 following keys:
 
 - "labels": a dict containing:
-  * "labels": an array of labels that can be applied to snapshot files.
-  * "force-labels": a boolean. If true, only labels defined here will be
+
+  - "labels": an array of labels that can be applied to snapshot files.
+  - "force-labels": a boolean. If true, only labels defined here will be
     available for saving in the snapshot files. If false, additional labels that
     may be present in the existing files will also be available.
 
 - "filters": a dict containing:
-  * "filters": an array of predefined PV name filters that will be available
+
+  - "filters": an array of predefined PV name filters that will be available
     from the filter drop-down menu.
-  * "rgx-filters": same as "filters", except the filters are in regular
+  - "rgx-filters": same as "filters", except the filters are in regular
     expression syntax.
 
 - "machine_params": an array of machine parameters, i.e. PVs that are not part
   of the request file, but whose values will be stored as metadata. It is an
-  array of pairs `["param_name", "pv_name"]`, e.g. `["electron_energy",
-  "SARCL02-MBND100:P-READ"]`. Within the program, the parameter is referred to
+  array of pairs `["param_name", "pv_name"]`, e.g. `["electron_energy", "SARCL02-MBND100:P-READ"]`. Within the program, the parameter is referred to
   as `param_name` for display and filetering purposes."
-
 
 ## Format of machine parameter filter expression
 
@@ -131,16 +134,16 @@ consists of space-separated statements, e.g.
 
 The above expression will match files where:
 
-  - the value of `second_param` is exactly `value`
-  - and the value of `first_param` is between `low_value` and `high_value`.
+- the value of `second_param` is exactly `value`
+- and the value of `first_param` is between `low_value` and `high_value`.
 
 Each value can be
 
-  - an integer, which must not begin with 0;
-  - a float, with period as the decimal separator, must not begin with 0 or end
-    with a period (i.e. write `1.0`, not `1.`);
-  - a string, which must be enclosed in double quotes and may contain backslash
-    escape sequences.
+- an integer, which must not begin with 0;
+- a float, with period as the decimal separator, must not begin with 0 or end
+  with a period (i.e. write `1.0`, not `1.`);
+- a string, which must be enclosed in double quotes and may contain backslash
+  escape sequences.
 
 Strings can be compared against numbers (and vice versa), and can be used for
 in-rage checks, but the comparison will be lexicographic, not numeric.
@@ -149,6 +152,7 @@ Each parameter may only appear once. If the expression is invalid, it is shown
 in red, and no filtering is applied to files.
 
 ## Format of saved files
+
 When PVs values are saved using a GUI, they are stored in file where first line
 starts with `#` and is followed by meta data (json formating). This is followed
 by lines with PV names and saved data (one line per PV). Example:
@@ -162,10 +166,10 @@ examplePv:test-4,[5.0, 6.0, 7.0, 8.0, 9.0, 0.0, 1.0, 2.0, 3.0, 4.0]
 ```
 
 ## Advanced usage of snapshot
+
 Snapshot can also be used as a module inside other python applications. Find
 simple example bellow. For more details have a look at
 [example/example.py](./example/example.py).
-
 
 ```python
 from snapshot.ca_core import Snapshot
@@ -177,7 +181,9 @@ snapshot.restore_pvs_blocking('path/to/desired/save/file.snap')
 ```
 
 # Development
+
 ## Testing
+
 To test the application a softioc can be started as follows (while being in the
 _tests_ directory):
 
