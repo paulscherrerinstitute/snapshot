@@ -162,7 +162,7 @@ class Snapshot(object):
         # get values of all PVs and save them to file
         # All other parameters (packed in kw) are appended to file as meta data
 
-        pvs_status = dict()
+        pvs_status = {}
         disconn_pvs = self.get_disconnected_pvs_names()
         # At this point core can provide not connected status for PVs from
         # self.get_disconnected_pvs_names()

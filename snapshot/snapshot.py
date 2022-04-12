@@ -35,7 +35,8 @@ def save_caller(args):
         args.force,
         args.timeout,
         args.labels,
-        args.comment)
+        args.comment,
+        args.regex)
 
 
 def restore_caller(args):
@@ -82,10 +83,12 @@ def main():
                           help="directory for saved snapshot files")
     gui_pars.add_argument('-b', '--base',
                           help="base directory for request files")
-    gui_pars.add_argument('-f', '--force',
-                          help="force save/restore in case of disconnected PVs", action='store_true')
-    gui_pars.add_argument('--labels', type=str,
-                          help="list of comma separated predefined labels e.g.: \"label_1,label_2\"")
+    gui_pars.add_argument(
+        '-f', '--force', help="force save/restore in case of disconnected PVs",
+        action='store_true')
+    gui_pars.add_argument(
+        '--labels', type=str,
+        help="list of comma separated predefined labels e.g.: \"label_1,label_2\"")
     gui_pars.add_argument(
         '--force_labels',
         help="force predefined labels",
@@ -101,17 +104,21 @@ def main():
         'save', help='save current state of PVs to file without using GUI')
     save_pars.set_defaults(func=save_caller)
     save_pars.add_argument('FILE', help='request file.')
-    save_pars.add_argument('-m', '--macro',
-                           help="macros for request file e.g.: \"SYS=TEST,DEV=D1\"")
+    save_pars.add_argument(
+        '-m', '--macro',
+        help="macros for request file e.g.: \"SYS=TEST,DEV=D1\"")
     save_pars.add_argument(
         '-o',
         '--out',
         default='.',
         help="Output path/file.")
-    save_pars.add_argument('-f', '--force',
-                           help="force save in case of disconnected PVs after timeout", action='store_true')
-    save_pars.add_argument('--labels', default='',
-                           help="list of comma separated labels e.g.: \"label_1,label_2\"")
+    save_pars.add_argument(
+        '-f', '--force',
+        help="force save in case of disconnected PVs after timeout",
+        action='store_true')
+    save_pars.add_argument(
+        '--labels', default='',
+        help="list of comma separated labels e.g.: \"label_1,label_2\"")
     save_pars.add_argument('--comment', default='', help="Comment")
     save_pars.add_argument(
         '--timeout',
@@ -119,15 +126,25 @@ def main():
         type=int,
         help='max time waiting for PVs to be connected')
 
+    save_pars.add_argument(
+        '--regex',
+        default='',
+        type=str,
+        help='Regex filter to be used when saving PVs'
+    )
+
     # Restore
     rest_pars = subparsers.add_parser(
         'restore', help='restore saved state of PVs from file without using GUI')
     rest_pars.set_defaults(func=restore_caller)
     rest_pars.add_argument('FILE', help='saved snapshot file')
-    rest_pars.add_argument('-f', '--force',
-                           help="force restore in case of disconnected PVs after timeout", action='store_true')
-    rest_pars.add_argument('--timeout', default=10, type=int,
-                           help='max time waiting for PVs to be connected and restored')
+    rest_pars.add_argument(
+        '-f', '--force',
+        help="force restore in case of disconnected PVs after timeout",
+        action='store_true')
+    rest_pars.add_argument(
+        '--timeout', default=10, type=int,
+        help='max time waiting for PVs to be connected and restored')
 
     # Following two functions modify sys.argv
     _set_default_subparser('gui', ['gui', 'save', 'restore'])

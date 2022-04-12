@@ -225,7 +225,7 @@ class SnapshotRestoreWidget(QWidget):
         returnValue = msgBox.exec()
         if returnValue == QMessageBox.Ok:
             self.do_restore()
-        
+
     def start_restore_filtered(self):
         filtered_n = len(self.filtered_pvs)
 

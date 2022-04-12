@@ -3,22 +3,25 @@ import logging
 import os
 import sys
 import time
+import re
 
 from snapshot.ca_core import PvStatus, ActionStatus, Snapshot
 from snapshot.core import SnapshotError, get_machine_param_data
 from snapshot.parser import parse_from_save_file
 
 
-def save(req_file_path, save_file_path='.', macros=None,
-         force=False, timeout=10, labels_str=None, comment=None):
+def save(req_file_path, save_file_path='.', macros=None, force=False,
+         timeout=10, labels_str=None, comment=None, filter_param=''):
     symlink_path = None
     if os.path.isdir(save_file_path):
         symlink_path = save_file_path + \
             '/{}_latest.snap'.format(
                 os.path.splitext(
                     os.path.basename(req_file_path))[0])
-        save_file_path += '/{}_{}.snap'.format(os.path.splitext(os.path.basename(req_file_path))[0],
-                                               datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M%S'))
+        save_file_path += '/{}_{}.snap'.format(
+            os.path.splitext(os.path.basename(req_file_path))[0],
+            datetime.datetime.fromtimestamp(time.time()).strftime(
+                '%Y%m%d_%H%M%S'))
 
     labels = []
     if labels_str.strip():
@@ -40,11 +43,9 @@ def save(req_file_path, save_file_path='.', macros=None,
         snapshot = Snapshot(req_file_path, macros)
     except (OSError, SnapshotError) as e:
         logging.error(
-            'Snapshot cannot be loaded due to a following error: {}'.format(e))
+            f'Snapshot cannot be loaded due to a following error: {e}')
         sys.exit(1)
-
-    logging.info(
-        'Waiting for PVs connections (timeout: {} s) ...'.format(timeout))
+    logging.info(f'Waiting for PVs connections (timeout: {timeout} s) ...')
     end_time = time.time() + timeout
     while snapshot.get_disconnected_pvs_names() and time.time() < end_time:
         time.sleep(0.2)
@@ -69,6 +70,12 @@ def save(req_file_path, save_file_path='.', macros=None,
         for p in invalid_params:
             params_data[p] = None
 
+    if filter_param != '':
+        list_pvs = snapshot.get_pvs_names()
+        srch_filter = re.compile(filter_param)
+        remove_pvs = [i for i in list_pvs if srch_filter.fullmatch(i) is None]
+        snapshot.remove_pvs(remove_pvs)
+
     status, pv_status = snapshot.save_pvs(save_file_path,
                                           force=force,
                                           labels=labels,
@@ -79,15 +86,15 @@ def save(req_file_path, save_file_path='.', macros=None,
     if status != ActionStatus.ok:
         for pv_name, status in pv_status.items():
             if status == PvStatus.access_err:
-                logging.error(
-                    '\"{}\": No connection or no read access.'.format(pv_name))
+                logging.error(f'"{pv_name}": No connection or no read access.')
         logging.error('Snapshot file was not saved.')
 
     else:
         for pv_name, status in pv_status.items():
             if status == PvStatus.access_err:
                 logging.warning(
-                    '\"{}\": Value not saved. No connection or no read access.'.format(pv_name))
+                    f'"{pv_name}": Value not saved. No connection or no read access.')
+
         logging.info('Snapshot file was saved.')
 
 
@@ -116,11 +123,10 @@ def restore(saved_file_path, force=False, timeout=10):
 
     except (OSError, SnapshotError) as e:
         logging.error(
-            'Snapshot cannot be loaded due to a following error: {}'.format(e))
+            f'Snapshot cannot be loaded due to a following error: {e}')
         sys.exit(1)
 
-    logging.info(
-        'Waiting for PVs connections (timeout: {} s) ...'.format(timeout))
+    logging.info(f'Waiting for PVs connections (timeout: {timeout} s) ...')
     end_time = time.time() + timeout
 
     while snapshot.get_disconnected_pvs_names() and time.time() < end_time:
@@ -135,7 +141,7 @@ def restore(saved_file_path, force=False, timeout=10):
         for pv_name, pv_status in pvs_status.items():
             if pv_status == PvStatus.access_err:
                 logging.warning(
-                    '\"{}\": Not restored. No connection or no write access.'.format(pv_name))
+                    f'"{pv_name}": Not restored. No connection or no write access.')
 
         logging.info('Snapshot file was restored.')
 
@@ -144,15 +150,14 @@ def restore(saved_file_path, force=False, timeout=10):
         for pv_name, pv_status in pvs_status.items():
             if pv_status == PvStatus.access_err:
                 logging.warning(
-                    '\"{}\": Not restored. No connection or no write access.'.format(pv_name))
+                    f'"{pv_name}": Not restored. No connection or no write access.')
 
-        logging.error('Not finished in timeout: {} s. Some PVs may not be restored. Try to increase'
-                      ' timeout.'.format(timeout))
+        logging.error(
+            f'Not finished in timeout: {timeout} s. Some PVs may not be restored. Try to increase timeout.')
 
     else:
         for pv_name, pv_status in pvs_status.items():
             if pv_status == PvStatus.access_err:
-                logging.error(
-                    '\"{}\": No connection or no write access.'.format(pv_name))
+                logging.error(f'"{pv_name}": No connection or no write access.')
 
         logging.error('Snapshot file was not restored.')
