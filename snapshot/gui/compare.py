@@ -38,7 +38,7 @@ from PyQt5.QtWidgets import (
 )
 
 from ..ca_core import Snapshot
-from ..core import PrintFloat, PvUpdater, SnapshotPv, process_record
+from ..core import PvUpdater, SnapshotPv, process_record
 from ..parser import parse_from_save_file, save_file_suffix
 from .utils import make_separator, show_snapshot_parse_errors
 
