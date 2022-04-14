@@ -628,7 +628,7 @@ def list_save_files(save_dir, req_file_path):
     req_file_name = os.path.basename(req_file_path)
     file_dir = os.path.join(save_dir, os.path.splitext(req_file_name)[0])
     file_paths = [path for path in glob.glob(
-        f'{file_dir}/*{save_file_suffix}') if os.path.isfile(path)]
+        f'{file_dir}*{save_file_suffix}') if os.path.isfile(path)]
 
     modif_times = [os.path.getmtime(path) for path in file_paths]
     return req_file_name, file_paths, modif_times
