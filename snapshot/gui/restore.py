@@ -397,7 +397,7 @@ class SnapshotRestoreWidget(QWidget):
             self.restore_all_button.setEnabled(False)
             self.restore_button.setEnabled(False)
 
-        selected_data = dict()
+        selected_data = {}
         for file_name in selected_files:
             file_data = self.file_selector.file_list.get(file_name, None)
             if file_data:
@@ -424,17 +424,14 @@ class SnapshotRestoreFileSelector(QWidget):
         QWidget.__init__(self, parent, **kw)
 
         self.snapshot = snapshot
-        self.selected_files = list()
+        self.selected_files = []
         self.common_settings = common_settings
 
-        self.file_list = dict()
-        self.pvs = dict()
+        self.file_list = {}
+        self.pvs = {}
 
         # Filter handling
-        self.file_filter = dict()
-        self.file_filter["keys"] = list()
-        self.file_filter["comment"] = ""
-
+        self.file_filter = {"keys": [], "comment": ""}
         self.filter_input = SnapshotFileFilterWidget(
             self.common_settings, self)
 
@@ -612,9 +609,8 @@ class SnapshotRestoreFileSelector(QWidget):
                         tol = 10**(-prec) if (prec and prec > 0) else 10**-6
                         if abs(v1 - v2) > tol:
                             return False
-                    else:
-                        if v1 != v2:
-                            return False
+                    elif v1 != v2:
+                        return False
 
                 elif len(vals) == 2:
                     vals = ensure_nums_or_strings(*vals)
@@ -622,7 +618,7 @@ class SnapshotRestoreFileSelector(QWidget):
                     high = max(vals)
                     v = file_params[p]['value']
                     v, low, high = ensure_nums_or_strings(v, low, high)
-                    if not (v >= low and v <= high):
+                    if v < low or v > high:
                         return False
             return True
 
@@ -708,11 +704,11 @@ class SnapshotRestoreFileSelector(QWidget):
 
     def select_files(self):
         # Pre-process selected items, to a list of files
-        self.selected_files = list()
+        self.selected_files = []
         if self.file_selector.selectedItems():
-            for item in self.file_selector.selectedItems():
-                self.selected_files.append(
-                    item.text(FileSelectorColumns.filename))
+            self.selected_files.extend(
+                item.text(FileSelectorColumns.filename)
+                for item in self.file_selector.selectedItems())
 
         self.files_selected.emit(self.selected_files)
 
@@ -850,7 +846,7 @@ class ParamFilterValidator(QtGui.QValidator):
                 return
             values = [num_or_string(v.strip())
                       for v in value_string.split(',')]
-            if len(values) < 1 or len(values) > 2:
+            if not values or len(values) > 2:
                 return
             if any((x is None for x in values)):
                 return
