@@ -1,142 +1,107 @@
-record(calc, "$(S):random")
+record(calcout, "snapshot:test:_sinecounter")
+{
+    field(SCAN, ".1 second")
+    field(CALC, "A+B")
+    field(INPA, "snapshot:test:_sinecounter.VAL NPP")
+    field(INPB, "0.01")
+    field(OCAL, "sin(A)")
+    field(DOPT, "Use OCAL")
+    field(OUT, "snapshot:test:sine PP")
+}
+
+record(ai, "snapshot:test:sine")
+{
+    field(PREC, 4)
+    field(FLNK, "snapshot:test:_anglecounter.PROC")
+}
+
+record(calcout, "snapshot:test:_anglecounter")
+{
+    field(CALC, "asin(A)")
+    field(INPA, "snapshot:test:sine")
+    field(OUT, "snapshot:test:angle_rad PP")
+    field(FLNK, "snapshot:test:_angletodeg.PROC")
+}
+
+record(ai, "snapshot:test:angle_rad")
+{
+    field(PREC, 2)
+    field(EGU, "radians")
+}
+
+record(calcout, "snapshot:test:_angletodeg")
+{
+    field(CALC, "A*180/3.14")
+    field(INPA, "snapshot:test:angle_rad")
+    field(OUT, "snapshot:test:angle_deg PP")
+}
+
+record(ai, "snapshot:test:angle_deg")
+{
+    field(PREC, 0)
+    field(EGU, "deg")
+}
+
+record(ai, "snapshot:test:alarms")
+{
+    field(PREC, 1)
+    field(INP, "snapshot:test:sine CP")
+    field(HIGH, "0.5")
+    field(HIHI, "0.8")
+    field(HSV, "MINOR")
+    field(HHSV, "MAJOR")
+    field(LOW, "-0.5")
+    field(LOLO, "-0.8")
+    field(LSV, "MINOR")
+    field(LLSV, "MAJOR")
+}
+
+record(calcout, "snapshot:test:_statuscalc")
+{
+    field(SCAN, ".5 second")
+    field(CALC, "(A+1)%6")
+    field(INPA, "snapshot:test:_statuscalc.VAL NPP")
+    field(OUT, "snapshot:test:some_status PP")
+}
+
+record(mbbi, "snapshot:test:some_status")
+{
+    field(ZRST, "Init")
+    field(ONST, "Ready")
+    field(TWST, "Run")
+    field(THST, "Error")
+    field(THSV, "MAJOR")
+    field(FRST, "Bootloader")
+    field(FRSV, "MINOR")
+    field(FVST, "Reset Imminent")
+    field(FVSV, "MINOR")
+}
+
+record(mbbiDirect, "snapshot:test:some_status_direct")
+{
+    field(INP, "snapshot:test:some_status CP")
+}
+
+record(calcout, "snapshot:test:_switchcalc")
 {
     field(SCAN, "1 second")
-    field(INPA, "10")
-    field(CALC, "RNDM*A")
+    field(CALC, "A>0?0:1")
+    field(INPA, "snapshot:test:_switchcalc.VAL NPP")
+    field(OUT, "snapshot:test:switch_with_text PP")
 }
 
-record(ao, "$(S):limit"){
-    field(DRVH, "100")
-    field(DOL, "10")
-    field(PINI, "YES")
-}
-
-record(calc, "$(S):ramp"){
-    field(SCAN, "1 second")
-    field(INPA, "$(S):ramp")
-    field(INPB, "$(S):limit")
-    field(CALC, "A<B ? A+1 : 0")
-}
-
-record(ai, "$(user):tank"){
-    field(DESC,"Water Temparature")
-    field(SCAN, ".5 second")
-    field(INPA, "10")
-    field(EGU, ”Celsius")
-    field(HIGH,”90")
-    field(HSV, ”MAJOR")
-}
-
-record(ai, temp){
-    field(DESC, "Read temperature")
-    field(SCAN, "1 second")
-    field(DTYP, "XYZ ADC")
-    field(INP, "#C1 S4")
-    field(PREC, 1)
-    field(EGU, "Celcius")
-    field(HOPR, "100")
-    field(LOPR, "0")
-    field(SMOO, "0.5")
-}
-
-record(calcout, check){
-    field(DESC, "Control heater")
-    field(CALC, "A<10")
-    field(INPA, "temp CP MS)
-    field(OUT, "switch")
-    field(OOPT, "On change")
-}
-
-record(bo, switch){
-    field(DESC, "Heater switch")
-    field(DTYP, "XYZ DAC")
+record(bo, "snapshot:test:switch_with_text")
+{
     field(ZNAM, "Open")
     field(ONAM, "Closed")
-    field(IVOA, "Set output to IVOV")
-    field(IVOV, 0)
 }
 
-record(ao, "$(user):setpoint"){
-    field(DESC, "Temperature Setpoint")
-    field(EGU, "Celsius")
-    field(HOPR, "0")
-    field(LOPR, "100")
-    field(DRVL, "0")
-    field(DRVH, "100")
-    field(PREC, "1")
-    field(DOL, "30")
-    field(PINI, "YES")
+record(bi, "snapshot:test:switch_without_text")
+{
+    field(INP, "snapshot:test:switch_with_text CP")
 }
 
-record(ao, "$(user):room"){
-    field(DESC, "Room Temperature")
-    field(EGU, "Celsius")
-    field(HOPR, "40")
-    field(LOPR, "0")
-    field(DRVL, "0")
-    field(DRVH, "40")
-    field(DOL, "25")
-    field(PINI, "YES")
-}
-
-record(ao, "$(user):heat_V"){
-    field(DESC, "Heater Voltage")
-    field(EGU, "V")
-    field(DRVL,"0")
-    field(DRVH,"110")
-    field(DOL, "$(user):PID MS")
-    field(OMSL,"closed_loop")
-    field(IVOA, "Set output to IVOV")
-    field(IVOV, "0")
-}
-
-record(calc, "$(user):heat_Pwr"){
-    field(DESC, "Heater Power")
-    field(EGU, "W")
-    field(INPA, "$(user):heat_V PP NMS")
-    field(CALC, "A*A/12.1")
-}
-
-record(calc, "$(user):tank_clc"){
-    field(DESC,"Water Tank Simulation")
-    field(SCAN,"1 second")
-    field(INPA,"$(user):tank_clc.VAL")
-    field(INPB,"$(user):room")
-    field(INPC,"$(user):heat_Pwr PP NMS")
-    field(INPD,"0.01")
-    field(INPE,"0.001")
-    field(CALC,"A+(B-A)*D+C*E")
-    field(FLNK,"$(user):tank")
-}
-
-record(calc, "$(user):error"){
-    field(DESC, "Temperature Error")
-    field(SCAN, "1 second")
-    field(INPA, "$(user):setpoint")
-    field(INPB, "$(user):tank MS")
-    field(CALC, "A-B")
-    field(PREC, "1")
-    field(FLNK, "$(user):integral")
-}
-
-record(calc, "$(user):integral"){
-    field(DESC, "Integrate Err`or for PID")
-    field(PREC, "3")
-    field(INPA, "$(user):error PP MS")
-    field(INPB, "$(user):integral")
-    field(INPC, "20.0")
-    field(CALC, "(B+A>C)?C:(B+A<-C)?(-C):(B+A)")
-    field(FLNK, "$(user):PID")`
-}
-
-record(calc, "$(user):PID"){
-    field(DESC, "Water Tank PID")
-    field(PREC, "3")
-    field(LOPR, "0")
-    field(HOPR, "110")
-    field(INPA, "10.0")
-    field(INPB, "$(user):error MS")
-    field(INPC, "5.0")
-    field(INPD, "$(user):integral MS")
-    field(CALC, "A*B+C*D")
+record(stringout, "snapshot:test:text")
+{
+    field(VAL, "text in snapshot:test:text")
 }
