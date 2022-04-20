@@ -209,8 +209,8 @@ class SnapshotSaveWidget(QWidget):
     def save_done(self, status, forced, output_file):
         # Enable save button, and update status widgets
         success = True
-        msgs = list()
-        msg_times = list()
+        msgs = []
+        msg_times = []
         status_txt = ""
         status_background = ""
         for pvname, sts in status.items():
@@ -218,12 +218,10 @@ class SnapshotSaveWidget(QWidget):
                 if sts == PvStatus.access_err:
                     # if here and not in force mode, then this is error state
                     success = success and not forced
-                    msgs.append(
-                        "WARNING: {}: Not saved (no connection or no read access)".format(pvname))
+                    msgs.append(f"WARNING: {pvname}: Not saved (no connection or no read access)")
                 else:
                     success = False
-                    msgs.append("WARNING: {}: Not saved, error status {}."
-                                .format(pvname, sts))
+                    msgs.append(f"WARNING: {pvname}: Not saved, error status {sts}.")
                 msg_times.append(time.time())
                 status_txt = "Save error"
                 status_background = "#F06464"
@@ -302,8 +300,8 @@ class SnapshotAdvancedSaveSettings(QWidget):
         labels_label.setMinimumWidth(min_label_width)
         # If default labels are defined, then force default labels
         self.labels_input = SnapshotKeywordSelectorWidget(common_settings,
-                                                          defaults_only=common_settings['force_default_labels'],
-                                                          parent=self)
+                            defaults_only=common_settings['force_default_labels'],
+                            parent=self)
         labels_layout.addWidget(labels_label)
         labels_layout.addWidget(self.labels_input)
 
