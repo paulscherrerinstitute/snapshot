@@ -1,6 +1,5 @@
 import json
 import logging
-from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from threading import Lock, Thread
 from time import monotonic, sleep, time
@@ -23,11 +22,6 @@ def since_start(message=None):
 def enable_tracing(enable=True):
     global _print_trace
     _print_trace = enable
-
-
-# A shared thread pool that can be used from anywhere for tasks that
-# should run in background, but not indefinitely.
-global_thread_pool = ThreadPoolExecutor(16)
 
 
 def process_record(pvname):

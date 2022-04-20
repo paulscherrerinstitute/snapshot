@@ -49,6 +49,12 @@ class PvCompareFilter(enum.Enum):
     show_eq = 2
 
 
+class PvViewFilter(enum.Enum):
+    show_all = 0
+    show_conn = 1
+    show_disconn = 2
+
+
 class SnapshotCompareWidget(QWidget):
     pvs_filtered = QtCore.pyqtSignal(set)
     restore_requested = QtCore.pyqtSignal(list)
@@ -144,13 +150,10 @@ class SnapshotCompareWidget(QWidget):
         self.compare_filter_inp.setMaximumWidth(200)
         compare_layout.addWidget(self.compare_filter_inp)
 
-        connected_layout = QHBoxLayout()
-        connected_layout.setSpacing(10)
-
         connected_label = QLabel(self)
         connected_label.setText("View:")
         connected_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
-        connected_layout.addWidget(connected_label)
+        compare_layout.addWidget(connected_label)
 
         self.connected_filter_inp = QComboBox(self)
         self.connected_filter_inp.addItems(
@@ -159,7 +162,7 @@ class SnapshotCompareWidget(QWidget):
         self.connected_filter_inp.currentIndexChanged.connect(
             self._proxy.set_view_filter)
         self.connected_filter_inp.setMaximumWidth(200)
-        connected_layout.addWidget(self.connected_filter_inp)
+        compare_layout.addWidget(self.connected_filter_inp)
 
         # Tolerance setting
         tol_label = QLabel("Tolerance:")
@@ -182,8 +185,6 @@ class SnapshotCompareWidget(QWidget):
 
         # Comparison dropdown
         filter_layout.addLayout(compare_layout)
-        # Connected dropdown
-        filter_layout.addLayout(connected_layout)
 
         filter_layout.setAlignment(Qt.AlignLeft)
         filter_layout.setSpacing(10)
@@ -873,6 +874,14 @@ class SnapshotPvTableLine(QtCore.QObject):
                 else:
                     snap['icon'] = self._EQ_ICON
 
+                # if enum strings available, use the value to
+                # get the desired str representation of it
+                try:
+                    self.data[PvTableColumns.snapshots + i -
+                              1]['data'] = self._pv_ref.enum_strs[int(snap['data'])]
+                except (TypeError, ValueError) as e:
+                    pass
+
     def tolerance_from_precision(self):
         prec = self.precision
         if not prec or prec < 0:
@@ -915,8 +924,8 @@ class SnapshotPvTableLine(QtCore.QObject):
         # if enum strings available, use the value to
         # get the desired str representation of it
         try:
-            enum_str_value = self._pv_ref.enum_strs[pv_value]
-        except TypeError:
+            enum_str_value = self._pv_ref.enum_strs[int(pv_value)]
+        except (TypeError, ValueError) as e:
             pass
         else:
             new_value = enum_str_value
@@ -953,8 +962,7 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._disconn_filter = True  # show disconnected?
-        self._conn_filter = True  # show connected
+        self._view_filter = PvViewFilter.show_all
         self._name_filter = ''  # string or regex object
         self._eq_filter = PvCompareFilter.show_all
         self._filtered_pvs = set()
@@ -972,25 +980,7 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
         self.apply_filter()
 
     def set_view_filter(self, mode):
-        # 0 = Show all
-        # 1 = Connected
-        # 2 = Disconnected
-        if mode == 0:
-            self.set_conn_filter(2)
-            self.set_disconn_filter(2)
-        elif mode == 1:
-            self.set_conn_filter(2)
-            self.set_disconn_filter(0)
-        elif mode == 2:
-            self.set_conn_filter(0)
-            self.set_disconn_filter(2)
-
-    def set_conn_filter(self, state):
-        self._conn_filter = state
-        self.apply_filter()
-
-    def set_disconn_filter(self, state):
-        self._disconn_filter = state
+        self._view_filter = PvViewFilter(mode)
         self.apply_filter()
 
     def apply_filter(self):
@@ -1021,6 +1011,7 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
 
             if n_files > 1:  # multi-file mode
                 files_equal = row_model.are_snap_values_eq()
+
                 compare_match = (
                     ((self._eq_filter == PvCompareFilter.show_eq) and
                      files_equal)
@@ -1029,10 +1020,10 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
                         and not files_equal)
                     or (self._eq_filter == PvCompareFilter.show_all))
 
-                result = name_match and (
-                    (row_model.conn and compare_match) or (
-                        not row_model.conn and self._disconn_filter) or (
-                            row_model.conn and self._conn_filter))
+                result = name_match and compare_match and (
+                    (self._view_filter == PvViewFilter.show_all) or
+                    (not row_model.conn and (self._view_filter == PvViewFilter.show_disconn)) or
+                    (row_model.conn and (self._view_filter == PvViewFilter.show_conn)))
 
             elif n_files == 1:  # "pv-compare" mode
                 compare = row_model.is_snap_eq_to_pv(0)
@@ -1043,15 +1034,17 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
                         and not compare)
                     or (self._eq_filter == PvCompareFilter.show_all))
 
-                result = name_match and (
-                    (row_model.conn and compare_match) or (
-                        not row_model.conn and self._disconn_filter) or (
-                            row_model.conn and self._conn_filter))
+                result = name_match and compare_match and (
+                    (self._view_filter == PvViewFilter.show_all) or
+                    (not row_model.conn and (self._view_filter == PvViewFilter.show_disconn)) or
+                    (row_model.conn and (self._view_filter == PvViewFilter.show_conn)))
+
             else:
                 # Only name and connection filters apply
                 result = (name_match and
-                          ((not row_model.conn and self._disconn_filter) or (
-                              row_model.conn and self._conn_filter)))
+                          ((self._view_filter == PvViewFilter.show_all) or
+                           (not row_model.conn and (self._view_filter == PvViewFilter.show_disconn)) or
+                           (row_model.conn and (self._view_filter == PvViewFilter.show_conn))))
 
         if result:
             self._filtered_pvs.add(row_model.pvname)

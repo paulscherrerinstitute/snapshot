@@ -95,8 +95,8 @@ class FileListScanner(QtCore.QObject, BackgroundThread):
 
         since_start("Started looking for changes in snapshot files")
 
-        file_paths, modif_times = list_save_files(self._save_dir,
-                                                  self._req_file_name)
+        req_file_name, file_paths, modif_times = list_save_files(
+            self._save_dir, self._req_file_name)
         change_detected = False
 
         try:

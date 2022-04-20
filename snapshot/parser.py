@@ -5,11 +5,13 @@ import os
 import re
 import time
 from itertools import chain
+import concurrent.futures
 
 import numpy
 import yaml
 
-from snapshot.core import SnapshotError, SnapshotPv, global_thread_pool, since_start
+from snapshot.core import SnapshotError, SnapshotPv, since_start
+
 
 from PyQt5.QtWidgets import QMessageBox
 
@@ -100,8 +102,9 @@ class SnapshotReqFile(object):
 
         pvs, metadata, includes, pvs_config = result
         while includes:
-            results = global_thread_pool.map(lambda f: f._read_only_self(),
-                                             includes)
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                results = executor.map(lambda f: f._read_only_self(),
+                                       includes)
             old_includes = includes
             includes = []
             for result, inc in zip(results, old_includes):
@@ -674,7 +677,8 @@ def get_save_files(save_dir, req_file_path):
                             'meta_data': meta_data,
                             'modif_time': modif_time},
                         err)
-    results = global_thread_pool.map(process_file, file_paths, modif_times)
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        results = executor.map(process_file, file_paths, modif_times)
     err_to_report = []
     parsed_save_files = {}
     for r in results:

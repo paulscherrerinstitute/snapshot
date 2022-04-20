@@ -8,6 +8,8 @@ import datetime
 import json
 import os
 import sys
+import concurrent.futures
+
 
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt, QTimer
@@ -33,7 +35,6 @@ from snapshot.core import (
     SnapshotError,
     background_workers,
     enable_tracing,
-    global_thread_pool,
     since_start,
 )
 from snapshot.parser import ReqParseError, get_save_files, initialize_config
@@ -243,8 +244,10 @@ class SnapshotGui(QMainWindow):
         # Read snapshots and instantiate PVs in parallel
         def getfiles(*args):
             return get_save_files(*args)
-        future_files = global_thread_pool.submit(getfiles, save_dir,
-                                                 req_file_path)
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future_files = executor.submit(getfiles, save_dir,
+                                           req_file_path)
         self.init_snapshot(req_file_path, macros)
         if self.common_settings['save_dir'] == save_dir:
             already_parsed_files = future_files.result()
