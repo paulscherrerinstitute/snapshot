@@ -340,6 +340,9 @@ class SnapshotRestoreWidget(QWidget):
             self.restore_all_button.setEnabled(True)
             self.restore_button.setEnabled(True)
 
+    def set_checkbox_restore(self, checked):
+        self.file_selector.set_checkbox_restore(checked)
+
     def restore_done_callback(self, status, forced, **kw):
         # Raise callback to handle GUI specifics in GUI thread
         self.restored_callback.emit(status, forced)
@@ -426,6 +429,7 @@ class SnapshotRestoreFileSelector(QWidget):
         self.snapshot = snapshot
         self.selected_files = []
         self.common_settings = common_settings
+        self._checkbox_restore = True
 
         self.file_list = {}
         self.pvs = {}
@@ -477,32 +481,37 @@ class SnapshotRestoreFileSelector(QWidget):
         layout.addWidget(self.filter_input)
         layout.addWidget(self.file_selector)
 
+    def set_checkbox_restore(self, checked):
+        self._checkbox_restore = checked
+
     def handle_new_snapshot_instance(self, snapshot):
         self.clear_file_selector()
         self.filter_input.clear()
         self.snapshot = snapshot
 
     def rebuild_file_list(self, already_parsed_files=None):
-        background_workers.suspend()
-        self.clear_file_selector()
-        self.file_selector.setSortingEnabled(False)
-        if already_parsed_files:
-            save_files, err_to_report = already_parsed_files
-        else:
-            save_dir = self.common_settings["save_dir"]
-            req_file_path = self.common_settings["req_file_path"]
-            save_files, err_to_report = get_save_files(save_dir, req_file_path)
+        if self._checkbox_restore:
+            background_workers.suspend()
+            self.clear_file_selector()
+            self.file_selector.setSortingEnabled(False)
+            if already_parsed_files:
+                save_files, err_to_report = already_parsed_files
+            else:
+                save_dir = self.common_settings["save_dir"]
+                req_file_path = self.common_settings["req_file_path"]
+                save_files, err_to_report = get_save_files(save_dir, req_file_path)
 
-        self._update_file_list_selector(save_files)
-        self.filter_file_list_selector()
+            self._update_file_list_selector(save_files)
+            self.filter_file_list_selector()
 
-        # Report any errors with snapshot files to the user
-        if err_to_report:
-            show_snapshot_parse_errors(self, err_to_report)
+            # Report any errors with snapshot files to the user
+            if err_to_report:
+                show_snapshot_parse_errors(self, err_to_report)
 
-        self.file_selector.setSortingEnabled(True)
-        self.files_updated.emit(save_files)
-        background_workers.resume()
+            self.file_selector.setSortingEnabled(True)
+            self.files_updated.emit(save_files)
+            background_workers.resume()
+
 
     def _update_file_list_selector(self, file_list):
         new_labels = set()
