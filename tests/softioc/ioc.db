@@ -105,3 +105,54 @@ record(stringout, "snapshot:test:text")
 {
     field(VAL, "text in snapshot:test:text")
 }
+
+#record(waveform, "snapshot:test:wf_strings")
+#{
+#    field(FTVL, "STRING")
+#    field(NELM, "3")
+#    field(INP, ["abc", "def", "ghi"])
+#}
+#
+#record(waveform, "snapshot:test:wf_strings_large")
+#{
+#    field(FTVL, "STRING")
+#    field(NELM, "10")
+#    field(INP, ["abc", "def", "ghi", "jkl", "nmo", "prs", "tuv", "xyz", "zyx", "vut"])
+#}
+#
+#record(waveform, "snapshot:test:wf_ints")
+#{
+#    field(FTVL, "LONG")
+#    field(NELM, "15")
+#    field(INP, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+#}
+#
+#record(waveform, "snapshot:test:wf_chars")
+#{
+#    field(FTVL, "CHAR")
+#    field(NELM, "15")
+#    field(INP, [0x41, 0x42, 0x41, 0x42, 0x41, 0x42, 0x41, 0x42, 0x41, 0x42, 0x41, 0x42, 0x41, 0x42, 0x51])
+#}
+#
+#record(waveform, "snapshot:test:wf_double")
+#{
+#    field(FTVL, "DOUBLE")
+#    field(NELM, "15")
+#    field(INP, [1.1, 2.2, 3.2, 4.2, 5.2, 6.2, 7.2, 8.2, 9.2, 10.2, 11.22, 12.2, 13.33, 14.1, 15.2])
+#}
+#
+#record(waveform, "snapshot:test:wf_double_prec_2")
+#{
+#    field(PREC, 2)
+#    field(FTVL, "DOUBLE")
+#    field(NELM, "15")
+#    field(INP, [1.1, 2.2, 3.2, 4.2, 5.2, 6.2, 7.2, 8.2, 9.2, 10.2, 11.22, 12.2, 13.33, 14.1, 15.2])
+#}
+#
+#record(waveform, "snapshot:test:wf_double_prec_5")
+#{
+#    field(PREC, 5)
+#    field(FTVL, "DOUBLE")
+#    field(NELM, "15")
+#    field(INP, [1.1, 2.2, 3.2, 4.2, 5.2, 6.2, 7.2, 8.2, 9.2, 10.2, 11.22, 12.2, 13.33, 14.1, 15.2])
+#}
