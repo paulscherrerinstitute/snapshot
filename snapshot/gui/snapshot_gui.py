@@ -286,6 +286,14 @@ class SnapshotGui(QMainWindow):
             self.snapshot = Snapshot(req_file_path, req_macros)
             self.set_request_file(req_file_path, req_macros)
 
+            # readonly mode detection
+            self.common_settings['read_only'] = self.snapshot.req_file_metadata.get(
+                'read_only', self.common_settings['read_only'])
+            if self.common_settings['read_only']:
+                self.restore_widget.hide_restore_buttons()
+            else:
+                self.restore_widget.show_restore_buttons()
+
         except (ReqParseError, OSError) as e:
             msg = 'Request file cannot be loaded. ' \
                 'See details for type of error.'

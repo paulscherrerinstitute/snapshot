@@ -176,8 +176,8 @@ class SnapshotRestoreWidget(QWidget):
 
         btn_layout = QHBoxLayout()
         btn_layout.addWidget(self.refresh_button)
+        btn_layout.addStretch()
         if self.common_settings['read_only']:
-            btn_layout.addStretch()
             self.restore_all_button.setVisible(False)
             self.restore_button.setVisible(False)
         btn_layout.addWidget(self.restore_all_button)
@@ -212,6 +212,14 @@ class SnapshotRestoreWidget(QWidget):
         self.scanner.change_paths(self.common_settings["save_dir"],
                                   self.common_settings["req_file_path"])
         self.rebuild_file_list(already_parsed_files)
+
+    def hide_restore_buttons(self):
+        self.restore_all_button.setVisible(False)
+        self.restore_button.setVisible(False)
+
+    def show_restore_buttons(self):
+        self.restore_all_button.setVisible(True)
+        self.restore_button.setVisible(True)
 
     def indicate_refresh_needed(self):
         self.refresh_button.setStyleSheet('background-color: red;')
