@@ -23,6 +23,8 @@ accepting explicit channels also the use of macros are possible. From version
 files. From version 2.0.26 on, the request file can begin with a JSON
 configuration (see further down for details).
 
+> :warning: **"\*.req" files are deprecated**: Next release will remove support for these files, please use JSON/YAML file format.
+
 ```
 examplePv:test-1
 examplePv:test-2
@@ -43,24 +45,26 @@ tool.
 To use graphical interface snapshot must be started with following command:
 
 ```bash
-snapshot [-h] [-m MACRO] [-d DIR] [-b BASE] [-f] [--labels LABELS] [--force_labels] [--config CONFIG] [FILE]
+usage: snapshot.py gui [-h] [-m MACRO] [-d DIR] [-b BASE] [-f] [--labels LABELS] [--force_labels] [--config CONFIG] [--trace-execution] [--read_only] [FILE]
 
 Longer version of same command:
-snapshot gui [-h] [-m MACRO] [-d DIR] [-b BASE] [-f] [--labels LABELS] [--force_labels] [--config CONFIG] [FILE]
+usage: snapshot.py gui [-h] [-m MACRO] [-d DIR] [-b BASE] [-f] [--labels LABELS] [--force_labels] [--config CONFIG] [--trace-execution] [--read_only] [FILE]
 
 positional arguments:
   FILE                  request file.
 
+optional arguments:
   -h, --help            show this help message and exit
   -m MACRO, --macro MACRO
                         macros for request file e.g.: "SYS=TEST,DEV=D1"
   -d DIR, --dir DIR     directory for saved snapshot files
   -b BASE, --base BASE  base directory for request files
   -f, --force           force save/restore in case of disconnected PVs
-  --labels LABELS       list of comma separated predefined labels e.g.:
-                        "label_1,label_2"
+  --labels LABELS       list of comma separated predefined labels e.g.: "label_1,label_2"
   --force_labels        force predefined labels
   --config CONFIG       path to configuration file
+  --trace-execution     print info during long-running tasks
+  --read_only           Snapshot without the restore buttons (read only mode)
 ```
 
 The `--config` option is deprecated, although it remains. It is recommended
