@@ -49,7 +49,8 @@ def gui(args):
     start_gui(req_file_path=args.FILE, req_file_macros=args.macro,
               save_dir=args.dir, force=args.force, default_labels=args.labels,
               force_default_labels=args.force_labels, init_path=args.base,
-              config_path=args.config, trace_execution=args.trace_execution)
+              config_path=args.config, trace_execution=args.trace_execution,
+              read_only=args.read_only)
 
 
 def main():
@@ -98,6 +99,10 @@ def main():
         '--trace-execution',
         help="print info during long-running tasks",
         action='store_true')
+    gui_pars.add_argument(
+        '--read_only', default=False, action='store_true',
+        help="Snapshot without the restore buttons (read only mode)"
+    )
 
     # Save
     save_pars = subparsers.add_parser(

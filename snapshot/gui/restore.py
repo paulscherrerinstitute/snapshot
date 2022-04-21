@@ -176,6 +176,10 @@ class SnapshotRestoreWidget(QWidget):
 
         btn_layout = QHBoxLayout()
         btn_layout.addWidget(self.refresh_button)
+        if self.common_settings['read_only']:
+            btn_layout.addStretch()
+            self.restore_all_button.setVisible(False)
+            self.restore_button.setVisible(False)
         btn_layout.addWidget(self.restore_all_button)
         btn_layout.addWidget(self.restore_button)
 

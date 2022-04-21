@@ -386,7 +386,7 @@ class ReqFileInfLoopError(ReqParseError):
 def initialize_config(config_path=None, save_dir=None, force=False,
                       default_labels=None, force_default_labels=None,
                       req_file_path=None, req_file_macros=None,
-                      init_path=None, **kwargs):
+                      init_path=None, read_only=False, **kwargs):
     """
     Settings are a dictionary which holds common configuration of
     the application (such as directory with save files, request file
@@ -401,6 +401,7 @@ def initialize_config(config_path=None, save_dir=None, force=False,
     :param req_file_macros: macros can be as dict (key, value pairs)
                             or a string in format A=B,C=D
     :param init_path: default path to be shown on the file selector
+    :param read_only: disable the restore button on the UI to a 'read only' snapshot mode
     """
     config = {'config_ok': True, 'macros_ok': True}
     if config_path:
@@ -463,6 +464,9 @@ def initialize_config(config_path=None, save_dir=None, force=False,
     if not save_dir:
         # Default save dir (do this once we have valid req file)
         save_dir = os.path.dirname(config['req_file_path'])
+
+    # read only mode
+    config['read_only'] = read_only
 
     config['save_dir'] = os.path.abspath(save_dir) if save_dir else None
     return config
