@@ -7,10 +7,10 @@ snapshot:test:switch_with_text
 snapshot:test:switch_without_text
 snapshot:test:some_status_direct
 snapshot:test:text
-#snapshot:test:wf_strings
-#snapshot:test:wf_strings_large
-#snapshot:test:wf_ints
-#snapshot:test:wf_chars
-#snapshot:test:wf_double
-#snapshot:test:wf_double_prec_2
-#snapshot:test:wf_double_prec_5
+snapshot:test:wf_strings
+snapshot:test:wf_strings_large
+snapshot:test:wf_ints
+snapshot:test:wf_chars
+snapshot:test:wf_double
+snapshot:test:wf_double_prec_2
+snapshot:test:wf_double_prec_5
