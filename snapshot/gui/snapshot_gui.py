@@ -158,11 +158,6 @@ class SnapshotGui(QMainWindow):
 
         self.save_widget.saved.connect(self.restore_widget.rebuild_file_list)
 
-        # Restore checkbox
-        self.restore_save = QCheckBox("Restore after save")
-        self.restore_save.setChecked(True)
-        self.restore_save.toggled.connect(self.toggle_restore_after_save)
-
         self.autorefresh = QCheckBox("Periodic PV update")
         self.autorefresh.setChecked(True)
         self.autorefresh.toggled.connect(self.toggle_autorefresh)
@@ -170,9 +165,6 @@ class SnapshotGui(QMainWindow):
         left_layout = QVBoxLayout()
         left_layout.addWidget(self.save_widget)
         left_layout.addStretch()
-        left_layout.addWidget(make_separator(self, 'horizontal'))
-        left_layout.addWidget(self.restore_save)
-        left_layout.addWidget(self.restore_widget)
         left_layout.addWidget(make_separator(self, 'horizontal'))
         left_layout.addWidget(self.autorefresh)
         left_widget = QWidget()
@@ -213,9 +205,6 @@ class SnapshotGui(QMainWindow):
             lambda: self.change_req_file(
                 self.common_settings['req_file_path'],
                 self.common_settings['req_file_macros'],))
-
-    def toggle_restore_after_save(self, checked):
-        self.restore_widget.set_checkbox_restore(checked)
 
     def toggle_autorefresh(self, checked):
         if checked:
