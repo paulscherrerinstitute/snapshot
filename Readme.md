@@ -112,7 +112,7 @@ following keys:
 - "labels": a dict containing:
 
   - "labels": an array of labels that can be applied to snapshot files.
-  - "force-labels": a boolean. If true, only labels defined here will be
+  - "force_labels": a boolean. If true, only labels defined here will be
     available for saving in the snapshot files. If false, additional labels that
     may be present in the existing files will also be available.
 
@@ -120,7 +120,7 @@ following keys:
 
   - "filters": an array of predefined PV name filters that will be available
     from the filter drop-down menu.
-  - "rgx-filters": same as "filters", except the filters are in regular
+  - "rgx_filters": same as "filters", except the filters are in regular
     expression syntax.
 
 - "machine_params": an array of machine parameters, i.e. PVs that are not part
