@@ -694,6 +694,9 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self._tolerance_f = tol_f
         for line in self._data:
             line.change_tolerance(tol_f)
+            # tolerance changing requires values to be update
+            if line._pv_ref.connected:
+                line.update_pv_value(line._pv_ref.value)
         self._emit_dataChanged()
 
 
@@ -795,11 +798,6 @@ class SnapshotPvTableLine(QtCore.QObject):
         # update eff. tol column
         self.data[PvTableColumns.effective_tol] = {
             'data': self.effective_tolerance}
-        # //TODO VALIDATE IF THIS IS CORRECT
-        # update value
-        self.data[PvTableColumns.value]['data'] = SnapshotPv.value_to_display_str(
-            self._pv_ref.value, self._precision)
-
         self._compare()
 
     def append_snap_value(self, value):
@@ -935,8 +933,6 @@ class SnapshotPvTableLine(QtCore.QObject):
 
         if value_col['data'] == new_value:
             return False
-
-        eff_col['data'] = self.effective_tolerance
 
         value_col['data'] = new_value
         self._compare(pv_value)
