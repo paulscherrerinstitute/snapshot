@@ -1,23 +1,5 @@
 {
     "PVS":{
-        "S10CB04-DBLM130": { 
-            "CHANNELS": [
-                { 
-                    "name": "AL1-MPS-GAIN-B",
-                    "precision": 5
-                },
-                { 
-                    "name": "AL1-MPS-GAIN-A",
-                    "precision": 2
-                },
-                {
-                    "name": "AL0-MPS-GAIN-B"
-                },
-                {
-                    "name": "AL0-MPS-GAIN-A"
-                }
-            ]
-        },
         "MTEST-CAQTDM-CAMERA":
             { 
                 "DEFAULT_CONFIG":{
@@ -41,10 +23,6 @@
                         "precision": 3
                     },
                     { 
-                        "name": "SADASCXASCXAS",
-                        "precision": 3
-                    },
-                    { 
                         "name": "CLEARMEM",
                         "precision": 3
                     },
@@ -59,55 +37,13 @@
                         "name": "FTRANSFER"
                     }
                 ]
-            },
-        "S10BC01-DBLM184":{
-            "DEFAULT_CONFIG":{
-                "default_precision": 5
-            },
-            "CHANNELS": [
-                { 
-                    "name": "AL0-MPS-GAIN-A",
-                    "precision": 3
-                },
-                { 
-                    "name": "AL0-MPS-GAIN-B",
-                    "precision": 3
-                },
-                {
-                    "name": "AL1-MPS-GAIN-A"
-                },
-                {
-                    "name": "AL1-MPS-GAIN-B"
-                },
-                {
-                    "name":"AL2-MPS-GAIN-A"
-                },
-                {
-                    "name":"AL2-MPS-GAIN-B"
-                },
-                {
-                    "name":"AL3-MPS-GAIN-B"
-                },
-                {
-                    "name":"AL3-MPS-GAIN-A"
-                }
-            ]
-        },
-        "SARFE10-PBPG050":{
-            "CHANNELS": [
-                { 
-                    "name": "PHOTON-ENERGY-PER-PULSE-AVG",
-                    "precision": 3
-                }
-            ]
-        }
+            }
     },
     "CONFIG":{
         "filters":[
             "AL0-MPS-GAIN-A",
             "AL0-MPS-GAIN-B"
         ],
-        "read_only": false,
         "rgx_filters":[
             ["Gain B", "S10.*-B"],
             ["Gain A", "S10.*-A"],

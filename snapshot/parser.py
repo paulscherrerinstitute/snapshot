@@ -257,7 +257,7 @@ class SnapshotReqFile(object):
                 list_filters = list(get_metadata_dict[config])
                 metadata['filters'].update(
                     {f'{config}': list_filters})
-            elif config == 'rgx-filters':
+            elif config == 'rgx_filters':
                 list_rgx = []
                 list_rgx_names = []
                 for rgx_pattern in get_metadata_dict[config]:
@@ -265,7 +265,7 @@ class SnapshotReqFile(object):
                     list_rgx_names.append(rgx_pattern[0])
                 metadata['filters'].update({f'{config}': list_rgx})
                 metadata['filters'].update({f'{config}-names': list_rgx_names})
-            elif config in ['labels', 'force-labels']:
+            elif config in ['labels', 'force_labels']:
                 metadata['labels'] = {f'{config}': get_metadata_dict[config]}
             elif config == 'read_only':
                 metadata['read_only'] = get_metadata_dict[config]
@@ -410,10 +410,10 @@ def initialize_config(config_path=None, save_dir=None, force=False,
         # Validate configuration file
         try:
             new_settings = json.load(open(config_path))
-            # force-labels must be type of bool
+            # force_labels must be type of bool
             if not isinstance(new_settings.get('labels', dict())
-                                          .get('force-labels', False), bool):
-                raise TypeError('"force-labels" must be boolean')
+                                          .get('force_labels', False), bool):
+                raise TypeError('"force_labels" must be boolean')
         except Exception as e:
             # Propagate error to the caller, but continue filling in defaults
             config['config_ok'] = False
@@ -440,11 +440,11 @@ def initialize_config(config_path=None, save_dir=None, force=False,
         set(default_labels + (new_settings.get('labels', dict()) .get('labels', list()))))
 
     config['force_default_labels'] = new_settings.get('labels', dict()) \
-        .get('force-labels', False) or force_default_labels
+        .get('force_labels', False) or force_default_labels
 
     # Predefined filters. Ensure entries exist.
     config['predefined_filters'] = new_settings.get('filters', {})
-    for fltype in ('filters', 'rgx-filters', 'rgx-filters-names'):
+    for fltype in ('filters', 'rgx_filters', 'rgx_filters_names'):
         if fltype not in config['predefined_filters']:
             config['predefined_filters'][fltype] = []
 

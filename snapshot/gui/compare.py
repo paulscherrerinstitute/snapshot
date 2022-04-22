@@ -202,8 +202,8 @@ class SnapshotCompareWidget(QWidget):
         self.pv_filter_sel.clear()
         self.pv_filter_sel.addItem(None)
         for rgx, names in zip(
-                predefined_filters.get('rgx-filters', list()),
-                predefined_filters.get('rgx-filters-names', list())):
+                predefined_filters.get('rgx_filters', list()),
+                predefined_filters.get('rgx_filters_names', list())):
             label = f'{names}   |   {rgx}'
             self.pv_filter_sel.addItem(SnapshotCompareWidget.rgx_icon, label)
         self.pv_filter_sel.addItems(predefined_filters.get('filters', list()))
