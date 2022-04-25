@@ -24,7 +24,7 @@ def enable_tracing(enable=True):
 
 
 def process_record(pvname):
-    "Assuming 'pvname' is part of an EPICS record, write to its PROC field."
+    """Assuming 'pvname' is part of an EPICS record, write to its PROC field."""
     record = pvname.split('.')[0]
     caput(f'{record}.PROC', 1)
 
@@ -210,8 +210,10 @@ class SnapshotPv(PV):
     Note: PvUpdater is a "friend class" and uses this class' internals.
     """
 
-    def __init__(self, pvname, user_config={}, connection_callback=None, **kw):
+    def __init__(self, pvname, user_config=None, connection_callback=None, **kw):
         # dict format {idx: callback}
+        if user_config is None:
+            user_config = {}
         self.conn_callbacks = {}
         if connection_callback:
             self.add_conn_callback(connection_callback)
@@ -291,7 +293,7 @@ class SnapshotPv(PV):
 
     @PV.precision.getter
     def precision(self):
-        "Override so as to not block until PvUpdater initializes ctrlvars."
+        """Override so as to not block until PvUpdater initializes ctrlvars."""
         prec = self._user_config.get('precision', -1)
         if prec >= 0:
             return prec
@@ -299,12 +301,12 @@ class SnapshotPv(PV):
 
     @PV.units.getter
     def units(self):
-        "Override so as to not block until PvUpdater initializes ctrlvars."
+        """Override to not block until PvUpdater initializes ctrlvars."""
         return super().units if self._initialized else None
 
     def save_pv(self):
         """
-        Non blocking CA get. Does not block if there is no connection or no read access. Returns latest value
+        Non-blocking CA get. Does not block if there is no connection or no read access. Returns the latest value
         (monitored) or None if not able to get value. It also returns status of the action (see PvStatus)
 
         :return: (value, status)
@@ -349,7 +351,7 @@ class SnapshotPv(PV):
                             callback_data={
                                 "status": PvStatus.ok})
 
-                    except TypeError as e:
+                    except TypeError:
                         callback(pvname=self.pvname,
                                  status=PvStatus.type_err)
 
@@ -451,7 +453,7 @@ class SnapshotPv(PV):
         self.conn_callbacks[idx] = callback
         return idx
 
-    def clear_callbacks(self):
+    def clear_callbacks(self, **kwargs):
         """
         Removes all user callbacks and connection callbacks.
 

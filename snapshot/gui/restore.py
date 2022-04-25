@@ -849,14 +849,14 @@ class ParamFilterValidator(QtGui.QValidator):
     def set_params(self, param_names):
         self.valid_params = param_names
 
-    def parse(self, input):
+    def parse(self, input_data):
         # Replace all "param(values)" with nothing and if anything but spaces
         # remains, it's wrong.
-        if self.param_rgx.sub('', input).strip() != '':
+        if self.param_rgx.sub('', input_data).strip() != '':
             return
 
         # Extract all "param(values)" into ("param", "values").
-        pv_pairs = self.param_rgx.findall(input)
+        pv_pairs = self.param_rgx.findall(input_data)
         if not pv_pairs:
             return {}
         if not all((len(x) == 2 or len(x) == 1 for x in pv_pairs)):

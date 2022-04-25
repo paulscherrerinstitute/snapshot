@@ -367,7 +367,8 @@ class Snapshot(object):
                 not_connected_list.append(pvname)
         return not_connected_list
 
-    def replace_metadata(self, save_file_path, metadata):
+    @staticmethod
+    def replace_metadata(save_file_path, metadata):
         """
         Reopen save data and replace meta data.
 

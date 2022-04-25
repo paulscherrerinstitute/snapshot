@@ -48,7 +48,7 @@ class SnapshotGui(QMainWindow):
     thread where core of the application is running
     """
 
-    def __init__(self, config: dict = {}, parent=None):
+    def __init__(self, config=None, parent=None):
         """
         :param config: application settings
         :param parent: parent QtObject
@@ -56,6 +56,9 @@ class SnapshotGui(QMainWindow):
         """
         QMainWindow.__init__(self, parent)
 
+        if config is None:
+            config = {}
+        self.output_path = None
         self.resize(1500, 850)
 
         if not config or config['config_ok'] is False:

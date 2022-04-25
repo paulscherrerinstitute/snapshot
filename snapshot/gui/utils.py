@@ -174,7 +174,7 @@ class SnapshotFileSelector(QWidget):
         self.initial_file_path = self.text()
         if init_path:
             self.initial_file_path = os.path.abspath(init_path)
-            self.setText(self.initial_file_path)
+            self.set_text(self.initial_file_path)
 
     def open_selector(self):
         dialog = QFileDialog(self)
@@ -188,7 +188,7 @@ class SnapshotFileSelector(QWidget):
 
     def handle_selected(self, candidate_path):
         if candidate_path:
-            self.setText(candidate_path)
+            self.set_text(candidate_path)
 
     def change_file_path(self):
         self.file_path = self.file_path_input.text()
@@ -197,7 +197,7 @@ class SnapshotFileSelector(QWidget):
     def text(self):
         return self.file_path_input.text()
 
-    def setText(self, text):
+    def set_text(self, text):
         self.file_path_input.setText(text)
 
     def focusInEvent(self, event):
@@ -326,8 +326,8 @@ class SnapshotKeywordSelectorWidget(QComboBox):
         self.clear()
         labels = self.common_settings['default_labels'][:]
         if not self.defaults_only:
-            labels += [l for l in self.common_settings['existing_labels']
-                       if l not in labels]
+            labels += [label for label in self.common_settings['existing_labels']
+                       if label not in labels]
             self.addItem("")
         else:
             self.addItem("Select labels ...")
@@ -527,7 +527,7 @@ def show_snapshot_parse_errors(parent, file_and_error_list):
 
 
 def make_separator(parent, direction='vertical'):
-    "Makes a separator line"
+    """Makes a separator line"""
     sep = QFrame(parent)
     sep.setFrameShape(QFrame.VLine if direction == 'vertical'
                       else QFrame.HLine)

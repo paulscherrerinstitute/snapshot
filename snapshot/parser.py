@@ -76,7 +76,7 @@ class SnapshotReqFile(object):
         else:
             error_msg = f"Could not read the file ({self._path})!"
             raise ReqParseError(error_msg)
-        return (extension, content)
+        return extension, content
 
     def read(self):
         """
@@ -239,7 +239,7 @@ class SnapshotReqFile(object):
     def _extract_meta_pvs_from_json(self):
         try:
             return self._get_pvs_list()
-        except Exception as e:
+        except Exception:
             msg = f"{self._path}: Could not parse Json file."
             return JsonParseError(msg)
 
@@ -292,7 +292,7 @@ class SnapshotReqFile(object):
 
     def _validate_macros_in_txt(self, txt: str):
         invalid_macros = []
-        macro_rgx = re.compile('\$\(.*?\)')  # find all of type $()
+        macro_rgx = re.compile(r'\$\(.*?\)')  # find all of type $()
         raw_macros = macro_rgx.findall(txt)
         for raw_macro in raw_macros:
             if raw_macro not in self._macros.values(
@@ -445,9 +445,7 @@ def initialize_config(config_path=None, save_dir=None, force=False,
         if fltype not in config['predefined_filters']:
             config['predefined_filters'][fltype] = []
 
-    if req_file_macros is None:
-        req_file_macros = {}
-    elif isinstance(req_file_macros, str):
+    if isinstance(req_file_macros, str):
         # Try to parse macros. If problem, just pass to configure window
         # which will force user to do it right way.
         try:
@@ -629,7 +627,7 @@ def parse_to_save_file(pvs, save_file_path, macros=None,
 
 
 def list_save_files(save_dir, req_file_path):
-    "Returns a list of save files and a list of their modification times."
+    """Returns a list of save files and a list of their modification times."""
 
     req_file_name = os.path.basename(req_file_path)
     file_dir = os.path.join(save_dir, os.path.splitext(req_file_name)[0])
