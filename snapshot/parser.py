@@ -143,10 +143,7 @@ class SnapshotReqFile(object):
         includes = []
         pvs = []
         pvs_config = []
-        if self._type == '.json':
-            # //TODO replace macros
-            metadata, pvs, pvs_config = self._extract_meta_pvs_from_json()
-        elif self._type == '.req':
+        if self._type == '.req':
             metadata = {}
             self._curr_line_n = 0
             for self._curr_line in self._file_data.splitlines():
@@ -216,6 +213,8 @@ class SnapshotReqFile(object):
                         return OSError(
                             self._format_err(
                                 (self._curr_line, self._curr_line_n), e))
+        else:
+            metadata, pvs, pvs_config = self._extract_meta_pvs_from_dict()
         return pvs, metadata, includes, pvs_config
 
     def _extract_pvs_from_req(self):
@@ -226,15 +225,14 @@ class SnapshotReqFile(object):
         else:
             return list_of_pvs
 
-    def _extract_meta_pvs_from_json(self):
+    def _extract_meta_pvs_from_dict(self):
         try:
             return self._get_pvs_list()
         except Exception:
             msg = f"{self._path}: Could not parse Json file."
-            return JsonParseError(msg)
+            return JsonYamlParseError(msg)
 
     def _get_pvs_list(self):
-
         metadata = {'filters': {}}
         get_metadata_dict = self._file_data.get("CONFIG", {})
         # CONFIGURATIONS
@@ -347,9 +345,9 @@ class ReqParseError(SnapshotError):
     pass
 
 
-class JsonParseError(SnapshotError):
+class JsonYamlParseError(SnapshotError):
     """
-    Parent exception class for exceptions that can happen while parsing a json file.
+    Parent exception class for exceptions that can happen while parsing a json/yaml file.
     """
     pass
 
