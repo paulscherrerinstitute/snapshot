@@ -6,6 +6,7 @@ import os
 import re
 import time
 from itertools import chain
+from pathlib import Path
 
 import numpy
 import yaml
@@ -53,30 +54,19 @@ class SnapshotReqFile(object):
         self._type, self._file_data = self.read_input()
 
     def read_input(self):
-        extension = os.path.splitext(self._path)[1].replace('.', '')
-        if extension == 'json':
-            try:
-                content = json.loads(open(self._path, 'r').read())
-            except Exception as e:
-                msg = f'{self._path}: Could not read load json file.'
-                return ReqParseError(msg, e)
-        elif extension in ['yaml', 'yml']:
-            # yaml
-            try:
-                content = yaml.safe_load(open(self._path, 'r'))[0]
-            except Exception as e:
-                msg = f'{self._path}: Could not safe_load yaml file.'
-                return ReqParseError(msg, e)
-        elif extension == 'req':
-            try:
-                content = open(self._path, 'r').read()
-            except Exception as e:
-                msg = f'{self._path}: Could not read req file.'
-                return ReqParseError(msg, e)
-        else:
-            error_msg = f"Could not read the file ({self._path})!"
-            raise ReqParseError(error_msg)
-        return extension, content
+        filepath = Path(self._path)
+        try:
+            content = filepath.read_text()
+            if filepath.suffix == '.json':
+                content = json.loads(content)
+            elif filepath.suffix in ['.yaml', '.yml']:
+                content = yaml.safe_load(content)
+            elif filepath.suffix != '.req':
+                raise ReqParseError(f"Unsupported file format for {filepath}!")
+        except Exception as e:
+            msg = f'{self._path}: Could not read "{filepath}" load file.'
+            raise ReqParseError(msg, e)
+        return filepath.suffix, content
 
     def read(self):
         """
@@ -153,10 +143,10 @@ class SnapshotReqFile(object):
         includes = []
         pvs = []
         pvs_config = []
-        if self._type == 'json':
+        if self._type == '.json':
             # //TODO replace macros
             metadata, pvs, pvs_config = self._extract_meta_pvs_from_json()
-        elif self._type == 'req':
+        elif self._type == '.req':
             metadata = {}
             self._curr_line_n = 0
             for self._curr_line in self._file_data.splitlines():
