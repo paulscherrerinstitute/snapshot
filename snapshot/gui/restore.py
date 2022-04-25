@@ -177,9 +177,22 @@ class SnapshotRestoreWidget(QWidget):
         btn_layout = QHBoxLayout()
         btn_layout.addWidget(self.refresh_button)
         btn_layout.addStretch()
+
+        # read only mode
         if self.common_settings['read_only']:
             self.restore_all_button.setVisible(False)
+            self.restore_all_button.setDisabled(True)
             self.restore_button.setVisible(False)
+            self.restore_button.setDisabled(True)
+            self.restore_button.setText(
+                f'{self.restore_button.text()} (read-only mode)')
+            self.restore_all_button.setText(
+                f'{self.restore_all_button.text()} (read-only mode)')
+            self.setAutoFillBackground(True)
+            p = self.palette()
+            p.setColor(self.backgroundRole(), Qt.darkGray)
+            self.setPalette(p)
+
         btn_layout.addWidget(self.restore_all_button)
         btn_layout.addWidget(self.restore_button)
 

@@ -116,6 +116,9 @@ class SnapshotGui(QMainWindow):
         save_menu_action = QAction("Set output directory", file_menu)
         save_menu_action.setMenuRole(QAction.NoRole)
         save_menu_action.triggered.connect(self.save_new_output_dir)
+        # read-only mode
+        if self.common_settings['read_only']:
+            save_menu_action.setDisabled(True)
         file_menu.addAction(save_menu_action)
 
         quit_action = QAction("Quit", file_menu)
@@ -205,6 +208,9 @@ class SnapshotGui(QMainWindow):
             lambda: self.change_req_file(
                 self.common_settings['req_file_path'],
                 self.common_settings['req_file_macros'],))
+
+        if self.common_settings["read_only"]:
+            self.status_bar.set_read_only()
 
     def toggle_autorefresh(self, checked):
         if checked:
@@ -406,6 +412,10 @@ class SnapshotStatus(QStatusBar):
         self.status_txt.setStyleSheet("background-color: transparent")
         self.addWidget(self.status_txt)
         self.set_status()
+        self.read_only_text = ""
+
+    def set_read_only(self):
+        self.read_only_text = " (read-only mode)"
 
     def set_status(self, text="Ready", duration=0,
                    background="rgba(0, 0, 0, 30)"):
@@ -425,7 +435,7 @@ class SnapshotStatus(QStatusBar):
             self.timer.start(duration)
 
     def clear_status(self):
-        self.set_status("Ready", 0, "rgba(0, 0, 0, 30)")
+        self.set_status(f'Ready {self.read_only_text}', 0, "rgba(0, 0, 0, 30)")
 
 
 # This function should be called from outside, to start the gui

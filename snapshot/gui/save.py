@@ -89,6 +89,15 @@ class SnapshotSaveWidget(QWidget):
         save_layout.setSpacing(10)
         self.save_button = QPushButton("Save", self)
         self.save_button.clicked.connect(self.start_save)
+        # read only mode
+        if self.common_settings['read_only']:
+            self.save_button.setDisabled(True)
+            self.save_button.setText(
+                f'{self.save_button.text()} (read-only mode)')
+            self.setAutoFillBackground(True)
+            p = self.palette()
+            p.setColor(self.backgroundRole(), Qt.darkGray)
+            self.setPalette(p)
 
         save_layout.addWidget(self.save_button)
 
@@ -148,16 +157,14 @@ class SnapshotSaveWidget(QWidget):
             force = self.common_settings["force"]
             # Start saving process with default "force" flag and notify when
             # finished
-            output_file = os.path.join(self.common_settings["save_dir"],
-                self.common_settings["save_file_prefix"] +
-                'latest' + save_file_suffix)
-            status, pvs_status = self.snapshot.save_pvs(self.file_path,
-                                                        force=force,
-                                                        labels=labels,
-                                                        comment=comment,
-                                                        machine_params=params_data,
-                                                        symlink_path=output_file)
-            
+            output_file = os.path.join(
+                self.common_settings["save_dir"],
+                self.common_settings["save_file_prefix"] + 'latest' +
+                save_file_suffix)
+            status, pvs_status = self.snapshot.save_pvs(
+                self.file_path, force=force, labels=labels, comment=comment,
+                machine_params=params_data, symlink_path=output_file)
+
             if status == ActionStatus.no_conn:
                 # Prompt user and ask if he wants to save in force mode
                 msg = "Some PVs are not connected (see details). " \
@@ -170,12 +177,10 @@ class SnapshotSaveWidget(QWidget):
                 if reply != QMessageBox.No:
                     # Start saving process in forced mode and notify when
                     # finished
-                    status, pvs_status = self.snapshot.save_pvs(self.file_path,
-                                                                force=True,
-                                                                labels=labels,
-                                                                comment=comment,
-                                                                machine_params=params_data,
-                                                                symlink_path=output_file)
+                    status, pvs_status = self.snapshot.save_pvs(
+                        self.file_path, force=True, labels=labels,
+                        comment=comment, machine_params=params_data,
+                        symlink_path=output_file)
 
                     # finished in forced mode
                     self.save_done(pvs_status, True, output_file)
@@ -218,10 +223,12 @@ class SnapshotSaveWidget(QWidget):
                 if sts == PvStatus.access_err:
                     # if here and not in force mode, then this is error state
                     success = success and not forced
-                    msgs.append(f"WARNING: {pvname}: Not saved (no connection or no read access)")
+                    msgs.append(
+                        f"WARNING: {pvname}: Not saved (no connection or no read access)")
                 else:
                     success = False
-                    msgs.append(f"WARNING: {pvname}: Not saved, error status {sts}.")
+                    msgs.append(
+                        f"WARNING: {pvname}: Not saved, error status {sts}.")
                 msg_times.append(time.time())
                 status_txt = "Save error"
                 status_background = "#F06464"
@@ -299,9 +306,10 @@ class SnapshotAdvancedSaveSettings(QWidget):
         labels_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
         labels_label.setMinimumWidth(min_label_width)
         # If default labels are defined, then force default labels
-        self.labels_input = SnapshotKeywordSelectorWidget(common_settings,
-                            defaults_only=common_settings['force_default_labels'],
-                            parent=self)
+        self.labels_input = SnapshotKeywordSelectorWidget(
+            common_settings,
+            defaults_only=common_settings['force_default_labels'],
+            parent=self)
         labels_layout.addWidget(labels_label)
         labels_layout.addWidget(self.labels_input)
 
