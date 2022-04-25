@@ -8,7 +8,6 @@ from PyQt5 import QtCore
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (
-    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -27,9 +26,8 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from snapshot.ca_core import parse_macros
 from snapshot.parser import MacroError
-
-from ..ca_core import parse_macros
 
 
 def parse_dict_macros_to_text(macros):

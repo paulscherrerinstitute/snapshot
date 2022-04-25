@@ -1,9 +1,9 @@
 import datetime
 import logging
 import os
+import re
 import sys
 import time
-import re
 
 from snapshot.ca_core import PvStatus, ActionStatus, Snapshot
 from snapshot.core import SnapshotError, get_machine_param_data

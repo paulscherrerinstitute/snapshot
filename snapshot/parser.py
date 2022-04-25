@@ -1,3 +1,4 @@
+import concurrent.futures
 import glob
 import json
 import logging
@@ -5,15 +6,11 @@ import os
 import re
 import time
 from itertools import chain
-import concurrent.futures
 
 import numpy
 import yaml
 
 from snapshot.core import SnapshotError, SnapshotPv, since_start
-
-
-from PyQt5.QtWidgets import QMessageBox
 
 save_file_suffix = '.snap'
 

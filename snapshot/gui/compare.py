@@ -22,12 +22,9 @@ from PyQt5.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
-    QFrame,
     QFileDialog,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
-    QLineEdit,
     QMenu,
     QMessageBox,
     QSizePolicy,
@@ -37,10 +34,10 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from ..ca_core import Snapshot
-from ..core import PvUpdater, SnapshotPv, process_record
-from ..parser import parse_from_save_file, save_file_suffix
-from .utils import make_separator, show_snapshot_parse_errors
+from snapshot.ca_core import Snapshot
+from snapshot.core import PvUpdater, SnapshotPv, process_record
+from snapshot.gui.utils import make_separator, show_snapshot_parse_errors
+from snapshot.parser import parse_from_save_file, save_file_suffix
 
 
 class PvCompareFilter(enum.Enum):

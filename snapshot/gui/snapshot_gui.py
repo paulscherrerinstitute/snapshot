@@ -4,12 +4,10 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+import concurrent.futures
 import datetime
-import json
 import os
 import sys
-import concurrent.futures
-
 
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt, QTimer
@@ -37,12 +35,11 @@ from snapshot.core import (
     enable_tracing,
     since_start,
 )
+from snapshot.gui.compare import SnapshotCompareWidget
+from snapshot.gui.restore import SnapshotRestoreWidget
+from snapshot.gui.save import SnapshotSaveWidget
+from snapshot.gui.utils import DetailedMsgBox, SnapshotConfigureDialog, make_separator
 from snapshot.parser import ReqParseError, get_save_files, initialize_config
-
-from .compare import SnapshotCompareWidget
-from .restore import SnapshotRestoreWidget
-from .save import SnapshotSaveWidget
-from .utils import DetailedMsgBox, SnapshotConfigureDialog, make_separator
 
 
 class SnapshotGui(QMainWindow):
