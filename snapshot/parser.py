@@ -264,7 +264,7 @@ class SnapshotReqFile(object):
                     list_rgx.append(rgx_pattern[1])
                     list_rgx_names.append(rgx_pattern[0])
                 metadata['filters'].update({f'{config}': list_rgx})
-                metadata['filters'].update({f'{config}-names': list_rgx_names})
+                metadata['filters'].update({f'{config}_names': list_rgx_names})
             elif config in ['labels', 'force_labels']:
                 metadata['labels'] = {f'{config}': get_metadata_dict[config]}
             elif config == 'read_only':
