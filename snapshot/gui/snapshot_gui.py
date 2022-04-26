@@ -39,7 +39,8 @@ from snapshot.gui.compare import SnapshotCompareWidget
 from snapshot.gui.restore import SnapshotRestoreWidget
 from snapshot.gui.save import SnapshotSaveWidget
 from snapshot.gui.utils import DetailedMsgBox, SnapshotConfigureDialog, make_separator
-from snapshot.parser import ReqParseError, get_save_files, initialize_config
+from snapshot.parser import get_save_files, initialize_config
+from snapshot.snapshot_req_file import ReqParseError
 
 
 class SnapshotGui(QMainWindow):

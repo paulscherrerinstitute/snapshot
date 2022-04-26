@@ -4,7 +4,7 @@ import json
 import pytest
 import yaml
 
-from snapshot.parser import SnapshotReqFile
+from snapshot.snapshot_req_file import SnapshotReqFile
 from tests.pytest.helper_functions import base_dir
 
 logging.basicConfig(level=logging.DEBUG)
@@ -25,7 +25,7 @@ def test_req_load():
     # SnapshotReqFile the input req file
     request_file = SnapshotReqFile(str(file_req))
     # reads return a tuple (pv, metadata)
-    pvs, metadata = request_file.read()
+    pvs, metadata, pvs_config = request_file.read()
 
     assert file_content == pvs
     assert default_metadata == metadata

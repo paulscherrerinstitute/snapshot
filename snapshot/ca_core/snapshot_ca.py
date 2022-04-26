@@ -15,7 +15,8 @@ from enum import Enum
 from epics import ca
 
 from snapshot.core import PvStatus, SnapshotPv, background_workers, since_start
-from snapshot.parser import SnapshotReqFile, parse_from_save_file, parse_macros, parse_to_save_file
+from snapshot.parser import parse_from_save_file, parse_macros, parse_to_save_file
+from snapshot.snapshot_req_file import SnapshotReqFile
 
 # For pyepics versions older than 3.2.4, this was set to True only for
 ca.AUTO_CLEANUP = True
