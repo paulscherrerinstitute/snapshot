@@ -5,7 +5,6 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 import copy
-import datetime
 import enum
 import json
 import os
@@ -28,9 +27,9 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from ..ca_core import ActionStatus, PvStatus, SnapshotPv
-from ..core import BackgroundThread, background_workers, since_start
-from ..parser import (
+from snapshot.ca_core import ActionStatus, PvStatus, SnapshotPv
+from snapshot.core import BackgroundThread, background_workers, since_start
+from snapshot.parser import (
     get_save_files,
     list_save_files,
     parse_from_save_file,
@@ -850,14 +849,14 @@ class ParamFilterValidator(QtGui.QValidator):
     def set_params(self, param_names):
         self.valid_params = param_names
 
-    def parse(self, input):
+    def parse(self, input_data):
         # Replace all "param(values)" with nothing and if anything but spaces
         # remains, it's wrong.
-        if self.param_rgx.sub('', input).strip() != '':
+        if self.param_rgx.sub('', input_data).strip() != '':
             return
 
         # Extract all "param(values)" into ("param", "values").
-        pv_pairs = self.param_rgx.findall(input)
+        pv_pairs = self.param_rgx.findall(input_data)
         if not pv_pairs:
             return {}
         if not all((len(x) == 2 or len(x) == 1 for x in pv_pairs)):

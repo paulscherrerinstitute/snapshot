@@ -169,8 +169,8 @@ usage: {}       {}
 {}
 -------- Command line restore mode --------
 {}'''.format(
-        re.sub('(?:\sgui|usage:\s)', '', gui_pars.format_usage()),
-        re.sub('usage:\s', '', gui_pars.format_help()),
+        re.sub(r'\sgui|usage:\s', '', gui_pars.format_usage()),
+        re.sub(r'usage:\s', '', gui_pars.format_help()),
         save_pars.format_help(),
         rest_pars.format_help()
     )

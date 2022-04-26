@@ -1,0 +1,66 @@
+---
+PVS:
+  snapshot:test:
+    DEFAULT_CONFIG:
+      default_precision: 1
+    CHANNELS:
+    - name: sine
+    - name: angle_rad
+    - name: angle_deg
+    - name: alarms
+    - name: some_status
+    - name: switch_with_text
+    - name: switch_without_text
+    - name: some_status_direct
+    - name: text
+    - name: wf_strings
+    - name: wf_strings_large
+    - name: wf_ints
+    - name: wf_chars
+    - name: wf_double
+    - name: wf_double_prec_2
+      precision: 2
+    - name: wf_double_prec_5
+      precision: 5
+CONFIG:
+  filters:
+  - wf_
+  - snapshot
+  rgx_filters:
+  - - Gain B
+    - S10.*-B
+  - - Gain A
+    - S10.*-A
+  - - IOC 120
+    - ".*120.*"
+  - - CAM PCO
+    - MTEST.*
+  - - IOC 130
+    - ".*130.*"
+  - - IOC 140
+    - ".*140.*"
+  - - name4
+    - S.*-DBLM.*MPS-PMT-GAIN
+  read_only: true
+  force_labels: true
+  labels:
+  - MODE-GUN
+  - MODE-BC1
+  - MODE-BC2
+  - MODE-AR-LINAC
+  - MODE-AR-UND
+  - MODE-AT-LINAC
+  - MODE-AT-UND
+  - BC1-ON
+  - BC1-OFF
+  - BC2-ON
+  - BC2-OFF
+  - LH-ON
+  - LH-OFF
+  - REFERENCE
+  - K1L
+  machine_params:
+  - - CAMERA
+    - MTEST-CAQTDM-CAMERA:CAMERA
+  - - FILEFORMAT
+    - MTEST-CAQTDM-CAMERA:FILEFORMAT

@@ -22,12 +22,9 @@ from PyQt5.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
-    QFrame,
     QFileDialog,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
-    QLineEdit,
     QMenu,
     QMessageBox,
     QSizePolicy,
@@ -37,10 +34,10 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from ..ca_core import Snapshot
-from ..core import PvUpdater, SnapshotPv, process_record
-from ..parser import parse_from_save_file, save_file_suffix
-from .utils import make_separator, show_snapshot_parse_errors
+from snapshot.ca_core import Snapshot
+from snapshot.core import PvUpdater, SnapshotPv, process_record
+from snapshot.gui.utils import make_separator, show_snapshot_parse_errors
+from snapshot.parser import parse_from_save_file, save_file_suffix
 
 
 class PvCompareFilter(enum.Enum):
@@ -668,9 +665,9 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             if line.conn:
                 line.update_pv_value(value)
 
-        self._emit_dataChanged()
+        self._emit_data_changed()
 
-    def _emit_dataChanged(self):
+    def _emit_data_changed(self):
         # No need to update PV names, units
         self.dataChanged.emit(
             self.createIndex(0, PvTableColumns.value),
@@ -697,7 +694,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             # tolerance changing requires values to be update
             if line._pv_ref.connected:
                 line.update_pv_value(line._pv_ref.value)
-        self._emit_dataChanged()
+        self._emit_data_changed()
 
 
 class SnapshotPvTableLine(QtCore.QObject):
@@ -877,7 +874,7 @@ class SnapshotPvTableLine(QtCore.QObject):
                 try:
                     self.data[PvTableColumns.snapshots + i -
                               1]['data'] = self._pv_ref.enum_strs[int(snap['data'])]
-                except (TypeError, ValueError) as e:
+                except (TypeError, ValueError):
                     pass
 
     def tolerance_from_precision(self):
@@ -923,7 +920,7 @@ class SnapshotPvTableLine(QtCore.QObject):
         # get the desired str representation of it
         try:
             enum_str_value = self._pv_ref.enum_strs[int(pv_value)]
-        except (TypeError, ValueError) as e:
+        except (TypeError, ValueError):
             pass
         else:
             new_value = enum_str_value

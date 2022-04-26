@@ -1,3 +1,4 @@
+import concurrent.futures
 import glob
 import json
 import logging
@@ -5,15 +6,12 @@ import os
 import re
 import time
 from itertools import chain
-import concurrent.futures
+from pathlib import Path
 
 import numpy
 import yaml
 
 from snapshot.core import SnapshotError, SnapshotPv, since_start
-
-
-from PyQt5.QtWidgets import QMessageBox
 
 save_file_suffix = '.snap'
 
@@ -56,30 +54,19 @@ class SnapshotReqFile(object):
         self._type, self._file_data = self.read_input()
 
     def read_input(self):
-        extension = os.path.splitext(self._path)[1].replace('.', '')
-        if extension == 'json':
-            try:
-                content = json.loads(open(self._path, 'r').read())
-            except Exception as e:
-                msg = f'{self._path}: Could not read load json file.'
-                return ReqParseError(msg, e)
-        elif extension in ['yaml', 'yml']:
-            # yaml
-            try:
-                content = yaml.safe_load(open(self._path, 'r'))[0]
-            except Exception as e:
-                msg = f'{self._path}: Could not safe_load yaml file.'
-                return ReqParseError(msg, e)
-        elif extension == 'req':
-            try:
-                content = open(self._path, 'r').read()
-            except Exception as e:
-                msg = f'{self._path}: Could not read req file.'
-                return ReqParseError(msg, e)
-        else:
-            error_msg = f"Could not read the file ({self._path})!"
-            raise ReqParseError(error_msg)
-        return (extension, content)
+        filepath = Path(self._path)
+        try:
+            content = filepath.read_text()
+            if filepath.suffix == '.json':
+                content = json.loads(content)
+            elif filepath.suffix in ['.yaml', '.yml']:
+                content = yaml.safe_load(content)
+            elif filepath.suffix != '.req':
+                raise ReqParseError(f"Unsupported file format for {filepath}!")
+        except Exception as e:
+            msg = f'{self._path}: Could not read "{filepath}" load file.'
+            raise ReqParseError(msg, e)
+        return filepath.suffix, content
 
     def read(self):
         """
@@ -156,10 +143,7 @@ class SnapshotReqFile(object):
         includes = []
         pvs = []
         pvs_config = []
-        if self._type == 'json':
-            # //TODO replace macros
-            metadata, pvs, pvs_config = self._extract_meta_pvs_from_json()
-        elif self._type == 'req':
+        if self._type == '.req':
             metadata = {}
             self._curr_line_n = 0
             for self._curr_line in self._file_data.splitlines():
@@ -229,6 +213,8 @@ class SnapshotReqFile(object):
                         return OSError(
                             self._format_err(
                                 (self._curr_line, self._curr_line_n), e))
+        else:
+            metadata, pvs, pvs_config = self._extract_meta_pvs_from_dict()
         return pvs, metadata, includes, pvs_config
 
     def _extract_pvs_from_req(self):
@@ -239,15 +225,14 @@ class SnapshotReqFile(object):
         else:
             return list_of_pvs
 
-    def _extract_meta_pvs_from_json(self):
+    def _extract_meta_pvs_from_dict(self):
         try:
             return self._get_pvs_list()
-        except Exception as e:
+        except Exception:
             msg = f"{self._path}: Could not parse Json file."
-            return JsonParseError(msg)
+            return JsonYamlParseError(msg)
 
     def _get_pvs_list(self):
-
         metadata = {'filters': {}}
         get_metadata_dict = self._file_data.get("CONFIG", {})
         # CONFIGURATIONS
@@ -295,7 +280,7 @@ class SnapshotReqFile(object):
 
     def _validate_macros_in_txt(self, txt: str):
         invalid_macros = []
-        macro_rgx = re.compile('\$\(.*?\)')  # find all of type $()
+        macro_rgx = re.compile(r'\$\(.*?\)')  # find all of type $()
         raw_macros = macro_rgx.findall(txt)
         for raw_macro in raw_macros:
             if raw_macro not in self._macros.values(
@@ -360,9 +345,9 @@ class ReqParseError(SnapshotError):
     pass
 
 
-class JsonParseError(SnapshotError):
+class JsonYamlParseError(SnapshotError):
     """
-    Parent exception class for exceptions that can happen while parsing a json file.
+    Parent exception class for exceptions that can happen while parsing a json/yaml file.
     """
     pass
 
@@ -448,9 +433,7 @@ def initialize_config(config_path=None, save_dir=None, force=False,
         if fltype not in config['predefined_filters']:
             config['predefined_filters'][fltype] = []
 
-    if req_file_macros is None:
-        req_file_macros = {}
-    elif isinstance(req_file_macros, str):
+    if isinstance(req_file_macros, str):
         # Try to parse macros. If problem, just pass to configure window
         # which will force user to do it right way.
         try:
@@ -632,7 +615,7 @@ def parse_to_save_file(pvs, save_file_path, macros=None,
 
 
 def list_save_files(save_dir, req_file_path):
-    "Returns a list of save files and a list of their modification times."
+    """Returns a list of save files and a list of their modification times."""
 
     req_file_name = os.path.basename(req_file_path)
     file_dir = os.path.join(save_dir, os.path.splitext(req_file_name)[0])
