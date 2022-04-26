@@ -217,8 +217,6 @@ class SnapshotCompareWidget(QWidget):
             self._create_name_filter(txt)
 
     def _create_name_filter(self, txt):
-        txt = txt.split("|")[-1].strip() if "|" in txt else txt
-        self.pv_filter_inp.setText(txt)
         if self.regex.isChecked():
             try:
                 srch_filter = re.compile(txt)
@@ -256,7 +254,8 @@ class SnapshotCompareWidget(QWidget):
         self.restore_requested.emit(pvs_list)
 
     def _predefined_filter_selected(self, idx):
-        txt = self.pv_filter_inp.text()
+        txt = self.pv_filter_inp.text().split(
+            "|")[-1].strip() if "|" in self.pv_filter_inp.text() else self.pv_filter_inp.text()
         if idx == 0:
             # First empty option; the menu is always reset to this.
             return
