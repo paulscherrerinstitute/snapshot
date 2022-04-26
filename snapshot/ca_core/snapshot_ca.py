@@ -16,10 +16,12 @@ from epics import ca
 
 from snapshot.core import PvStatus, SnapshotPv, background_workers, since_start
 from snapshot.parser import parse_from_save_file, parse_macros, parse_to_save_file
-from snapshot.snapshot_req_file import SnapshotReqFile
+from snapshot.snapshot_files import create_snapshot_file
 
 # For pyepics versions older than 3.2.4, this was set to True only for
 ca.AUTO_CLEANUP = True
+
+
 # python 2 but not for python 3, which resulted in errors when closing
 # the application. If true, ca.finalize_libca() is called when app is
 # closed
@@ -80,8 +82,8 @@ class Snapshot(object):
             # holds path to the req_file_path as this is sort of identifier
             self.req_file_path = \
                 os.path.normpath(os.path.abspath(req_file_path))
-            req_f = SnapshotReqFile(self.req_file_path,
-                                    changeable_macros=list(macros.keys()))
+            req_f = create_snapshot_file(self.req_file_path,
+                                         changeable_macros=list(macros.keys()))
             pvs, metadata, pvs_config = req_f.read()
             since_start("Finished parsing reqfile")
 
@@ -105,20 +107,18 @@ class Snapshot(object):
             for pvname_raw, pvname_config in zip(pv_list, pv_configs):
                 p_name = SnapshotPv.macros_substitution(pvname_raw, self.macros)
                 if not self.pvs.get(p_name):
-
                     pv_ref = SnapshotPv(p_name, pvname_config.get(
                         p_name, {}))
 
-                # if not self.pvs.get(pv_ref.pvname):
+                    # if not self.pvs.get(pv_ref.pvname):
                     self.pvs[pv_ref.pvname] = pv_ref
         else:
             for pvname_raw in pv_list:
                 p_name = SnapshotPv.macros_substitution(pvname_raw, self.macros)
                 if not self.pvs.get(p_name):
-
                     pv_ref = SnapshotPv(p_name)
 
-                # if not self.pvs.get(pv_ref.pvname):
+                    # if not self.pvs.get(pv_ref.pvname):
                     self.pvs[pv_ref.pvname] = pv_ref
 
         since_start("Finished adding PVs")

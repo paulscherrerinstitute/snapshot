@@ -4,7 +4,7 @@ import json
 import pytest
 import yaml
 
-from snapshot.snapshot_req_file import SnapshotReqFile
+from snapshot.snapshot_files import create_snapshot_file
 from tests.pytest.helper_functions import base_dir
 
 logging.basicConfig(level=logging.DEBUG)
@@ -23,7 +23,7 @@ def test_req_load():
     file_req = base_dir() / 'softioc' / 'test.req'
     file_content = file_req.read_text().splitlines()
     # SnapshotReqFile the input req file
-    request_file = SnapshotReqFile(str(file_req))
+    request_file = create_snapshot_file(str(file_req))
     # reads return a tuple (pv, metadata)
     pvs, metadata, pvs_config = request_file.read()
 
@@ -35,7 +35,7 @@ def test_req_load():
 def test_json_load():
     file_json = base_dir() / 'pco_cam' / 'pco.json'
     # SnapshotReqFile the input req file
-    request_file = SnapshotReqFile(str(file_json))
+    request_file = create_snapshot_file(str(file_json))
     # reads return a tuple (pv, metadata)
     pvs, metadata = request_file.read()
     # reads each line to a list
@@ -50,7 +50,7 @@ def test_json_load():
 def test_yaml_load():
     file_yaml = base_dir() / 'pco_cam' / 'pco.yaml'
     # SnapshotReqFile the input req file
-    request_file = SnapshotReqFile(str(file_yaml))
+    request_file = create_snapshot_file(str(file_yaml))
     # reads return a tuple (pv, metadata)
     pvs, metadata = request_file.read()
 

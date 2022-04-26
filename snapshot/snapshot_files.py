@@ -1,3 +1,4 @@
+import abc
 import concurrent.futures
 import json
 import os
@@ -11,7 +12,13 @@ from snapshot.core import SnapshotPv, SnapshotError
 from snapshot.parser import MacroError, parse_macros
 
 
-class SnapshotReqFile(object):
+class SnapshotFile(abc.ABC):
+    @abc.abstractmethod
+    def read(self):
+        pass
+
+
+class SnapshotReqFile(SnapshotFile):
     def __init__(self, path: str, parent=None, macros: dict = None,
                  changeable_macros: list = None):
         """
@@ -95,7 +102,7 @@ class SnapshotReqFile(object):
                 new_pvs, new_metadata, new_includes = result
                 if new_metadata:
                     msg = f"Found metadata in included file {inc._path}; " \
-                        "metadata is only allowed in the top-level file."
+                          "metadata is only allowed in the top-level file."
                     raise ReqParseError(msg)
                 pvs += new_pvs
                 includes += new_includes
@@ -115,8 +122,8 @@ class SnapshotReqFile(object):
 
         forbidden_chars = " ,.()"
         if any(
-            any(char in param for char in forbidden_chars)
-            for param in metadata['machine_params']
+                any(char in param for char in forbidden_chars)
+                for param in metadata['machine_params']
         ):
             raise ReqParseError('Invalid format of machine parameter list, '
                                 'names must not contain space or punctuation.')
@@ -301,6 +308,10 @@ class SnapshotReqFile(object):
 
             else:
                 ancestor = ancestor._parent
+
+
+def create_snapshot_file(path: str, changeable_macros: list = None) -> SnapshotFile:
+    return SnapshotReqFile(path, changeable_macros=changeable_macros)
 
 
 class ReqParseError(SnapshotError):
