@@ -40,7 +40,7 @@ from snapshot.gui.restore import SnapshotRestoreWidget
 from snapshot.gui.save import SnapshotSaveWidget
 from snapshot.gui.utils import DetailedMsgBox, SnapshotConfigureDialog, make_separator
 from snapshot.parser import get_save_files, initialize_config
-from snapshot.snapshot_files import ReqParseError
+from snapshot.request_files.snapshot_file import ReqParseError
 
 
 class SnapshotGui(QMainWindow):

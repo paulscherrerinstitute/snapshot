@@ -4,7 +4,7 @@ import json
 import pytest
 import yaml
 
-from snapshot.snapshot_files import create_snapshot_file
+from snapshot.create_snapshot_file import create_snapshot_file
 from tests.pytest.helper_functions import base_dir
 
 logging.basicConfig(level=logging.DEBUG)

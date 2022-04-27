@@ -16,7 +16,7 @@ from epics import ca
 
 from snapshot.core import PvStatus, SnapshotPv, background_workers, since_start
 from snapshot.parser import parse_from_save_file, parse_macros, parse_to_save_file
-from snapshot.snapshot_files import create_snapshot_file
+from snapshot.create_snapshot_file import create_snapshot_file
 
 # For pyepics versions older than 3.2.4, this was set to True only for
 ca.AUTO_CLEANUP = True
