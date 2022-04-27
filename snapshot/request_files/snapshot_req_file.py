@@ -139,6 +139,8 @@ class SnapshotReqFile(SnapshotFile):
                 msg = f"{self._path}: Could not parse JSON metadata header."
                 return ReqParseError(msg)
 
+            metadata = self.__normalize_key_values(metadata)
+
             # Ensure line counts make sense for error reporting.
             actual_data = md[end_of_metadata:].lstrip()
             actual_data_index = self._file_data.find(actual_data)
@@ -217,6 +219,17 @@ class SnapshotReqFile(SnapshotFile):
                         self._format_err(
                             (self._curr_line, self._curr_line_n), e))
         return pvs, metadata, includes, pvs_config
+
+    @staticmethod
+    def __normalize_key_values(metadata: dict) -> dict:
+        # Ensure backward compatibility - some keys previously were using "-" instead of "_"
+        # To further support these keys (e.g. "rgx-filters", "force-labels"
+        # we normalize them to "rgx_filters", "force_labels"
+        if 'labels' in metadata.keys() and 'force-labels' in metadata['labels'].keys():
+            metadata['labels']['force_labels'] = metadata['labels'].pop('force-labels')
+        if 'filters' in metadata.keys() and 'rgx-filters' in metadata['filters'].keys():
+            metadata['filters']['rgx_filters'] = metadata['filters'].pop('rgx-filters')
+        return metadata
 
     def _extract_pvs_from_req(self):
         try:

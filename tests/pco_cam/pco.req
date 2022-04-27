@@ -4,8 +4,16 @@
       "labels":[]
    },
    "filters":{
-      "rgx-filters":[],
-      "filters":[]
+      "rgx-filters":[
+          ["Gain B", "S10.*-B"],
+          ["Gain A", "S10.*-A"],
+          ["IOC 120",".*120.*"],
+          ["CAM PCO", "MTEST.*"],
+          ["IOC 130",".*130.*"],
+          ["IOC 140",".*140.*"],
+          ["name4","S.*-DBLM.*MPS-PMT-GAIN"]
+      ],
+      "filters":["AL0-MPS-GAIN-A", "AL0-MPS-GAIN-B"]
    },
    "machine_params": [
       ["AT_pulse", "SATFE10-PEPG046:PHOTON-ENERGY-PER-PULSE-AVG"],

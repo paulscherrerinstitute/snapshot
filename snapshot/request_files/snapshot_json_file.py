@@ -40,13 +40,7 @@ class SnapshotJsonFile(SnapshotFile):
                 metadata['filters'].update(
                     {f'{config}': list_filters})
             elif config == 'rgx_filters':
-                list_rgx = []
-                list_rgx_names = []
-                for rgx_pattern in get_metadata_dict[config]:
-                    list_rgx.append(rgx_pattern[1])
-                    list_rgx_names.append(rgx_pattern[0])
-                metadata['filters'].update({f'{config}': list_rgx})
-                metadata['filters'].update({f'{config}_names': list_rgx_names})
+                metadata['filters'].update({f'{config}': get_metadata_dict[config]})
             elif config in ['labels', 'force_labels']:
                 metadata['labels'] = {f'{config}': get_metadata_dict[config]}
             elif config == 'read_only':
