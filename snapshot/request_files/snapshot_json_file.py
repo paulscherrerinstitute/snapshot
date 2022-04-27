@@ -1,5 +1,4 @@
 import json
-import os
 from itertools import chain
 from pathlib import Path
 
@@ -14,6 +13,12 @@ class SnapshotJsonFile(SnapshotFile):
         self.__path = Path(path)
         self._file_data = self.__read_input()
 
+    def read(self):
+        metadata = self.__extract_metadata()
+        self.__test_machine_params(metadata)
+        list_of_pvs, list_of_pvs_config = self.__extract_pv_data()
+        return list_of_pvs, metadata, list_of_pvs_config
+
     def __read_input(self) -> dict:
         try:
             content = self.__path.read_text()
@@ -24,41 +29,7 @@ class SnapshotJsonFile(SnapshotFile):
         except Exception as e:
             raise ReqParseError(f'{self.__path}: Could not read file.', e)
 
-    def read(self):
-        metadata, pvs, pvs_config = self.__extract_meta_pvs_from_dict()
-        self.__test_machine_params(metadata)
-        return pvs, metadata, pvs_config
-
-    def __extract_meta_pvs_from_dict(self):
-        try:
-            return self.__get_pvs_list()
-        except Exception:
-            msg = f"{self.__path}: Could not parse Json file."
-            return JsonYamlParseError(msg)
-
-    @staticmethod
-    def __test_machine_params(metadata):
-        # In the file, machine_params are stored as an array of
-        # key-value pairs to preserve order. Here, we can rely on
-        # having an ordered dict.
-        try:
-            metadata['machine_params'] = \
-                dict(metadata.get('machine_params', []))
-            if not all(isinstance(x, str) for x in chain.from_iterable(
-                    metadata['machine_params'].items())):
-                raise ReqParseError
-        except Exception:
-            raise ReqParseError('Invalid format of machine parameter list, '
-                                'must be a list of ["name", "pv_name"] pairs.')
-        forbidden_chars = " ,.()"
-        if any(
-                any(char in param for char in forbidden_chars)
-                for param in metadata['machine_params']
-        ):
-            raise ReqParseError('Invalid format of machine parameter list, '
-                                'names must not contain space or punctuation.')
-
-    def __get_pvs_list(self):
+    def __extract_metadata(self):
         metadata = {'filters': {}}
         get_metadata_dict = self._file_data.get("CONFIG", {})
         # CONFIGURATIONS
@@ -82,8 +53,9 @@ class SnapshotJsonFile(SnapshotFile):
                 metadata['read_only'] = get_metadata_dict[config]
             elif config in ['machine_params']:
                 metadata['machine_params'] = get_metadata_dict[config]
+        return metadata
 
-        # LIST OF PVS
+    def __extract_pv_data(self):
         list_of_pvs = []
         list_of_pvs_config = []
         get_pvs_dict = self._file_data.get("PVS", {})
@@ -98,8 +70,29 @@ class SnapshotJsonFile(SnapshotFile):
                 list_of_pvs.append(f'{ioc}:{pv_name}')
                 list_of_pvs_config.append({f'{ioc}:{pv_name}': {
                     "precision": precision}})
+        return list_of_pvs, list_of_pvs_config
 
-        return metadata, list_of_pvs, list_of_pvs_config
+    @staticmethod
+    def __test_machine_params(metadata):
+        # In the file, machine_params are stored as an array of
+        # key-value pairs to preserve order. Here, we can rely on
+        # having an ordered dict.
+        try:
+            metadata['machine_params'] = \
+                dict(metadata.get('machine_params', []))
+            if not all(isinstance(x, str) for x in chain.from_iterable(
+                    metadata['machine_params'].items())):
+                raise ReqParseError
+        except Exception:
+            raise ReqParseError('Invalid format of machine parameter list, '
+                                'must be a list of ["name", "pv_name"] pairs.')
+        forbidden_chars = " ,.()"
+        if any(
+                any(char in param for char in forbidden_chars)
+                for param in metadata['machine_params']
+        ):
+            raise ReqParseError('Invalid format of machine parameter list, '
+                                'names must not contain space or punctuation.')
 
 
 class JsonYamlParseError(SnapshotError):
