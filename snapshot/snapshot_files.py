@@ -59,15 +59,8 @@ class SnapshotReqFile(SnapshotFile):
         filepath = Path(self._path)
         try:
             content = filepath.read_text()
-            if filepath.suffix == '.json':
-                content = json.loads(content)
-            elif filepath.suffix in ['.yaml', '.yml']:
-                content = yaml.safe_load(content)
-            elif filepath.suffix != '.req':
-                raise ReqParseError(f"Unsupported file format for {filepath}!")
         except Exception as e:
-            msg = f'{self._path}: Could not read "{filepath}" load file.'
-            raise ReqParseError(msg, e)
+            raise ReqParseError(f'{self._path}: Could not read "{filepath}" load file.', e)
         return filepath.suffix, content
 
     def read(self):
@@ -145,78 +138,92 @@ class SnapshotReqFile(SnapshotFile):
         includes = []
         pvs = []
         pvs_config = []
-        if self._type == '.req':
+        if self._file_data.lstrip().startswith('{'):
+            try:
+                md = self._file_data.lstrip()
+                metadata, end_of_metadata = \
+                    json.JSONDecoder().raw_decode(md)
+            except json.JSONDecodeError:
+                msg = f"{self._path}: Could not parse JSON metadata header."
+                return ReqParseError(msg)
+
+            # Ensure line counts make sense for error reporting.
+            actual_data = md[end_of_metadata:].lstrip()
+            actual_data_index = self._file_data.find(actual_data)
+            self._curr_line_n = len(self._file_data[:actual_data_index]
+                                    .splitlines())
+            self._file_data = self._file_data[actual_data_index:]
+        else:
             metadata = {}
             self._curr_line_n = 0
-            for self._curr_line in self._file_data.splitlines():
-                self._curr_line_n += 1
-                self._curr_line = self._curr_line.strip()
 
-                # skip comments, empty lines and "data{}" stuff
-                if not self._curr_line.startswith(('#', "data{", "}", "!")) \
-                        and self._curr_line.strip():
-                    # First replace macros, then check if any unreplaced macros
-                    # which are not "global"
-                    pvname = SnapshotPv.macros_substitution(
-                        (self._curr_line.rstrip().split(',', maxsplit=1)[0]),
-                        self._macros)
+        for self._curr_line in self._file_data.splitlines():
+            self._curr_line_n += 1
+            self._curr_line = self._curr_line.strip()
+
+            # skip comments, empty lines and "data{}" stuff
+            if not self._curr_line.startswith(('#', "data{", "}", "!")) \
+                    and self._curr_line.strip():
+                # First replace macros, then check if any unreplaced macros
+                # which are not "global"
+                pvname = SnapshotPv.macros_substitution(
+                    (self._curr_line.rstrip().split(',', maxsplit=1)[0]),
+                    self._macros)
+                try:
+                    # Check if any unreplaced macros
+                    self._validate_macros_in_txt(pvname)
+                except MacroError as e:
+                    return ReqParseError(self._format_err(
+                        (self._curr_line_n, self._curr_line), e))
+                else:
+                    pvs.append(pvname)
+            elif self._curr_line.startswith('!'):
+                # Calling another req file
+                split_line = self._curr_line[1:].split(',', maxsplit=1)
+                if len(split_line) > 1:
+                    macro_txt = split_line[1].strip()
+                    if macro_txt.startswith(('\"', '\'')):
+                        quote_type = macro_txt[0]
+                    else:
+                        return ReqFileFormatError(
+                            self._format_err(
+                                (self._curr_line_n, self._curr_line),
+                                'Syntax error. Macro argument must be quoted'))
+                    if not macro_txt.endswith(quote_type):
+                        return ReqFileFormatError(
+                            self._format_err(
+                                (self._curr_line_n, self._curr_line),
+                                'Syntax error. Macro argument must be quoted'))
+                    macro_txt = SnapshotPv.macros_substitution(
+                        macro_txt[1:-1], self._macros)
                     try:
-                        # Check if any unreplaced macros
-                        self._validate_macros_in_txt(pvname)
+                        # Check for any unreplaced macros
+                        self._validate_macros_in_txt(macro_txt)
+                        macros = parse_macros(macro_txt)
+
                     except MacroError as e:
-                        return ReqParseError(self._format_err(
-                            (self._curr_line_n, self._curr_line), e))
-                    else:
-                        pvs.append(pvname)
-                elif self._curr_line.startswith('!'):
-                    # Calling another req file
-                    split_line = self._curr_line[1:].split(',', maxsplit=1)
-                    if len(split_line) > 1:
-                        macro_txt = split_line[1].strip()
-                        if macro_txt.startswith(('\"', '\'')):
-                            quote_type = macro_txt[0]
-                        else:
-                            return ReqFileFormatError(
-                                self._format_err(
-                                    (self._curr_line_n, self._curr_line),
-                                    'Syntax error. Macro argument must be quoted'))
-                        if not macro_txt.endswith(quote_type):
-                            return ReqFileFormatError(
-                                self._format_err(
-                                    (self._curr_line_n, self._curr_line),
-                                    'Syntax error. Macro argument must be quoted'))
-                        macro_txt = SnapshotPv.macros_substitution(
-                            macro_txt[1:-1], self._macros)
-                        try:
-                            # Check for any unreplaced macros
-                            self._validate_macros_in_txt(macro_txt)
-                            macros = parse_macros(macro_txt)
-
-                        except MacroError as e:
-                            return ReqParseError(
-                                self._format_err(
-                                    (self._curr_line_n, self._curr_line), e))
-                    else:
-                        macros = {}
-                    path = os.path.join(
-                        os.path.dirname(self._path),
-                        split_line[0])
-                    msg = self._check_looping(path)
-                    if msg:
-                        return ReqFileInfLoopError(
+                        return ReqParseError(
                             self._format_err(
-                                (self._curr_line_n, self._curr_line), msg))
-                    try:
-                        sub_f = SnapshotReqFile(
-                            path, parent=self, macros=macros)
-                        includes.append(sub_f)
+                                (self._curr_line_n, self._curr_line), e))
+                else:
+                    macros = {}
+                path = os.path.join(
+                    os.path.dirname(self._path),
+                    split_line[0])
+                msg = self._check_looping(path)
+                if msg:
+                    return ReqFileInfLoopError(
+                        self._format_err(
+                            (self._curr_line_n, self._curr_line), msg))
+                try:
+                    sub_f = SnapshotReqFile(
+                        path, parent=self, macros=macros)
+                    includes.append(sub_f)
 
-                    except OSError as e:
-                        return OSError(
-                            self._format_err(
-                                (self._curr_line, self._curr_line_n), e))
-        else:
-            metadata, pvs, pvs_config = self._extract_meta_pvs_from_dict()
+                except OSError as e:
+                    return OSError(
+                        self._format_err(
+                            (self._curr_line, self._curr_line_n), e))
         return pvs, metadata, includes, pvs_config
 
     def _extract_pvs_from_req(self):
@@ -226,56 +233,6 @@ class SnapshotReqFile(SnapshotFile):
             return ReqParseError(e)
         else:
             return list_of_pvs
-
-    def _extract_meta_pvs_from_dict(self):
-        try:
-            return self._get_pvs_list()
-        except Exception:
-            msg = f"{self._path}: Could not parse Json file."
-            return JsonYamlParseError(msg)
-
-    def _get_pvs_list(self):
-        metadata = {'filters': {}}
-        get_metadata_dict = self._file_data.get("CONFIG", {})
-        # CONFIGURATIONS
-        for config in get_metadata_dict.keys():
-            # // test filters
-            if config == 'filters':
-                list_filters = list(get_metadata_dict[config])
-                metadata['filters'].update(
-                    {f'{config}': list_filters})
-            elif config == 'rgx_filters':
-                list_rgx = []
-                list_rgx_names = []
-                for rgx_pattern in get_metadata_dict[config]:
-                    list_rgx.append(rgx_pattern[1])
-                    list_rgx_names.append(rgx_pattern[0])
-                metadata['filters'].update({f'{config}': list_rgx})
-                metadata['filters'].update({f'{config}_names': list_rgx_names})
-            elif config in ['labels', 'force_labels']:
-                metadata['labels'] = {f'{config}': get_metadata_dict[config]}
-            elif config == 'read_only':
-                metadata['read_only'] = get_metadata_dict[config]
-            elif config in ['machine_params']:
-                metadata['machine_params'] = get_metadata_dict[config]
-
-        # LIST OF PVS
-        list_of_pvs = []
-        list_of_pvs_config = []
-        get_pvs_dict = self._file_data.get("PVS", {})
-        for ioc in get_pvs_dict.keys():
-            # get default configs
-            default_config_dict = get_pvs_dict[ioc].get("DEFAULT_CONFIG", {})
-            # default precision for this ioc (-1 = load from pv)
-            default_precision = default_config_dict.get('default_precision', -1)
-            for channel in get_pvs_dict[ioc].get("CHANNELS", {}):
-                pv_name = channel.get('name', '')
-                precision = channel.get('precision', default_precision)
-                list_of_pvs.append(f'{ioc}:{pv_name}')
-                list_of_pvs_config.append({f'{ioc}:{pv_name}': {
-                    "precision": precision}})
-
-        return metadata, list_of_pvs, list_of_pvs_config
 
     def _format_err(self, line: tuple, msg: str):
         return f'{self._trace} [line {line[0]}: {line[1]}]: {msg}'
