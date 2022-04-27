@@ -10,41 +10,34 @@ from snapshot.request_files.snapshot_file import SnapshotFile, ReqParseError
 
 
 class SnapshotJsonFile(SnapshotFile):
-    def __init__(self, path: str, parent=None, macros: dict = None,
-                 changeable_macros: list = None):
-        self._path = os.path.abspath(path)
-        self._type, self._file_data = self.read_input()
+    def __init__(self, path: str):
+        self.__path = Path(path)
+        self._file_data = self.__read_input()
 
-    def read_input(self):
-        filepath = Path(self._path)
+    def __read_input(self) -> dict:
         try:
-            content = filepath.read_text()
-            if filepath.suffix == '.json':
-                content = json.loads(content)
-            elif filepath.suffix in ['.yaml', '.yml']:
-                content = yaml.safe_load(content)
+            content = self.__path.read_text()
+            if self.__path.suffix == '.json':
+                return json.loads(content)
+            elif self.__path.suffix in ['.yaml', '.yml']:
+                return yaml.safe_load(content)
         except Exception as e:
-            msg = f'{self._path}: Could not read "{filepath}" load file.'
-            raise ReqParseError(msg, e)
-        return filepath.suffix, content
+            raise ReqParseError(f'{self.__path}: Could not read file.', e)
 
     def read(self):
-        """
-        Parse request file and return
-          - a list of pv names where changeable_macros are not replaced. ("raw"
-            pv names).
-          - a dict with metadata from the file.
+        metadata, pvs, pvs_config = self.__extract_meta_pvs_from_dict()
+        self.__test_machine_params(metadata)
+        return pvs, metadata, pvs_config
 
-        In case of problems raises exceptions.
-                OSError
-                ReqParseError
-                    ReqFileFormatError
-                    ReqFileInfLoopError
+    def __extract_meta_pvs_from_dict(self):
+        try:
+            return self.__get_pvs_list()
+        except Exception:
+            msg = f"{self.__path}: Could not parse Json file."
+            return JsonYamlParseError(msg)
 
-        :return: (pv_names, metadata).
-        """
-        metadata, pvs, pvs_config = self._extract_meta_pvs_from_dict()
-
+    @staticmethod
+    def __test_machine_params(metadata):
         # In the file, machine_params are stored as an array of
         # key-value pairs to preserve order. Here, we can rely on
         # having an ordered dict.
@@ -57,7 +50,6 @@ class SnapshotJsonFile(SnapshotFile):
         except Exception:
             raise ReqParseError('Invalid format of machine parameter list, '
                                 'must be a list of ["name", "pv_name"] pairs.')
-
         forbidden_chars = " ,.()"
         if any(
                 any(char in param for char in forbidden_chars)
@@ -66,16 +58,7 @@ class SnapshotJsonFile(SnapshotFile):
             raise ReqParseError('Invalid format of machine parameter list, '
                                 'names must not contain space or punctuation.')
 
-        return pvs, metadata, pvs_config
-
-    def _extract_meta_pvs_from_dict(self):
-        try:
-            return self._get_pvs_list()
-        except Exception:
-            msg = f"{self._path}: Could not parse Json file."
-            return JsonYamlParseError(msg)
-
-    def _get_pvs_list(self):
+    def __get_pvs_list(self):
         metadata = {'filters': {}}
         get_metadata_dict = self._file_data.get("CONFIG", {})
         # CONFIGURATIONS
