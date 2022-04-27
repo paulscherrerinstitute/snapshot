@@ -1,4 +1,5 @@
-from snapshot.ca_core import ActionStatus, Snapshot, SnapshotReqFile
+from snapshot.ca_core import ActionStatus, Snapshot
+from snapshot.snapshot_files import SnapshotReqFile
 
 
 def restore_done(status, forced):
