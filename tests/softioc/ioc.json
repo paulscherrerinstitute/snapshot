@@ -108,5 +108,6 @@
             ["CAMERA", "MTEST-CAQTDM-CAMERA:CAMERA"],
             ["FILEFORMAT", "MTEST-CAQTDM-CAMERA:FILEFORMAT"]
         ]
-    }
+    },
+    "include": [{"name": "cfg/wf_included.yaml"}]
 }

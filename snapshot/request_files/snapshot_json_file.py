@@ -1,31 +1,37 @@
 import json
 from itertools import chain
 from pathlib import Path
+from typing import Optional
 
 import yaml
 
-from snapshot.core import SnapshotError
+from snapshot.core import SnapshotError, SnapshotPv
 from snapshot.request_files.snapshot_file import SnapshotFile, ReqParseError
+from snapshot.request_files.snapshot_req_file import SnapshotReqFile
 
 
 class SnapshotJsonFile(SnapshotFile):
-    def __init__(self, path: str):
-        self.__path = Path(path)
-        self._file_data = self.__read_input()
+    def __init__(self, path: Path, data: str, macros: Optional[dict] = None):
+        self.__path = path
+        self._macros = macros if macros is not None else {}
+        self._file_data = self.__read_input(data)
 
     def read(self):
         metadata = self.__extract_metadata()
         self.__test_machine_params(metadata)
-        list_of_pvs, list_of_pvs_config = self.__extract_pv_data()
-        return list_of_pvs, metadata, list_of_pvs_config
 
-    def __read_input(self) -> dict:
+        list_of_pvs, list_of_pvs_config = self.__extract_pv_data()
+        included_pvs, included_config = self.__handle_includes()
+
+        return list_of_pvs + included_pvs, metadata, list_of_pvs_config + included_config
+
+    def __read_input(self, data: str) -> dict:
+        data_with_substituted_macros = SnapshotPv.macros_substitution(data, self._macros)
         try:
-            content = self.__path.read_text()
             if self.__path.suffix == '.json':
-                return json.loads(content)
+                return json.loads(data_with_substituted_macros)
             elif self.__path.suffix in ['.yaml', '.yml']:
-                return yaml.safe_load(content)
+                return yaml.safe_load(data_with_substituted_macros)
         except Exception as e:
             raise ReqParseError(f'{self.__path}: Could not read file.', e)
 
@@ -78,6 +84,43 @@ class SnapshotJsonFile(SnapshotFile):
         ):
             raise ReqParseError('Invalid format of machine parameter list, '
                                 'names must not contain space or punctuation.')
+
+    def __handle_includes(self) -> (list, list):
+        includes = self._file_data.get("include", [])
+        included_pvs = []
+        included_config = []
+
+        for include in includes:
+            included_file = self.__path.parent / include['name']
+            macros_list = include.get('macros', [{}])
+
+            if included_file.suffix == '.req':
+                self.__include_req_file(included_config, included_file, included_pvs, macros_list)
+            elif included_file.suffix in ('.yaml', '.yml', '.json'):
+                self.__include_json_yaml_file(included_config, included_file, included_pvs, macros_list)
+            else:
+                raise ReqParseError(f'Snapshot file of {included_file.suffix} type is not supported.')
+        return included_pvs, included_config
+
+    @staticmethod
+    def __include_json_yaml_file(included_config, included_file, included_pvs, macros_list):
+        for macros in macros_list:
+            data = included_file.read_text()
+            file = SnapshotJsonFile(path=included_file, data=data, macros=macros)
+            pvs, _, config = file.read()
+            included_pvs += pvs
+            included_config += config
+
+    @staticmethod
+    def __include_req_file(included_config, included_file, included_pvs, macros_list):
+        pvs1 = []
+        for macros1 in macros_list:
+            file1 = SnapshotReqFile(path=str(included_file), macros=macros1)
+            pvs1 += file1.read()[0]
+        result = pvs1, [{'precision': 6}] * len(pvs1)
+        pvs, config = result
+        included_pvs += pvs
+        included_config += config
 
 
 class JsonYamlParseError(SnapshotError):

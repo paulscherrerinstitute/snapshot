@@ -13,15 +13,8 @@ PVS:
     - name: switch_without_text
     - name: some_status_direct
     - name: text
-    - name: wf_strings
-    - name: wf_strings_large
-    - name: wf_ints
-    - name: wf_chars
-    - name: wf_double
-    - name: wf_double_prec_2
-      precision: 2
-    - name: wf_double_prec_5
-      precision: 5
+include:
+  - name: cfg/wf_included.yaml
 config:
   filters:
   - wf_

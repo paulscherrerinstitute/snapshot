@@ -1,0 +1,7 @@
+$(NAME):wf_strings
+$(NAME):wf_strings_large
+$(NAME):wf_ints
+$(NAME):wf_chars
+$(NAME):wf_double
+$(NAME):wf_double_prec_2
+$(NAME):wf_double_prec_5
