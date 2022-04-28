@@ -46,7 +46,7 @@ PVS:
     CHANNELS:
     - name: PHOTON-ENERGY-PER-PULSE-AVG
       precision: 3
-CONFIG:
+config:
   filters:
   - AL0-MPS-GAIN-A
   - AL0-MPS-GAIN-B

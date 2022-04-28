@@ -30,23 +30,14 @@ class SnapshotJsonFile(SnapshotFile):
             raise ReqParseError(f'{self.__path}: Could not read file.', e)
 
     def __extract_metadata(self):
-        metadata = {'filters': {}}
-        get_metadata_dict = self._file_data.get("CONFIG", {})
-        # CONFIGURATIONS
-        for config in get_metadata_dict.keys():
-            # // test filters
-            if config == 'filters':
-                list_filters = list(get_metadata_dict[config])
-                metadata['filters'].update(
-                    {f'{config}': list_filters})
-            elif config == 'rgx_filters':
-                metadata['filters'].update({f'{config}': get_metadata_dict[config]})
-            elif config in ['labels', 'force_labels']:
-                metadata['labels'] = {f'{config}': get_metadata_dict[config]}
-            elif config == 'read_only':
-                metadata['read_only'] = get_metadata_dict[config]
-            elif config in ['machine_params']:
-                metadata['machine_params'] = get_metadata_dict[config]
+        metadata = {'filters': {}, 'labels': {}}
+        json_data = self._file_data.get("config", {})
+        metadata['filters']['filters'] = json_data.get('filters', [])
+        metadata['filters']['rgx_filters'] = json_data.get('rgx_filters', [])
+        metadata['labels']['labels'] = json_data.get('labels', [])
+        metadata['labels']['force_labels'] = json_data.get('force_labels', False)
+        metadata['read_only'] = json_data.get('read_only', False)
+        metadata['machine_params'] = json_data.get('machine_params', [])
         return metadata
 
     def __extract_pv_data(self):

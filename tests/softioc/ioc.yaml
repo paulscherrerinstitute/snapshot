@@ -22,7 +22,7 @@ PVS:
       precision: 2
     - name: wf_double_prec_5
       precision: 5
-CONFIG:
+config:
   filters:
   - wf_
   - snapshot

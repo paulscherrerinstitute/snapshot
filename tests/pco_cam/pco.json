@@ -102,7 +102,7 @@
             ]
         }
     },
-    "CONFIG":{
+    "config":{
         "filters":[
             "AL0-MPS-GAIN-A",
             "AL0-MPS-GAIN-B"
