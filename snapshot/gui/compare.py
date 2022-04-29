@@ -888,7 +888,6 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     def tolerance_from_precision(self):
         prec = self.precision
-        print("defining precision ", prec, self.pvname)
         if not prec or prec < 0:
             # The default precision is 6, which matches string formatting
             # behaviour. It makes no sense to do comparison to a higher
@@ -903,7 +902,6 @@ class SnapshotPvTableLine(QtCore.QObject):
             return value
         else:
             # dump other values
-            print("SASASA")
             return SnapshotPv.value_to_display_str(value, precision)
 
     def update_pv_value(self, pv_value):
