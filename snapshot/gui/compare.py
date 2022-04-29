@@ -199,10 +199,16 @@ class SnapshotCompareWidget(QWidget):
         self.pv_filter_sel.clear()
         self.pv_filter_sel.addItem(None)
 
-        for name, rgx in predefined_filters.get('rgx_filters', list()):
-            label = f'{name}   |   {rgx}'
+        for regex_item in predefined_filters.get('rgx_filters', []):
+            # label for regex not provided (str)
+            if isinstance(regex_item,str):
+                label = f'{regex_item}'
+            # label and regex provided ([label, regex])
+            elif isinstance(regex_item, list):
+                label = f'{regex_item[0]}   |   {regex_item[1]}'
             self.pv_filter_sel.addItem(SnapshotCompareWidget.rgx_icon, label)
-        self.pv_filter_sel.addItems(predefined_filters.get('filters', list()))
+
+        self.pv_filter_sel.addItems(predefined_filters.get('filters', []))
         self.pv_filter_sel.blockSignals(False)
 
     def _handle_regex_change(self, state):
@@ -796,9 +802,14 @@ class SnapshotPvTableLine(QtCore.QObject):
         self._compare()
 
     def append_snap_value(self, value):
+        print(self.pvname)
         if value is not None:
+            # if pv is not connected:
+            # precision and string representation is not available
+            if self.precision is None:
+                self._precision = 6
             sval = SnapshotPvTableLine.string_repr_snap_value(
-                value, self.precision)
+                    value, self.precision)
             self.data.append({'data': sval, 'raw_value': value})
         else:
             self.data.append({'data': '', 'raw_value': None})
@@ -877,6 +888,7 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     def tolerance_from_precision(self):
         prec = self.precision
+        print("defining precision ", prec, self.pvname)
         if not prec or prec < 0:
             # The default precision is 6, which matches string formatting
             # behaviour. It makes no sense to do comparison to a higher
@@ -891,6 +903,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             return value
         else:
             # dump other values
+            print("SASASA")
             return SnapshotPv.value_to_display_str(value, precision)
 
     def update_pv_value(self, pv_value):
@@ -910,7 +923,6 @@ class SnapshotPvTableLine(QtCore.QObject):
             value_col['data'] = ''
             self._compare(None, get_missing=False)
             return True
-
         new_value = SnapshotPv.value_to_display_str(
             pv_value, self.precision
         )
