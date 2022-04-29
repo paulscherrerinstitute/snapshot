@@ -136,8 +136,12 @@
             "K1L"
         ],
         "machine_params":[
-            ["CAMERA", "MTEST-CAQTDM-CAMERA:CAMERA"],
-            ["FILEFORMAT", "MTEST-CAQTDM-CAMERA:FILEFORMAT"]
+            ["AT_pulse", "SATFE10-PEPG046:PHOTON-ENERGY-PER-PULSE-AVG"],
+            ["AT_phot1", "SATUN06-UIND030:FELPHOTENE"],
+            ["AT_phot2", "SATUN15-UIND030:FELPHOTENE"],
+            ["AT_energy", "SATCL01-MBND100:P-READ"],
+            ["AT_charge", "SINSB01-DBPM150:Q-AT"],
+            ["AT_rate", "SIN-TIMAST-TMA:Bunch-2-Exp-Freq-RB"]
         ]
     }
 }
