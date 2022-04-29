@@ -84,7 +84,7 @@ class SnapshotReqFile(SnapshotFile):
             for result, inc in zip(results, old_includes):
                 if not isinstance(result, tuple):
                     raise result
-                new_pvs, new_metadata, new_includes = result
+                new_pvs, new_metadata, new_includes, _ = result
                 if new_metadata:
                     msg = f"Found metadata in included file {inc._path}; " \
                           "metadata is only allowed in the top-level file."
