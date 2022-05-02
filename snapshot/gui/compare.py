@@ -988,6 +988,12 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
         # during invalidateFilter(), filterAcceptsRow() is called for each row
         self.invalidateFilter()
 
+    def lessThan(self, lhs, rhs):  # real signature unknown; restored from __doc__
+        try:
+            return float(lhs.data()) < float(rhs.data())
+        except ValueError:
+            return super().lessThan(lhs, rhs)
+
     def filterAcceptsRow(self, idx: int, source_parent: QtCore.QModelIndex):
         """
         Reimplemented parent method, to define a PV table filtering.
