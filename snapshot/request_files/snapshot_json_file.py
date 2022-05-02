@@ -1,5 +1,6 @@
+import concurrent.futures
 import json
-from itertools import chain
+from itertools import chain, repeat
 from pathlib import Path
 from typing import Optional
 
@@ -101,23 +102,24 @@ class SnapshotJsonFile(SnapshotFile):
 
     @staticmethod
     def __include_json_yaml_file(included_config, included_file, included_pvs, macros_list):
-        for macros in macros_list:
-            data = included_file.read_text()
-            file = SnapshotJsonFile(path=included_file, data=data, macros=macros)
-            pvs, _, config = file.read()
-            included_pvs += pvs
-            included_config += config
+        data = included_file.read_text()
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            results = executor.map(lambda i, d, m: SnapshotJsonFile(path=i, data=d, macros=m).read(),
+                                   repeat(included_file),
+                                   repeat(data),
+                                   macros_list)
+            for pvs, _, config in results:
+                included_pvs += pvs
+                included_config += config
 
     @staticmethod
     def __include_req_file(included_config, included_file, included_pvs, macros_list):
-        pvs1 = []
-        for macros1 in macros_list:
-            file1 = SnapshotReqFile(path=str(included_file), macros=macros1)
-            pvs1 += file1.read()[0]
-        result = pvs1, [{'precision': 6}] * len(pvs1)
-        pvs, config = result
+        pvs = []
+        for macros in macros_list:
+            file = SnapshotReqFile(path=str(included_file), macros=macros)
+            pvs += file.read()[0]
         included_pvs += pvs
-        included_config += config
+        included_config += [{'precision': 6}] * len(pvs)
 
 
 class JsonYamlParseError(SnapshotError):

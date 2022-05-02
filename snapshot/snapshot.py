@@ -39,6 +39,14 @@ def save_caller(args):
         args.regex)
 
 
+def convert(args):
+    from snapshot.request_files.converter import convert
+    convert(file=args.FILE,
+            output_as_file=args.output_as_file,
+            include_suffix=args.update_include_suffix,
+            output_format=args.to)
+
+
 def restore_caller(args):
     from .cmd import restore
     restore(args.FILE, args.force, args.timeout)
@@ -151,8 +159,30 @@ def main():
         '--timeout', default=10, type=int,
         help='max time waiting for PVs to be connected and restored')
 
+    # Convert
+    convert_parser = subparsers.add_parser(
+        'convert', help='convert ".req" file to json/yaml format')
+    convert_parser.set_defaults(func=convert)
+    convert_parser.add_argument('FILE', help='input file to convert')
+    convert_parser.add_argument(
+        '-o',
+        '--output-as-file',
+        action='store_true',
+        help='save output as file with same name (different suffix)')
+    convert_parser.add_argument(
+        '-u', '--update-include-suffix',
+        default='.req',
+        choices=['.req', '.yaml', '.json'],
+        help="update includes suffix (possibility to prepare for included files conversion)")
+    convert_parser.add_argument(
+        '-t', '--to', default='yaml', choices=['yaml', 'json'],
+        help='conversion output format')
+    convert_parser.epilog = '''
+    ### Example: find <PATH> -iname "*.req" -exec python -m snapshot convert -o -u .yaml {} \\;
+    '''
+
     # Following two functions modify sys.argv
-    _set_default_subparser('gui', ['gui', 'save', 'restore'])
+    _set_default_subparser('gui', ['gui', 'save', 'restore', 'convert'])
     # From version 1.3.1 handling of options have changed to be more consistent. However following function replaces
     # old style options with new style equivalents (backward compatibility).Old style options are no more shown in the
     # help, so users are encouraged to use new style.
@@ -168,11 +198,15 @@ usage: {}       {}
 -------- Command line save mode --------
 {}
 -------- Command line restore mode --------
-{}'''.format(
+{}
+-------- Command line convert mode --------
+{}
+'''.format(
         re.sub(r'\sgui|usage:\s', '', gui_pars.format_usage()),
         re.sub(r'usage:\s', '', gui_pars.format_help()),
         save_pars.format_help(),
-        rest_pars.format_help()
+        rest_pars.format_help(),
+        convert_parser.format_help()
     )
 
     args_pars.description = '''Tool for saving and restoring snapshots of EPICS process variables (PVs).

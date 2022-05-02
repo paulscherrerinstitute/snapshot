@@ -14,15 +14,37 @@ class ConversionError(ValueError):
     pass
 
 
+def convert(file: str, output_as_file: bool, include_suffix: str, output_format: str) -> None:
+    """
+    Converts request file from 'req' to 'yaml' or 'json' format.
+    """
+    input_file = Path(file)
+    assert input_file.suffix == '.req'
+
+    input_data = input_file.read_text()
+    if output_format == 'yaml':
+        converted = convert_req_to_yaml(input_data, include_suffix)
+    else:
+        converted = convert_req_to_json(input_data, include_suffix)
+
+    if output_as_file:
+        output_file = input_file.with_suffix('.' + output_format)
+        output_file.write_text(converted)
+        print(f'Converted {input_file} to {output_file}.')
+    else:
+        print(converted)
+
+
 def convert_req_to_dict(request_file_content: str, include_extension: str = '.req') -> dict:
     raw_metadata, rest_of_content = __extract_metadata(request_file_content.lstrip())
     metadata = __adapt_metadata(raw_metadata)
 
     stripped_lines = [line.strip() for line in rest_of_content.splitlines() if line.strip()]
     raw_pvs = __extract_pvs(stripped_lines)
-    parsed_includes = __parse_includes(stripped_lines, include_extension)
+    parsed_pvs = __adapt_pvs(raw_pvs)
+    parsed_includes = __adapt_includes(stripped_lines, include_extension)
 
-    return {'pvs': {'list': raw_pvs}, 'config': metadata, 'include': parsed_includes}
+    return {'pvs': {'list': parsed_pvs}, 'config': metadata, 'include': parsed_includes}
 
 
 def convert_req_to_yaml(request_file_content: str, include_extension: str = '.req') -> str:
@@ -31,6 +53,10 @@ def convert_req_to_yaml(request_file_content: str, include_extension: str = '.re
 
 def convert_req_to_json(request_file_content: str, include_extension: str = '.req') -> str:
     return json.dumps(convert_req_to_dict(request_file_content, include_extension), indent=4)
+
+
+def __adapt_pvs(raw_pvs: list) -> list:
+    return [{'name': pv} for pv in raw_pvs]
 
 
 def __adapt_metadata(raw_metadata: dict) -> dict:
@@ -42,7 +68,7 @@ def __adapt_metadata(raw_metadata: dict) -> dict:
     return metadata
 
 
-def __parse_includes(stripped_lines: list, include_extension: str) -> list:
+def __adapt_includes(stripped_lines: list, include_extension: str) -> list:
     intermediate_includes = {}
     for include in __extract_includes(stripped_lines):
         arguments = include[1:].split(',', maxsplit=1)
