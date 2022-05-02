@@ -49,18 +49,15 @@ class SnapshotJsonFile(SnapshotFile):
     def __extract_pv_data(self):
         list_of_pvs = []
         list_of_pvs_config = []
-        get_pvs_dict = self._file_data.get("PVS", {})
-        for ioc in get_pvs_dict.keys():
-            # get default configs
-            default_config_dict = get_pvs_dict[ioc].get("DEFAULT_CONFIG", {})
-            # default precision for this ioc (-1 = load from pv)
-            default_precision = default_config_dict.get('default_precision', -1)
-            for channel in get_pvs_dict[ioc].get("CHANNELS", {}):
-                pv_name = channel.get('name', '')
-                precision = channel.get('precision', default_precision)
-                list_of_pvs.append(f'{ioc}:{pv_name}')
-                list_of_pvs_config.append({f'{ioc}:{pv_name}': {
-                    "precision": precision}})
+        get_pvs_dict = self._file_data.get("pvs", {})
+        default_config_dict = get_pvs_dict.get("defaults", {})
+        # default precision for this ioc (-1 = load from pv)
+        default_precision = default_config_dict.get('precision', -1)
+        for channel in get_pvs_dict.get("list", {}):
+            pv_name = channel.get('name', '')
+            precision = channel.get('precision', default_precision)
+            list_of_pvs.append(pv_name)
+            list_of_pvs_config.append({pv_name: {"precision": precision}})
         return list_of_pvs, list_of_pvs_config
 
     @staticmethod

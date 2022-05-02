@@ -1,98 +1,87 @@
 ---
-PVS:
-  S10CB04-DBLM130:
-    CHANNELS:
-    - name: AL1-MPS-GAIN-B
+pvs:
+  list:
+    - name: S10CB04-DBLM130:AL1-MPS-GAIN-B
       precision: 5
-    - name: AL1-MPS-GAIN-A
+    - name: S10CB04-DBLM130:AL1-MPS-GAIN-A
       precision: 2
-    - name: AL0-MPS-GAIN-B
-    - name: AL0-MPS-GAIN-A
-  MTEST-CAQTDM-CAMERA:
-    DEFAULT_CONFIG:
-      default_precision: 5
-    CHANNELS:
-    - name: CAMERA
+    - name: S10CB04-DBLM130:AL0-MPS-GAIN-B
+    - name: S10CB04-DBLM130:AL0-MPS-GAIN-A
+    - name: MTEST-CAQTDM-CAMERA:CAMERA
       precision: 1
-    - name: FILEFORMAT
+    - name: MTEST-CAQTDM-CAMERA:FILEFORMAT
       precision: 3
-    - name: RECMODE
+    - name: MTEST-CAQTDM-CAMERA:RECMODE
       precision: 3
-    - name: STOREMODE
+    - name: MTEST-CAQTDM-CAMERA:STOREMODE
       precision: 3
-    - name: SADASCXASCXAS
+    - name: MTEST-CAQTDM-CAMERA:SADASCXASCXAS
       precision: 3
-    - name: CLEARMEM
+    - name: MTEST-CAQTDM-CAMERA:CLEARMEM
       precision: 3
-    - name: SAVESTOP
+    - name: MTEST-CAQTDM-CAMERA:SAVESTOP
       precision: 3
-    - name: SET_PARAM
-    - name: FTRANSFER
-  S10BC01-DBLM184:
-    DEFAULT_CONFIG:
-      default_precision: 5
-    CHANNELS:
-    - name: AL0-MPS-GAIN-A
+    - name: MTEST-CAQTDM-CAMERA:SET_PARAM
+    - name: MTEST-CAQTDM-CAMERA:FTRANSFER
+    - name: S10BC01-DBLM184:AL0-MPS-GAIN-A
       precision: 3
-    - name: AL0-MPS-GAIN-B
+    - name: S10BC01-DBLM184:AL0-MPS-GAIN-B
       precision: 3
-    - name: AL1-MPS-GAIN-A
-    - name: AL1-MPS-GAIN-B
-    - name: AL2-MPS-GAIN-A
-    - name: AL2-MPS-GAIN-B
-    - name: AL3-MPS-GAIN-B
-    - name: AL3-MPS-GAIN-A
-  SARFE10-PBPG050:
-    CHANNELS:
-    - name: PHOTON-ENERGY-PER-PULSE-AVG
+    - name: S10BC01-DBLM184:AL1-MPS-GAIN-A
+    - name: S10BC01-DBLM184:AL1-MPS-GAIN-B
+    - name: S10BC01-DBLM184:AL2-MPS-GAIN-A
+    - name: S10BC01-DBLM184:AL2-MPS-GAIN-B
+    - name: S10BC01-DBLM184:AL3-MPS-GAIN-B
+    - name: S10BC01-DBLM184:AL3-MPS-GAIN-A
+    - name: SARFE10-PBPG050:PHOTON-ENERGY-PER-PULSE-AVG
       precision: 3
 config:
   filters:
-  - AL0-MPS-GAIN-A
-  - AL0-MPS-GAIN-B
+    - AL0-MPS-GAIN-A
+    - AL0-MPS-GAIN-B
   read_only: false
   rgx_filters:
-  - - Gain B
-    - S10.*-B
-  - - Gain A
-    - S10.*-A
-  - - IOC 120
-    - ".*120.*"
-  - - CAM PCO
-    - MTEST.*
-  - - IOC 130
-    - ".*130.*"
-  - - IOC 140
-    - ".*140.*"
-  - - name4
-    - S.*-DBLM.*MPS-PMT-GAIN
+    - - Gain B
+      - S10.*-B
+    - - Gain A
+      - S10.*-A
+    - - IOC 120
+      - ".*120.*"
+    - - CAM PCO
+      - MTEST.*
+    - - IOC 130
+      - ".*130.*"
+    - - IOC 140
+      - ".*140.*"
+    - - name4
+      - S.*-DBLM.*MPS-PMT-GAIN
   force_labels: true
   labels:
-  - MODE-GUN
-  - MODE-BC1
-  - MODE-BC2
-  - MODE-AR-LINAC
-  - MODE-AR-UND
-  - MODE-AT-LINAC
-  - MODE-AT-UND
-  - BC1-ON
-  - BC1-OFF
-  - BC2-ON
-  - BC2-OFF
-  - LH-ON
-  - LH-OFF
-  - REFERENCE
-  - K1L
+    - MODE-GUN
+    - MODE-BC1
+    - MODE-BC2
+    - MODE-AR-LINAC
+    - MODE-AR-UND
+    - MODE-AT-LINAC
+    - MODE-AT-UND
+    - BC1-ON
+    - BC1-OFF
+    - BC2-ON
+    - BC2-OFF
+    - LH-ON
+    - LH-OFF
+    - REFERENCE
+    - K1L
   machine_params:
-  - - AT_pulse
-    - SATFE10-PEPG046:PHOTON-ENERGY-PER-PULSE-AVG
-  - - AT_phot1
-    - SATUN06-UIND030:FELPHOTENE
-  - - AT_phot2
-    - SATUN15-UIND030:FELPHOTENE
-  - - AT_energy
-    - SATCL01-MBND100:P-READ
-  - - AT_charge
-    - SINSB01-DBPM150:Q-AT
-  - - AT_rate
-    - SIN-TIMAST-TMA:Bunch-2-Exp-Freq-RB
+    - - AT_pulse
+      - SATFE10-PEPG046:PHOTON-ENERGY-PER-PULSE-AVG
+    - - AT_phot1
+      - SATUN06-UIND030:FELPHOTENE
+    - - AT_phot2
+      - SATUN15-UIND030:FELPHOTENE
+    - - AT_energy
+      - SATCL01-MBND100:P-READ
+    - - AT_charge
+      - SINSB01-DBPM150:Q-AT
+    - - AT_rate
+      - SIN-TIMAST-TMA:Bunch-2-Exp-Freq-RB

@@ -1,75 +1,72 @@
 {
-    "PVS":{
-        "snapshot:test":
-            { 
-                "DEFAULT_CONFIG":{
-                    "default_precision": 5
-                },
-                "CHANNELS": [
-                    { 
-                        "name": "sine",
-                        "precision": 1
-                    },
-                    { 
-                        "name": "angle_rad",
-                        "precision": 1
-                    },
-                    { 
-                        "name": "angle_deg",
-                        "precision": 1
-                    },
-                    { 
-                        "name": "alarms",
-                        "precision": 1
-                    },
-                    { 
-                        "name": "some_status",
-                        "precision": 1
-                    },
-                    { 
-                        "name": "switch_with_text",
-                        "precision": 1
-                    },
-                    { 
-                        "name": "switch_without_text",
-                        "precision": 1
-                    },
-                    { 
-                        "name": "some_status_direct",
-                        "precision": 1
-                    },
-                    { 
-                        "name": "text",
-                        "precision": 1
-                    },
-                    { 
-                        "name": "wf_strings",
-                        "precision": 1
-                    },
-                    { 
-                        "name": "wf_strings_large",
-                        "precision": 1
-                    },
-                    { 
-                        "name": "wf_ints",
-                        "precision": 1
-                    },
-                    { 
-                        "name": "wf_chars"
-                    },
-                    { 
-                        "name": "wf_double"
-                    },
-                    { 
-                        "name": "wf_double_prec_2",
-                        "precision": 2
-                    },
-                    { 
-                        "name": "wf_double_prec_5",
-                        "precision": 5
-                    }
-                ]
+    "pvs":{
+        "defaults":{
+            "precision": 5
+        },
+        "list": [
+            {
+                "name": "snapshot:test:sine",
+                "precision": 1
+            },
+            {
+                "name": "snapshot:test:angle_rad",
+                "precision": 1
+            },
+            {
+                "name": "snapshot:test:angle_deg",
+                "precision": 1
+            },
+            {
+                "name": "snapshot:test:alarms",
+                "precision": 1
+            },
+            {
+                "name": "snapshot:test:some_status",
+                "precision": 1
+            },
+            {
+                "name": "snapshot:test:switch_with_text",
+                "precision": 1
+            },
+            {
+                "name": "snapshot:test:switch_without_text",
+                "precision": 1
+            },
+            {
+                "name": "snapshot:test:some_status_direct",
+                "precision": 1
+            },
+            {
+                "name": "snapshot:test:text",
+                "precision": 1
+            },
+            {
+                "name": "snapshot:test:wf_strings",
+                "precision": 1
+            },
+            {
+                "name": "snapshot:test:wf_strings_large",
+                "precision": 1
+            },
+            {
+                "name": "snapshot:test:wf_ints",
+                "precision": 1
+            },
+            {
+                "name": "snapshot:test:wf_chars"
+            },
+            {
+                "name": "snapshot:test:wf_double"
+            },
+            {
+                "name": "snapshot:test:wf_double_prec_2",
+                "precision": 2
+            },
+            {
+                "name": "snapshot:test:wf_double_prec_5",
+                "precision": 5
             }
+        ]
     },
     "config":{
         "filters":[

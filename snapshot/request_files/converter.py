@@ -14,15 +14,23 @@ class ConversionError(ValueError):
     pass
 
 
-def convert_req_to_yaml(request_file_content: str) -> str:
+def convert_req_to_dict(request_file_content: str, include_extension: str = '.req') -> dict:
     raw_metadata, rest_of_content = __extract_metadata(request_file_content.lstrip())
     metadata = __adapt_metadata(raw_metadata)
 
     stripped_lines = [line.strip() for line in rest_of_content.splitlines() if line.strip()]
-    # raw_pvs = __extract_pvs(stripped_lines)
-    parsed_includes = __parse_includes(stripped_lines)
+    raw_pvs = __extract_pvs(stripped_lines)
+    parsed_includes = __parse_includes(stripped_lines, include_extension)
 
-    return yaml.dump({'config': metadata, 'include': parsed_includes})
+    return {'pvs': {'list': raw_pvs}, 'config': metadata, 'include': parsed_includes}
+
+
+def convert_req_to_yaml(request_file_content: str, include_extension: str = '.req') -> str:
+    return yaml.dump(convert_req_to_dict(request_file_content, include_extension))
+
+
+def convert_req_to_json(request_file_content: str, include_extension: str = '.req') -> str:
+    return json.dumps(convert_req_to_dict(request_file_content, include_extension), indent=4)
 
 
 def __adapt_metadata(raw_metadata: dict) -> dict:
@@ -34,15 +42,15 @@ def __adapt_metadata(raw_metadata: dict) -> dict:
     return metadata
 
 
-def __parse_includes(stripped_lines: list) -> list:
+def __parse_includes(stripped_lines: list, include_extension: str) -> list:
     intermediate_includes = {}
     for include in __extract_includes(stripped_lines):
         arguments = include[1:].split(',', maxsplit=1)
-        name = arguments[0]
-        if name in intermediate_includes.keys():
-            intermediate_includes[name].append(__get_macros_for_includes(arguments)[0])
+        filename = arguments[0].replace('.req', include_extension)
+        if filename in intermediate_includes.keys():
+            intermediate_includes[filename].append(__get_macros_for_includes(arguments)[0])
         else:
-            intermediate_includes[name] = __get_macros_for_includes(arguments)
+            intermediate_includes[filename] = __get_macros_for_includes(arguments)
 
     parsed_includes = [{'name': name, 'macros': macros} for name, macros in intermediate_includes.items()]
     __remove_empty_macros(parsed_includes)
@@ -83,5 +91,7 @@ def __extract_metadata(md: str) -> Tuple[dict, str]:
 if __name__ == "__main__":
     args = sys.argv[1:]
     path = Path(args[0])
-    data = convert_req_to_yaml(path.read_text())
+    data = convert_req_to_yaml(path.read_text(), '.yaml')
+    print(data)
+    data = convert_req_to_json(path.read_text(), '.json')
     print(data)

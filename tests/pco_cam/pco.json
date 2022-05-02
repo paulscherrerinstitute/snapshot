@@ -1,124 +1,43 @@
 {
-    "PVS":{
-        "S10CB04-DBLM130": { 
-            "CHANNELS": [
-                { 
-                    "name": "AL1-MPS-GAIN-B",
-                    "precision": 5
-                },
-                { 
-                    "name": "AL1-MPS-GAIN-A",
-                    "precision": 2
-                },
-                {
-                    "name": "AL0-MPS-GAIN-B"
-                },
-                {
-                    "name": "AL0-MPS-GAIN-A"
-                }
-            ]
-        },
-        "MTEST-CAQTDM-CAMERA":
-            { 
-                "DEFAULT_CONFIG":{
-                    "default_precision": 5
-                },
-                "CHANNELS": [
-                    { 
-                        "name": "CAMERA",
-                        "precision": 1
-                    },
-                    { 
-                        "name": "FILEFORMAT",
-                        "precision": 3
-                    },
-                    { 
-                        "name": "RECMODE",
-                        "precision": 3
-                    },
-                    { 
-                        "name": "STOREMODE",
-                        "precision": 3
-                    },
-                    { 
-                        "name": "SADASCXASCXAS",
-                        "precision": 3
-                    },
-                    { 
-                        "name": "CLEARMEM",
-                        "precision": 3
-                    },
-                    { 
-                        "name": "SAVESTOP",
-                        "precision": 3
-                    },
-                    {
-                        "name": "SET_PARAM"
-                    },
-                    {
-                        "name": "FTRANSFER"
-                    }
-                ]
+    "pvs": {
+        "list": [
+            {
+                "name": "S10CB04-DBLM130:AL1-MPS-GAIN-B",
+                "precision": 5
             },
-        "S10BC01-DBLM184":{
-            "DEFAULT_CONFIG":{
-                "default_precision": 5
+            {
+                "name": "S10CB04-DBLM130:AL1-MPS-GAIN-A",
+                "precision": 2
             },
-            "CHANNELS": [
-                { 
-                    "name": "AL0-MPS-GAIN-A",
-                    "precision": 3
-                },
-                { 
-                    "name": "AL0-MPS-GAIN-B",
-                    "precision": 3
-                },
-                {
-                    "name": "AL1-MPS-GAIN-A"
-                },
-                {
-                    "name": "AL1-MPS-GAIN-B"
-                },
-                {
-                    "name":"AL2-MPS-GAIN-A"
-                },
-                {
-                    "name":"AL2-MPS-GAIN-B"
-                },
-                {
-                    "name":"AL3-MPS-GAIN-B"
-                },
-                {
-                    "name":"AL3-MPS-GAIN-A"
-                }
-            ]
-        },
-        "SARFE10-PBPG050":{
-            "CHANNELS": [
-                { 
-                    "name": "PHOTON-ENERGY-PER-PULSE-AVG",
-                    "precision": 3
-                }
-            ]
-        }
+            {
+                "name": "S10CB04-DBLM130:AL0-MPS-GAIN-B"
+            },
+            {
+                "name": "S10CB04-DBLM130:AL0-MPS-GAIN-A"
+            },
+            {
+                "name": "SARFE10-PBPG050:PHOTON-ENERGY-PER-PULSE-AVG",
+                "precision": 3
+            }
+        ]
     },
-    "config":{
-        "filters":[
+    "config": {
+        "filters": [
             "AL0-MPS-GAIN-A",
             "AL0-MPS-GAIN-B"
         ],
         "read_only": false,
-        "rgx_filters":[
+        "rgx_filters": [
             ["Gain B", "S10.*-B"],
             ["Gain A", "S10.*-A"],
-            ["IOC 120",".*120.*"],
+            ["IOC 120", ".*120.*"],
             ["CAM PCO", "MTEST.*"],
-            ["IOC 130",".*130.*"],
-            ["IOC 140",".*140.*"],
-            ["name4","S.*-DBLM.*MPS-PMT-GAIN"]
+            ["IOC 130", ".*130.*"],
+            ["IOC 140", ".*140.*"],
+            ["name4", "S.*-DBLM.*MPS-PMT-GAIN"]
         ],
-        "force_labels":true,
-        "labels":[
+        "force_labels": true,
+        "labels": [
             "MODE-GUN",
             "MODE-BC1",
             "MODE-BC2",
@@ -135,7 +54,7 @@
             "REFERENCE",
             "K1L"
         ],
-        "machine_params":[
+        "machine_params": [
             ["AT_pulse", "SATFE10-PEPG046:PHOTON-ENERGY-PER-PULSE-AVG"],
             ["AT_phot1", "SATUN06-UIND030:FELPHOTENE"],
             ["AT_phot2", "SATUN15-UIND030:FELPHOTENE"],
@@ -143,5 +62,8 @@
             ["AT_charge", "SINSB01-DBPM150:Q-AT"],
             ["AT_rate", "SIN-TIMAST-TMA:Bunch-2-Exp-Freq-RB"]
         ]
-    }
+    },
+    "include": [
+        {"name": "cfg/pco.json"}
+    ]
 }
