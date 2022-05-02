@@ -988,7 +988,7 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
         # during invalidateFilter(), filterAcceptsRow() is called for each row
         self.invalidateFilter()
 
-    def lessThan(self, lhs, rhs):  # real signature unknown; restored from __doc__
+    def lessThan(self, lhs: QtCore.QModelIndex, rhs: QtCore.QModelIndex) -> bool:
         try:
             return float(lhs.data()) < float(rhs.data())
         except ValueError:
