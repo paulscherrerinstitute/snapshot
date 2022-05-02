@@ -802,7 +802,6 @@ class SnapshotPvTableLine(QtCore.QObject):
         self._compare()
 
     def append_snap_value(self, value):
-        print(self.pvname)
         if value is not None:
             # if pv is not connected:
             # precision and string representation is not available
@@ -987,12 +986,6 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
     def apply_filter(self):
         # during invalidateFilter(), filterAcceptsRow() is called for each row
         self.invalidateFilter()
-
-    def lessThan(self, lhs, rhs):  # real signature unknown; restored from __doc__
-        try:
-            return float(lhs.data()) < float(rhs.data())
-        except ValueError:
-            return super().lessThan(lhs, rhs)
 
     def filterAcceptsRow(self, idx: int, source_parent: QtCore.QModelIndex):
         """

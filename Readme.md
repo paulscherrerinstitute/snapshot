@@ -103,6 +103,24 @@ optional arguments:
   --timeout TIMEOUT  max time waiting for PVs to be connected and restored
 ```
 
+```bash
+-------- Command line convert mode --------
+usage: snapshot.py convert [-h] [-o] [-u {.req,.yaml,.json}] [-t {yaml,json}] FILE
+
+positional arguments:
+  FILE                  input file to convert
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -o, --output-as-file  save output as file with same name (different suffix)
+  -u {.req,.yaml,.json}, --update-include-suffix {.req,.yaml,.json}
+                        update includes suffix (possibility to prepare for included files conversion)
+  -t {yaml,json}, --to {yaml,json}
+                        conversion output format
+
+### Example: find <PATH> -iname "*.req" -exec python -m snapshot convert -o -u .yaml {} \;
+```
+
 ## Format of configuration
 
 The config snippet must be the first thing in the request file, before even any
