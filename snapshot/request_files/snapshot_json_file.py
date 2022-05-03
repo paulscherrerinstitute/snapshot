@@ -3,6 +3,7 @@ import json
 from itertools import chain, repeat
 from pathlib import Path
 from typing import Optional
+from PyQt5.QtWidgets import QMessageBox
 
 import yaml
 
@@ -95,7 +96,15 @@ class SnapshotJsonFile(SnapshotFile):
             if included_file.suffix == '.req':
                 self.__include_req_file(included_config, included_file, included_pvs, macros_list)
             elif included_file.suffix in ('.yaml', '.yml', '.json'):
-                self.__include_json_yaml_file(included_config, included_file, included_pvs, macros_list)
+                try:
+                    self.__include_json_yaml_file(included_config, included_file, included_pvs, macros_list)
+                except Exception as e:
+                    QMessageBox.warning(None,
+                        "Warning",
+                        "Problem with the macros/include file. The macros could not be added and are going to be ignored.",
+                        QMessageBox.Ok,
+                        QMessageBox.NoButton)
+                
             else:
                 raise ReqParseError(f'Snapshot file of {included_file.suffix} type is not supported.')
         return included_pvs, included_config
