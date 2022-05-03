@@ -2,6 +2,33 @@
     "pvs": {
         "list": [
             {
+                "name": "MTEST-CAQTDM-CAMERA:CAMERA"
+            },
+            {
+                "name":"MTEST-CAQTDM-CAMERA:FILEFORMAT"
+            },
+            {
+                "name":"MTEST-CAQTDM-CAMERA:RECMODE"
+            },
+            {
+                "name":"MTEST-CAQTDM-CAMERA:STOREMODE"
+            },
+            {
+                "name":"MTEST-CAQTDM-CAMERA:SADASCXASCXAS"
+            },
+            {
+                "name":"MTEST-CAQTDM-CAMERA:CLEARMEM"
+            },
+            {
+                "name":"MTEST-CAQTDM-CAMERA:SAVESTOP"
+            },
+            {
+                "name":"MTEST-CAQTDM-CAMERA:SET_PARAM"
+            },
+            {
+                "name":"MTEST-CAQTDM-CAMERA:FTRANSFER"
+            },
+            {
                 "name": "S10CB04-DBLM130:AL1-MPS-GAIN-B",
                 "precision": 5
             },

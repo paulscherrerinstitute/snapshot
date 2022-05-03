@@ -1,0 +1,5 @@
+include:
+  - name: pco_include.req
+    macros:
+      - { NAME: snapshot:test }
+      - { NAME: fake:pvs }
