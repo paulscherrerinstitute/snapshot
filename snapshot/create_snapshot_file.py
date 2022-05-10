@@ -7,7 +7,7 @@ from snapshot.request_files.snapshot_file import SnapshotFile, ReqParseError
 
 def create_snapshot_file(path: str, changeable_macros: list = None) -> SnapshotFile:
     filepath = Path(path)
-    if filepath.suffix == '.req':
+    if filepath.suffix in ('.req', '.snap'):
         return SnapshotReqFile(path, changeable_macros=changeable_macros)
     if filepath.suffix in ('.json', '.yaml', '.yml'):
         try:
