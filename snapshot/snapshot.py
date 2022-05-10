@@ -49,7 +49,7 @@ def convert(args):
 
 def restore_caller(args):
     from .cmd import restore
-    restore(args.FILE, args.force, args.timeout)
+    restore(args.FILE, args.force, args.timeout, args.regex)
 
 
 def gui(args):
@@ -158,6 +158,12 @@ def main():
     rest_pars.add_argument(
         '--timeout', default=10, type=int,
         help='max time waiting for PVs to be connected and restored')
+    rest_pars.add_argument(
+        '--regex',
+        default='',
+        type=str,
+        help='Regex filter to be used when restoring PVs'
+    )
 
     # Convert
     convert_parser = subparsers.add_parser(

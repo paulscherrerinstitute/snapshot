@@ -92,7 +92,7 @@ optional arguments:
 ```
 
 ```bash
-snapshot restore [-h] [-f] [--timeout TIMEOUT] FILE
+usage: snapshot.py restore [-h] [-f] [--timeout TIMEOUT] [--regex REGEX] FILE
 
 positional arguments:
   FILE               saved snapshot file
@@ -101,6 +101,7 @@ optional arguments:
   -h, --help         show this help message and exit
   -f, --force        force restore in case of disconnected PVs after timeout
   --timeout TIMEOUT  max time waiting for PVs to be connected and restored
+  --regex REGEX      Regex filter to be used when restoring PVs
 ```
 
 ```bash

@@ -98,7 +98,7 @@ def save(req_file_path, save_file_path='.', macros=None, force=False,
         logging.info('Snapshot file was saved.')
 
 
-def restore(saved_file_path, force=False, timeout=10):
+def restore(saved_file_path, force=False, timeout=10, filter_param=''):
     logging.basicConfig(
         level=logging.INFO,
         format='[%(levelname)s] %(message)s')
@@ -120,6 +120,12 @@ def restore(saved_file_path, force=False, timeout=10):
             macros=meta_data.get(
                 'macros',
                 dict()))
+
+        if filter_param != '':
+            list_pvs = snapshot.get_pvs_names()
+            srch_filter = re.compile(filter_param)
+            remove_pvs = [i for i in list_pvs if srch_filter.fullmatch(i) is None]
+            snapshot.remove_pvs(remove_pvs)
 
     except (OSError, SnapshotError) as e:
         logging.error(
