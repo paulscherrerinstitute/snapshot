@@ -376,8 +376,9 @@ class SnapshotPvTableView(QTableView):
         self._apply_selection_to_full_row()
 
     def _set_single_column_width(self, _, first_column, last_column):
-        for col in range(first_column, last_column + 1):
-            self.resizeColumnToContents(col)
+        # commented out for performance tests
+        # for col in range(first_column, last_column + 1):
+        #     self.resizeColumnToContents(col)
         self._apply_selection_to_full_row()
 
     def _open_menu(self, point):
