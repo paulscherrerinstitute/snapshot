@@ -881,7 +881,7 @@ class SnapshotPvTableLine(QtCore.QObject):
                 # if enum strings available, use the value to
                 # get the desired str representation of it
                 try:
-                    if 0 <= int(pv_value) < len(self._pv_ref.enum_strs):
+                    if 0 <= int(snap['data']) < len(self._pv_ref.enum_strs):
                         self.data[PvTableColumns.snapshots + i -
                               1]['data'] = self._pv_ref.enum_strs[int(snap['data'])]
                 except (TypeError, ValueError):
