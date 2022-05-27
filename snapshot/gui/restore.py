@@ -483,8 +483,9 @@ class SnapshotRestoreFileSelector(QWidget):
         self.file_selector.customContextMenuRequested.connect(self.open_menu)
 
         # Set column sizes
-        self.file_selector.resizeColumnToContents(FileSelectorColumns.filename)
-        self.file_selector.setColumnWidth(FileSelectorColumns.comment, 350)
+        # commented out for performance tests
+        # self.file_selector.resizeColumnToContents(FileSelectorColumns.filename)
+        # self.file_selector.setColumnWidth(FileSelectorColumns.comment, 350)
 
         # Applies following behavior for multi select:
         #   click            selects only current file

@@ -15,8 +15,10 @@ from PyQt5.QtWidgets import (
     QAction,
     QApplication,
     QCheckBox,
+    QComboBox,
     QDialog,
     QFileDialog,
+    QHBoxLayout,
     QLabel,
     QMainWindow,
     QMenu,
@@ -166,11 +168,21 @@ class SnapshotGui(QMainWindow):
         self.autorefresh.setChecked(True)
         self.autorefresh.toggled.connect(self.toggle_autorefresh)
 
+        self.pv_update_time = QComboBox()
+        self.pv_update_time.addItems(["1s", "5s", "10s", "15s", "30s"])
+        # self.pv_update_time.setMinimumWidth(25)
+        self.pv_update_time.setMaximumWidth(50)
+        self.pv_update_time.setCurrentIndex(2) # Default is 10s
+        self.pv_update_time.currentIndexChanged.connect(self.set_pv_update_timer)
+
         left_layout = QVBoxLayout()
         left_layout.addWidget(self.save_widget)
         left_layout.addStretch()
         left_layout.addWidget(make_separator(self, 'horizontal'))
-        left_layout.addWidget(self.autorefresh)
+        pv_updater_layout = QHBoxLayout()
+        pv_updater_layout.addWidget(self.autorefresh)
+        pv_updater_layout.addWidget(self.pv_update_time)
+        left_layout.addLayout(pv_updater_layout)
         left_widget = QWidget()
         left_widget.setLayout(left_layout)
 
@@ -212,6 +224,10 @@ class SnapshotGui(QMainWindow):
 
         if self.common_settings["read_only"]:
             self.status_bar.set_read_only()
+
+    def set_pv_update_timer(self):
+        self.compare_widget.set_pv_update_time(
+            int(self.pv_update_time.currentText().strip('s')))
 
     def toggle_autorefresh(self, checked):
         if checked:

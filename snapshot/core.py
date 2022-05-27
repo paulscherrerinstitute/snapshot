@@ -516,13 +516,16 @@ class PvUpdater(BackgroundThread):
     A normal python thread is used instead of a CAThread because a fresh CA
     context is needed.
     """
-    update_rate = 1.0  # seconds
     timeout = 1.0
 
     def __init__(self, callback=lambda: None, **kwargs):
         super().__init__(name='pv_updater', **kwargs)
         self._callback = callback
         self._pvs = []
+        self._update_rate = 10.0  # seconds
+
+    def set_update_rate(self, new_update_rate):
+        self._update_rate = float(new_update_rate)
 
     def set_pvs(self, pvs):
         with self._lock:
@@ -576,7 +579,7 @@ class PvUpdater(BackgroundThread):
 
     def _run(self):
         ca.use_initial_context()
-        self._periodic_loop(self.update_rate, self._task)
+        self._periodic_loop(self._update_rate, self._task)
 
     def _task(self):
         since_start("Started getting PV values")
@@ -587,20 +590,16 @@ class PvUpdater(BackgroundThread):
         newly_initialized = []
         for pv in self._pvs:
             pv._pvget_lock.acquire()
-            if not pv._initialized:
-                # Units and precision will be needed in the GUI. Fetch
-                # them now and cache them, so that GUI won't need to.
-                if pv.connected:
-                    ctrl = pv.get_ctrlvars()
-                    # It can timeout, so don't rely on it.
-                    if ctrl:
-                        # Defer setting init status until we are ready to
-                        # release the lock.
-                        newly_initialized.append(pv)
-                    else:
-                        if not report_init_timeout:
-                            report_init_timeout = True
-                            logging.debug(report)
+            if not pv._initialized and pv.connected:
+                ctrl = pv.get_ctrlvars()
+                # It can timeout, so don't rely on it.
+                if ctrl:
+                    # Defer setting init status until we are ready to
+                    # release the lock.
+                    newly_initialized.append(pv)
+                elif not report_init_timeout:
+                    report_init_timeout = True
+                    logging.debug(report)
             # get_ctrlvars() does not fetch the value, so we still need
             # to do it. It is safe to do even in the case of timeout
             # because the ctrl and value requests are orthogonal in

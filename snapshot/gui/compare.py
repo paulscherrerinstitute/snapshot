@@ -82,6 +82,7 @@ class SnapshotCompareWidget(QWidget):
         # etc)
         self.model.set_pvs(snapshot.pvs.values())
         self.view.setModel(self._proxy)
+        self.view.resizeColumnsToContents()
 
         # ---------- Filter control elements ---------------
         # - text input to filter by name
@@ -201,7 +202,7 @@ class SnapshotCompareWidget(QWidget):
 
         for regex_item in predefined_filters.get('rgx_filters', []):
             # label for regex not provided (str)
-            if isinstance(regex_item,str):
+            if isinstance(regex_item, str):
                 label = f'{regex_item}'
             # label and regex provided ([label, regex])
             elif isinstance(regex_item, list):
@@ -278,6 +279,9 @@ class SnapshotCompareWidget(QWidget):
 
     def filter_update(self):
         self._proxy.apply_filter()
+    
+    def set_pv_update_time(self, new_pv_update_time):
+        self.model.set_pv_update_time(new_pv_update_time)
 
 
 class PvTableColumns(enum.IntEnum):
@@ -692,6 +696,9 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
 
         return super().headerData(section, orientation, role)
 
+    def set_pv_update_time(self, new_pv_update_time):
+        self._updater.set_update_rate(new_pv_update_time)
+
     def change_tolerance(self, tol_f):
         self._tolerance_f = tol_f
         for line in self._data:
@@ -881,10 +888,10 @@ class SnapshotPvTableLine(QtCore.QObject):
                 # if enum strings available, use the value to
                 # get the desired str representation of it
                 try:
-                    if 0 <= int(pv_value) < len(self._pv_ref.enum_strs):
+                    if 0 <= int(snap['data']) < len(self._pv_ref.enum_strs):
                         self.data[PvTableColumns.snapshots + i -
                               1]['data'] = self._pv_ref.enum_strs[int(snap['data'])]
-                except (TypeError, ValueError):
+                except (TypeError, ValueError, IndexError):
                     pass
 
     def tolerance_from_precision(self):
