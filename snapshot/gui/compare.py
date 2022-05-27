@@ -788,7 +788,7 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     @property
     def eff_tol_tooltip(self):
-        return f'Eff. Tol. = 10^-Precision ({self.precision}) × Tolerance ({self._tolerance_f}).'
+        return f'Eff. Tol. = Tolerance ({self._tolerance_f}) × 10^-Precision ({self.precision})'
 
     @property
     def precision(self):
