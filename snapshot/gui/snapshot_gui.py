@@ -172,7 +172,7 @@ class SnapshotGui(QMainWindow):
         self.pv_update_time.addItems(["1s", "5s", "10s", "15s", "30s"])
         # self.pv_update_time.setMinimumWidth(25)
         self.pv_update_time.setMaximumWidth(50)
-        self.pv_update_time.setCurrentIndex(1)  # Default is 10s
+        self.pv_update_time.setCurrentIndex(1)  # Default is 5s
         self.pv_update_time.currentIndexChanged.connect(
             self.set_pv_update_timer)
 
