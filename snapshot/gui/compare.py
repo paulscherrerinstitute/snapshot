@@ -112,6 +112,10 @@ class SnapshotCompareWidget(QWidget):
         self.pv_filter_sel.currentIndexChanged.connect(
             self._predefined_filter_selected)
         self.pv_filter_inp.textChanged.connect(self._create_name_filter)
+        self.pv_filter_inp.textChanged.connect(
+            lambda: self.model.change_tolerance(
+                tol.value(),
+                self._proxy.get_filtered_pvs()))
 
         self._populate_filter_list()
 
@@ -129,11 +133,14 @@ class SnapshotCompareWidget(QWidget):
         # #### Regex selector
         self.regex = QCheckBox("Regex", self)
         self.regex.stateChanged.connect(self._handle_regex_change)
+        self.regex.stateChanged.connect(
+            lambda: self.model.change_tolerance(
+                tol.value(),
+                self._proxy.get_filtered_pvs()))
 
         # #### Selector for comparison filter
         compare_layout = QHBoxLayout()
         compare_layout.setSpacing(10)
-
         compare_label = QLabel(self)
         compare_label.setText("Comparison:")
         compare_label.setAlignment(Qt.AlignCenter | Qt.AlignRight)
@@ -167,8 +174,11 @@ class SnapshotCompareWidget(QWidget):
         tol = QSpinBox()
         tol.setRange(1, 1000000)
         tol.setValue(1)
-        tol.valueChanged[int].connect(self.model.change_tolerance)
-        self.model.change_tolerance(tol.value())
+        tol.valueChanged[int].connect(
+            lambda: self.model.change_tolerance(
+                tol.value(),
+                self._proxy.get_filtered_pvs()))
+        self.model.change_tolerance(tol.value(), self._proxy.get_filtered_pvs())
 
         # Put all tolerance and filter selectors in one layout
         filter_layout = QHBoxLayout()
@@ -699,13 +709,14 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
     def set_pv_update_time(self, new_pv_update_time):
         self._updater.set_update_rate(new_pv_update_time)
 
-    def change_tolerance(self, tol_f):
+    def change_tolerance(self, tol_f, filtered_pvs):
         self._tolerance_f = tol_f
         for line in self._data:
-            line.change_tolerance(tol_f)
-            # tolerance changing requires values to be update
-            if line._pv_ref.connected:
-                line.update_pv_value(line._pv_ref.value)
+            if line.pvname in filtered_pvs:
+                line.change_tolerance_line(tol_f)
+                # tolerance changing requires values to be update
+                if line._pv_ref.connected:
+                    line.update_pv_value(line._pv_ref.value)
         self._emit_data_changed()
 
 
@@ -784,7 +795,7 @@ class SnapshotPvTableLine(QtCore.QObject):
         try:
             eff_tol_value = 10**(-self.precision) * self._tolerance_f if (
                 self.precision is not None and self.precision >= 0) else 1*self._tolerance_f
-        except TypeError:
+        except TypeError as e:
             eff_tol_value = ''
         return eff_tol_value
 
@@ -804,7 +815,7 @@ class SnapshotPvTableLine(QtCore.QObject):
         """
         self._pv_ref.remove_conn_callback(self._conn_clb_id)
 
-    def change_tolerance(self, tol_f):
+    def change_tolerance_line(self, tol_f):
         self._tolerance_f = tol_f
         # update eff. tol column
         self.data[PvTableColumns.effective_tol] = {
@@ -849,7 +860,6 @@ class SnapshotPvTableLine(QtCore.QObject):
                 if not SnapshotPv.compare(first_data, data['raw_value'],
                                           self.tolerance_from_precision()):
                     return False
-
         return True
 
     def is_snap_eq_to_pv(self, idx):
@@ -980,6 +990,9 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
         self._name_filter = ''  # string or regex object
         self._eq_filter = PvCompareFilter.show_all
         self._filtered_pvs = set()
+
+    def get_filtered_pvs(self):
+        return self._filtered_pvs
 
     def setSourceModel(self, model):
         super().setSourceModel(model)

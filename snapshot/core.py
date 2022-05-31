@@ -386,8 +386,11 @@ class SnapshotPv(PV):
             # old behavior was causing error with float
             # and precision zero. now a float
             #  with precision 0 is shown as integer
-            fmt = f'{{:.{precision}f}}' if precision >= 0 else '{:f}'
-            return str(fmt.format(value))
+            try:
+                fmt = f'{{:.{precision}f}}' if precision >= 0 else '{:f}'
+            except TypeError as e:
+                fmt = '{:f}'
+            return fmt.format(value)
 
         elif isinstance(value, str):
             return value
