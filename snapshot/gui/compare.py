@@ -279,7 +279,7 @@ class SnapshotCompareWidget(QWidget):
 
     def filter_update(self):
         self._proxy.apply_filter()
-    
+
     def set_pv_update_time(self, new_pv_update_time):
         self.model.set_pv_update_time(new_pv_update_time)
 
@@ -660,7 +660,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
     def data(self, index, role):
         if role == QtCore.Qt.ToolTipRole and \
                 index.column() == 2:
-            return self._data[index.row()].eff_tol_tooltip
+            return '' if self._data[index.row()]._string_enum else self._data[index.row()].eff_tol_tooltip
         elif role == QtCore.Qt.DisplayRole:
             return self._data[index.row()].data[index.column()].get('data', '')
         elif role == QtCore.Qt.DecorationRole:
@@ -726,16 +726,17 @@ class SnapshotPvTableLine(QtCore.QObject):
         super().__init__(parent)
 
         if SnapshotPvTableLine._WARN_ICON is None:
-            SnapshotPvTableLine._WARN_ICON = \
-                QIcon(os.path.join(self._DIR_PATH, "images/warn.png"))
-            SnapshotPvTableLine._NEQ_ICON = \
-                QIcon(os.path.join(self._DIR_PATH, "images/neq.png"))
-            SnapshotPvTableLine._EQ_ICON = \
-                QIcon(os.path.join(self._DIR_PATH, "images/eq.png"))
+            SnapshotPvTableLine._WARN_ICON = QIcon(
+                os.path.join(self._DIR_PATH, "images/warn.png"))
+            SnapshotPvTableLine._NEQ_ICON = QIcon(
+                os.path.join(self._DIR_PATH, "images/neq.png"))
+            SnapshotPvTableLine._EQ_ICON = QIcon(
+                os.path.join(self._DIR_PATH, "images/eq.png"))
 
         self._tolerance_f = tolerance_f
         self._pv_ref = pv_ref
         self.pvname = pv_ref.pvname
+        self._string_enum = False
 
         # Prepare to cache some values, calling into pv_ref takes longer.
         # These values are read when the first value update comes in or when
@@ -750,7 +751,8 @@ class SnapshotPvTableLine(QtCore.QObject):
             'data': pv_ref.pvname}
         self.data[PvTableColumns.unit] = {'data': 'UNDEF', 'icon': None}
         self.data[PvTableColumns.effective_tol] = {
-            'data': self.effective_tolerance}
+            'data': f''} if self._string_enum else {'data': self.effective_tolerance}
+
         self.data[PvTableColumns.value] = {'data': 'PV disconnected',
                                            'icon': self._WARN_ICON}
 
@@ -783,7 +785,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             eff_tol_value = 10**(-self.precision) * self._tolerance_f if (
                 self.precision is not None and self.precision >= 0) else 1*self._tolerance_f
         except TypeError:
-            eff_tol_value = 0
+            eff_tol_value = ''
         return eff_tol_value
 
     @property
@@ -806,7 +808,7 @@ class SnapshotPvTableLine(QtCore.QObject):
         self._tolerance_f = tol_f
         # update eff. tol column
         self.data[PvTableColumns.effective_tol] = {
-            'data': self.effective_tolerance}
+            'data': f''} if self._string_enum else {'data': self.effective_tolerance}
         self._compare()
 
     def append_snap_value(self, value):
@@ -816,7 +818,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             if self.precision is None:
                 self._precision = 6
             sval = SnapshotPvTableLine.string_repr_snap_value(
-                    value, self.precision)
+                value, self.precision)
             self.data.append({'data': sval, 'raw_value': value})
         else:
             self.data.append({'data': '', 'raw_value': None})
@@ -890,7 +892,7 @@ class SnapshotPvTableLine(QtCore.QObject):
                 try:
                     if 0 <= int(snap['data']) < len(self._pv_ref.enum_strs):
                         self.data[PvTableColumns.snapshots + i -
-                              1]['data'] = self._pv_ref.enum_strs[int(snap['data'])]
+                                  1]['data'] = self._pv_ref.enum_strs[int(snap['data'])]
                 except (TypeError, ValueError, IndexError):
                     pass
 
@@ -903,7 +905,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             prec = 6
         return self._tolerance_f * 10**(-prec)
 
-    @staticmethod
+    @ staticmethod
     def string_repr_snap_value(value, precision):
         if isinstance(value, str):
             # If string do not dump it will add "" to a string
@@ -938,9 +940,11 @@ class SnapshotPvTableLine(QtCore.QObject):
             if 0 <= int(pv_value) < len(self._pv_ref.enum_strs):
                 enum_str_value = self._pv_ref.enum_strs[int(pv_value)]
                 new_value = enum_str_value
-        except (TypeError, ValueError):
+                self._string_enum = True
+                self.data[PvTableColumns.effective_tol] = {
+                    'data': f''} if self._string_enum else {'data': self.effective_tolerance}
+        except (TypeError, ValueError, IndexError):
             pass
-        
 
         if unit_col['data'] == 'UNDEF':
             unit_col['data'] = self._pv_ref.units
