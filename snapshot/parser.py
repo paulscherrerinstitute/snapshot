@@ -5,6 +5,7 @@ import os
 import re
 import time
 from itertools import chain
+from pathlib import Path
 
 import numpy
 import yaml
@@ -53,6 +54,7 @@ class SnapshotReqFile(object):
 
     def read_input(self):
         extension = os.path.splitext(self._path)[1].replace('.','')
+        content = None
         if extension == 'json':
             try:
                 content = json.loads(open(self._path, 'r').read())
@@ -68,10 +70,13 @@ class SnapshotReqFile(object):
                 return ReqParseError(msg, e)
         elif extension == 'req':
             try:
-                content = open(self._path, 'r').read()
+                content = Path(self._path).read_text()
             except Exception as e:
-                msg = f'{self._path}: Could not read req file.'
-                return ReqParseError(msg, e)
+                raise ReqParseError(
+                    f'{self._path}: Could not read "{filepath}" load file.', e)
+        if content is None:
+            raise SnapshotError(
+                    f'{self._path}: Could not read "{filepath}" load file.')
         return (extension, content)
 
     def read(self):
@@ -171,8 +176,26 @@ class SnapshotReqFile(object):
             pvs = self._extract_pvs_from_yaml()
             metadata = self._file_data
         elif self._type == 'req':
-            metadata = {}
-            self._curr_line_n = 0
+            if self._file_data.lstrip().startswith('{'):
+                try:
+                    md = self._file_data.lstrip()
+                    metadata, end_of_metadata = \
+                        json.JSONDecoder().raw_decode(md)
+                except json.JSONDecodeError:
+                    msg = f"{self._path}: Could not parse JSON metadata header."
+                    return ReqParseError(msg)
+
+                metadata = self.__normalize_key_values(metadata)
+
+                # Ensure line counts make sense for error reporting.
+                actual_data = md[end_of_metadata:].lstrip()
+                actual_data_index = self._file_data.find(actual_data)
+                self._curr_line_n = len(self._file_data[:actual_data_index]
+                                        .splitlines())
+                self._file_data = self._file_data[actual_data_index:]
+            else:
+                metadata = {}
+                self._curr_line_n = 0
             for self._curr_line in self._file_data.splitlines():
                 self._curr_line_n += 1
                 self._curr_line = self._curr_line.strip()
@@ -238,6 +261,19 @@ class SnapshotReqFile(object):
                             self._format_err(
                                 (self._curr_line, self._curr_line_n), e))
         return (pvs, metadata, includes)
+
+    @staticmethod
+    def __normalize_key_values(metadata: dict) -> dict:
+        # Ensure backward compatibility - some keys previously were using "-" instead of "_"
+        # To further support these keys (e.g. "rgx-filters", "force-labels"
+        # we normalize them to "rgx_filters", "force_labels"
+        if 'labels' in metadata and 'force-labels' in metadata['labels'].keys():
+            metadata['labels']['force_labels'] = metadata['labels'].pop(
+                'force-labels')
+        if 'filters' in metadata and 'rgx-filters' in metadata['filters'].keys():
+            metadata['filters']['rgx_filters'] = metadata['filters'].pop(
+                'rgx-filters')
+        return metadata
 
     def _extract_pvs_from_req(self):
         try:
