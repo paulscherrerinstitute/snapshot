@@ -546,7 +546,6 @@ class SnapshotRestoreFileSelector(QWidget):
         defined_params = list(self.common_settings['machine_params'].keys())
         all_params = defined_params + \
             [p for p in new_params if p not in defined_params]
-
         for new_file, new_data in file_list.items():
             meta_data = new_data["meta_data"]
             labels = meta_data.get("labels", [])
@@ -662,11 +661,24 @@ class SnapshotRestoreFileSelector(QWidget):
 
                 if keys_filter:
                     keys_status = False
-                    for key in file_to_filter["meta_data"]["labels"]:
-                        # Break when first found
-                        if key and (key in keys_filter):
+                    if len(keys_filter) == 1:
+                        for key in file_to_filter["meta_data"]["labels"]:
+                            # Break when first found
+                            if key and (key in keys_filter):
+                                keys_status = True
+                                break
+                    # identical length
+                    elif len(keys_filter) == len(
+                            file_to_filter["meta_data"]["labels"]) and set(keys_filter) == set(
+                                file_to_filter["meta_data"]["labels"]):
+                        keys_status = True
+                    else:  # verify if the file keys contain all the filter keys
+                        not_good = True
+                        for key in keys_filter:
+                            if key not in file_to_filter["meta_data"]["labels"]:
+                                not_good = False
+                        if not_good:
                             keys_status = True
-                            break
                 else:
                     keys_status = True
 
@@ -877,7 +889,6 @@ class ParamFilterValidator(QtGui.QValidator):
             if any((x is None for x in values)):
                 return
             result[param] = values
-
         return result
 
     def validate(self, input, pos):
@@ -954,12 +965,11 @@ class SnapshotFileFilterWidget(QWidget):
             self.param_input.setPalette(self._inp_palette_err)
 
     def update_filter(self):
-        self.file_filter["keys"] = self.keys_input.get_keywords() or list()
+        self.file_filter["keys"] = self.keys_input.get_keywords() or []
         self.file_filter["comment"] = self.comment_input.text().strip('')
         self.file_filter["name"] = self.name_input.text().strip('')
-        self.file_filter["params"] = \
-            self.validator.parse(self.param_input.text())
-
+        self.file_filter["params"] = self.validator.parse(
+            self.param_input.text())
         self.file_filter_updated.emit()
 
     def update_params(self):
