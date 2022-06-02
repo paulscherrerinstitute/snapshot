@@ -16,6 +16,7 @@ requirements:
     - python
     - pyqt
     - pyepics
+    - pyyaml
     - numpy
 
 build:
