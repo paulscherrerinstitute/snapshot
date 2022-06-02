@@ -1,5 +1,6 @@
 import logging
 from enum import Enum
+import concurrent.futures
 from threading import Lock, Thread
 from time import monotonic, sleep, time
 
@@ -297,12 +298,16 @@ class SnapshotPv(PV):
         prec = self._user_config.get('precision', -1)
         if prec >= 0:
             return prec
-        return super().precision if self._initialized else None
+        return self._args.get('precision', None)
 
     @PV.units.getter
     def units(self):
         """Override to not block until PvUpdater initializes ctrlvars."""
-        return super().units if self._initialized else None
+        return self._args.get('units', None)
+
+    @PV.enum_strs.getter
+    def enum_strs(self):
+        return self._args.get('enum_strs', None)
 
     def save_pv(self):
         """
@@ -546,6 +551,28 @@ class PvUpdater(BackgroundThread):
             pass
 
     @staticmethod
+    def _process_pv(pv):
+        initialized = False
+        report_init_timeout = False
+        pv._pvget_lock.acquire()
+        if not pv._initialized and pv.connected:
+            ctrl = pv.get_ctrlvars()
+            # It can timeout, so don't rely on it.
+            if ctrl:
+                # Defer setting init status until we are ready to
+                # release the lock.
+                initialized = True
+            else:
+                report_init_timeout = True
+            PvUpdater._get_start(pv)
+
+        val = PvUpdater._get_complete(pv)
+
+        pv._initialized = initialized
+        pv._pvget_lock.release()
+        return val, report_init_timeout
+
+    @staticmethod
     def _get_complete(pv, wait=False):
         try:
             if not pv.connected or not pv._pvget_completer:
@@ -587,38 +614,15 @@ class PvUpdater(BackgroundThread):
     def _task(self):
         since_start("Started getting PV values")
 
-        report_init_timeout = False
         report = "Some connected PVs are timing out while " \
             "fetching ctrlvars, causing slowdowns."
-        newly_initialized = []
-        for pv in self._pvs:
-            pv._pvget_lock.acquire()
-            if not pv._initialized and pv.connected:
-                ctrl = pv.get_ctrlvars()
-                # It can timeout, so don't rely on it.
-                if ctrl:
-                    # Defer setting init status until we are ready to
-                    # release the lock.
-                    newly_initialized.append(pv)
-                elif not report_init_timeout:
-                    report_init_timeout = True
-                    logging.debug(report)
-            # get_ctrlvars() does not fetch the value, so we still need
-            # to do it. It is safe to do even in the case of timeout
-            # because the ctrl and value requests are orthogonal in
-            # pyepics. There is a very slim chance that pv._last_value
-            # remains none even if it when pv._initialized is True
-            # if the value get times out, but that's no different from
-            # what pyepics itself does. <rant>pyepics is quite bad at
-            # handling timeouts</rant>.
-            self._get_start(pv)
 
-        vals = [self._get_complete(pv) for pv in self._pvs]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            values_and_timeouts = executor.map(PvUpdater._process_pv, self._pvs)
 
-        for pv in newly_initialized:
-            pv._initialized = True
-        for pv in self._pvs:
-            pv._pvget_lock.release()
+        vals = list(map(lambda x: x[0], values_and_timeouts))
+        if any(map(lambda x: x[1], values_and_timeouts)):
+            logging.debug(report)
 
         since_start("Finished getting PV values")
 
