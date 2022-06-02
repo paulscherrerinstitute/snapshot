@@ -568,7 +568,7 @@ class PvUpdater(BackgroundThread):
 
         val = PvUpdater._get_complete(pv)
 
-        pv._initialized = initialized
+        pv._initialized |= initialized
         pv._pvget_lock.release()
         return val, report_init_timeout
 
@@ -617,7 +617,7 @@ class PvUpdater(BackgroundThread):
         report = "Some connected PVs are timing out while " \
             "fetching ctrlvars, causing slowdowns."
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             values_and_timeouts = executor.map(PvUpdater._process_pv, self._pvs)
 
         vals = list(map(lambda x: x[0], values_and_timeouts))
