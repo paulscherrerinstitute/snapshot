@@ -69,14 +69,15 @@ class SnapshotReqFile(object):
                 msg = f'{self._path}: Could not safe_load yaml file.'
                 return ReqParseError(msg, e)
         elif extension == 'req':
+            filepath = Path(self._path)
             try:
-                content = Path(self._path).read_text()
+                content = filepath.read_text()
             except Exception as e:
                 raise ReqParseError(
                     f'{self._path}: Could not read "{filepath}" load file.', e)
         if content is None:
             raise SnapshotError(
-                    f'{self._path}: Could not read "{filepath}" load file.')
+                f'{self._path}: Could not read "{self._path}" load file.')
         return (extension, content)
 
     def read(self):
