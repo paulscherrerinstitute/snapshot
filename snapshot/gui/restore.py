@@ -199,7 +199,7 @@ class SnapshotRestoreWidget(QWidget):
         # stopping of the application.
         app = QtCore.QCoreApplication.instance()
         app.aboutToQuit.connect(self.scanner.stop)
-        QtCore.QTimer.singleShot(2 * self.scanner.update_rate * 1000,
+        QtCore.QTimer.singleShot(2 * int(self.scanner.update_rate) * 1000,
                                  self.scanner.start)
 
     def handle_new_snapshot_instance(self, snapshot, already_parsed_files):
@@ -271,8 +271,8 @@ class SnapshotRestoreWidget(QWidget):
                 self.sts_log.log_msgs("Restore started.", time.time())
                 self.sts_info.set_status("Restoring ...", 0, "orange")
 
-                status, pvs_status = self.snapshot.restore_pvs(pvs_to_restore, callback=self.restore_done_callback,
-                                                               force=force)
+                status, pvs_status = self.snapshot.restore_pvs(
+                    pvs_to_restore, callback=self.restore_done_callback, force=force)
 
                 if status == ActionStatus.no_conn:
                     # Ask user if he wants to force restoring
@@ -283,8 +283,8 @@ class SnapshotRestoreWidget(QWidget):
 
                     if reply != QMessageBox.No:
                         # Force restore
-                        status, pvs_status = self.snapshot.restore_pvs(pvs_to_restore,
-                                                                       callback=self.restore_done_callback, force=True)
+                        status, pvs_status = self.snapshot.restore_pvs(
+                            pvs_to_restore, callback=self.restore_done_callback, force=True)
 
                         # If here restore started successfully. Waiting for
                         # callbacks.
@@ -308,7 +308,8 @@ class SnapshotRestoreWidget(QWidget):
 
                 elif status == ActionStatus.busy:
                     self.sts_log.log_msgs(
-                        "ERROR: Restore rejected. Previous restore not finished.", time.time())
+                        "ERROR: Restore rejected. Previous restore not finished.",
+                        time.time())
                     self.restore_all_button.setEnabled(True)
                     self.restore_button.setEnabled(True)
 
@@ -774,9 +775,9 @@ class SnapshotRestoreFileSelector(QWidget):
                     self.rebuild_file_list()
                     background_workers.resume()
             else:
-                QMessageBox.information(self, "Information", "Please select one file only",
-                                              QMessageBox.Ok,
-                                              QMessageBox.NoButton)
+                QMessageBox.information(
+                    self, "Information", "Please select one file only",
+                    QMessageBox.Ok, QMessageBox.NoButton)
 
     def clear_file_selector(self):
         self.file_selector.clear()  # Clears and "deselects" itmes on file selector
