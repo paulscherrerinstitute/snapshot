@@ -21,7 +21,7 @@ requirements:
 
 build:
   noarch: python
-  number: 0
+  number: 3
   entry_points:
     - snapshot = snapshot.snapshot:main
 

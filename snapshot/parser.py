@@ -53,7 +53,7 @@ class SnapshotReqFile(object):
         self._type, self._file_data = self.read_input()
 
     def read_input(self):
-        extension = os.path.splitext(self._path)[1].replace('.','')
+        extension = os.path.splitext(self._path)[1].replace('.', '')
         content = None
         if extension == 'json':
             try:
@@ -61,14 +61,14 @@ class SnapshotReqFile(object):
             except Exception as e:
                 msg = f'{self._path}: Could not read load json file.'
                 return ReqParseError(msg, e)
-        elif extension == 'yml':
+        elif extension in ['yml', 'yaml']:
             # yaml
             try:
                 content = yaml.safe_load(open(self._path, 'r'))[0]
             except Exception as e:
                 msg = f'{self._path}: Could not safe_load yaml file.'
                 return ReqParseError(msg, e)
-        elif extension == 'req':
+        else:  # default and no extensions are treated as REQ
             filepath = Path(self._path)
             try:
                 content = filepath.read_text()
