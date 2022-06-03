@@ -678,13 +678,14 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
                                                 ].get('icon', None)
 
     def _handle_pv_update(self, new_values):
-        for value, line in zip(new_values, self._data):
-            # PvUpdater may reconnect faster, so if we are not connected yet,
-            # ignore the update.
-            if line.conn:
-                line.update_pv_value(value)
+        if any(new_values):
+            for value, line in zip(new_values, self._data):
+                # PvUpdater may reconnect faster, so if we are not connected yet,
+                # ignore the update.
+                if line.conn:
+                    line.update_pv_value(value)
 
-        self._emit_data_changed()
+            self._emit_data_changed()
 
     def _emit_data_changed(self):
         # No need to update PV names, units
