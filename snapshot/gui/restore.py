@@ -585,9 +585,7 @@ class SnapshotRestoreFileSelector(QWidget):
         headers = self.column_labels + all_params
         self.file_selector.setColumnCount(len(headers))
         self.file_selector.setHeaderLabels(headers)
-        # commented out for performance tests
-        # for col in range(self.file_selector.columnCount()):
-        #     self.file_selector.resizeColumnToContents(col)
+        self.file_selector.resizeColumnToContents(0)
 
         # There can be some rather long comments in the snapshots, so let's
         # make sure that they don't push out more useful stuff.
