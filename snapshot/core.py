@@ -81,7 +81,7 @@ class _BackgroundWorkers:
                         w.resume()
 
     def register(self, worker_name, worker):
-        assert(worker_name not in self._workers)
+        assert (worker_name not in self._workers)
         self._workers[worker_name] = worker
         self._explicitly_suspended[worker_name] = False
 
@@ -106,12 +106,13 @@ class BackgroundThread:
     __sleep_quantum = 0.1
 
     def __init__(self, name=None, **kwargs):
-        assert(name is not None)
+        assert (name is not None)
         self._name = name
         self._lock = Lock()
         self._quit = False
         self._suspend = False
         self._thread = Thread(target=self._run)
+        self._period = None
 
     def __del__(self):
         if self._thread.is_alive():
@@ -139,6 +140,9 @@ class BackgroundThread:
         raise NotImplementedError(
             "The BackgroundThread class should not be used directly.")
 
+    def _update_period(self, period):
+        self._period = period
+
     def _periodic_loop(self, period, task):
         """
         If you wish to implement a simple periodic task, call this function
@@ -146,10 +150,11 @@ class BackgroundThread:
         every period seconds. _lock is held while task() executes; task() may
         release it, but must take it again before returning.
         """
+        self._period = period
 
         startTime = monotonic()
         while not self._quit:
-            while monotonic() < startTime + period:
+            while monotonic() < startTime + self._period:
                 sleep(self.__sleep_quantum)
                 if self._quit:
                     return
@@ -198,6 +203,7 @@ class PvStatus(Enum):
     no_value = 2
     equal = 3
     type_err = 4
+
 
 # Subclass PV to be to later add info if needed
 
@@ -531,13 +537,15 @@ class PvUpdater(BackgroundThread):
         self._callback = callback
         self._pvs = []
         self._update_rate = 5.0  # seconds
+        self._pvs_list_changed = False
 
     def set_update_rate(self, new_update_rate):
-        self._update_rate = float(new_update_rate)
+        self._update_period(float(new_update_rate))
 
     def set_pvs(self, pvs):
         with self._lock:
             self._pvs = list(pvs)
+            self._pvs_list_changed = True
 
     @staticmethod
     def _get_start(pv):
@@ -549,28 +557,6 @@ class PvUpdater(BackgroundThread):
                     lambda: PvUpdater._get_complete(pv, wait=True)
         except ca.ChannelAccessException:
             pass
-
-    @staticmethod
-    def _process_pv(pv):
-        initialized = False
-        report_init_timeout = False
-        pv._pvget_lock.acquire()
-        if not pv._initialized and pv.connected:
-            ctrl = pv.get_ctrlvars()
-            # It can timeout, so don't rely on it.
-            if ctrl:
-                # Defer setting init status until we are ready to
-                # release the lock.
-                initialized = True
-            else:
-                report_init_timeout = True
-            PvUpdater._get_start(pv)
-
-        val = PvUpdater._get_complete(pv)
-
-        pv._initialized |= initialized
-        pv._pvget_lock.release()
-        return val, report_init_timeout
 
     @staticmethod
     def _get_complete(pv, wait=False):
@@ -592,7 +578,7 @@ class PvUpdater(BackgroundThread):
                 elif (numpy.size(val) == 1 and
                       not isinstance(val, numpy.ndarray)):
                     val = numpy.asarray([val])
-                elif not(isinstance(val, numpy.ndarray)):
+                elif not (isinstance(val, numpy.ndarray)):
                     val = numpy.asarray(val)
 
             pv._last_value = val
@@ -607,27 +593,92 @@ class PvUpdater(BackgroundThread):
             pv._last_value = None
             return None
 
-    def _run(self):
+    @staticmethod
+    def _process_pv(pv):
         ca.use_initial_context()
-        self._periodic_loop(self._update_rate, self._task)
+        initialized = False
+        report_init_timeout = False
+        pv._pvget_lock.acquire()
+        if not pv._initialized and pv.connected:
+            ctrl = pv.get_ctrlvars()
+            # It can timeout, so don't rely on it.
+            if ctrl:
+                initialized = True
+            else:
+                report_init_timeout = True
+        PvUpdater._get_start(pv)
 
-    def _task(self):
-        since_start("Started getting PV values")
+        val = PvUpdater._get_complete(pv)
 
-        report = "Some connected PVs are timing out while " \
-            "fetching ctrlvars, causing slowdowns."
+        pv._initialized |= initialized
+        pv._pvget_lock.release()
+        return val, report_init_timeout
+
+    def _get_initial(self):
+        since_start("Started initial getting PV values")
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
             values_and_timeouts = executor.map(PvUpdater._process_pv, self._pvs)
 
         vals = list(map(lambda x: x[0], values_and_timeouts))
         if any(map(lambda x: x[1], values_and_timeouts)):
-            logging.debug(report)
+            logging.debug("Some connected PVs are timing out while "
+                          "fetching ctrlvars, causing slowdowns.")
 
+        self._finish_getting_pvs(vals)
+
+    def _finish_getting_pvs(self, vals):
         since_start("Finished getting PV values")
-
         self._lock.release()
         try:
             self._callback(vals)
         finally:
             self._lock.acquire()
+
+    def _run(self):
+        ca.use_initial_context()
+        self._periodic_loop(self._update_rate, self._task)
+
+    def _task(self):
+        if self._pvs_list_changed:
+            self._get_initial()
+            self._pvs_list_changed = False
+        else:
+            self._get()
+
+    def _get(self):
+        since_start("Started getting PV values")
+
+        report_init_timeout = False
+        newly_initialized = []
+        for pv in self._pvs:
+            pv._pvget_lock.acquire()
+            if not pv._initialized and pv.connected:
+                ctrl = pv.get_ctrlvars()
+                # It can timeout, so don't rely on it.
+                if ctrl:
+                    # Defer setting init status until we are ready to
+                    # release the lock.
+                    newly_initialized.append(pv)
+                elif not report_init_timeout:
+                    report_init_timeout = True
+                    logging.debug("Some connected PVs are timing out while "
+                                  "fetching ctrlvars, causing slowdowns.")
+            # get_ctrlvars() does not fetch the value, so we still need
+            # to do it. It is safe to do even in the case of timeout
+            # because the ctrl and value requests are orthogonal in
+            # pyepics. There is a very slim chance that pv._last_value
+            # remains none even if it when pv._initialized is True
+            # if the value get times out, but that's no different from
+            # what pyepics itself does. <rant>pyepics is quite bad at
+            # handling timeouts</rant>.
+            self._get_start(pv)
+
+        vals = [self._get_complete(pv) for pv in self._pvs]
+
+        for pv in newly_initialized:
+            pv._initialized = True
+        for pv in self._pvs:
+            pv._pvget_lock.release()
+
+        self._finish_getting_pvs(vals)
