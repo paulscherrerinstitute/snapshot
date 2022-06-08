@@ -54,6 +54,8 @@ class SnapshotReqFile(object):
 
     def read_input(self):
         extension = os.path.splitext(self._path)[1].replace('.', '')
+        if len(extension) == 0:
+            extension = 'req'
         content = None
         if extension == 'json':
             try:
@@ -247,14 +249,17 @@ class SnapshotReqFile(object):
                                     (self._curr_line_n, self._curr_line), e))
                     else:
                         macros = {}
-                    path = os.path.join(os.path.dirname(self._path), split_line[0])
+                    path = os.path.join(
+                        os.path.dirname(self._path),
+                        split_line[0])
                     msg = self._check_looping(path)
                     if msg:
                         return ReqFileInfLoopError(
                             self._format_err(
                                 (self._curr_line_n, self._curr_line), msg))
                     try:
-                        sub_f = SnapshotReqFile(path, parent=self, macros=macros)
+                        sub_f = SnapshotReqFile(
+                            path, parent=self, macros=macros)
                         includes.append(sub_f)
 
                     except OSError as e:
