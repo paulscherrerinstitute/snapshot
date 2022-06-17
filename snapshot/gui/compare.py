@@ -152,6 +152,10 @@ class SnapshotCompareWidget(QWidget):
 
         self.compare_filter_inp.currentIndexChanged.connect(
             self._proxy.set_eq_filter)
+        self.compare_filter_inp.currentIndexChanged.connect(
+            lambda: self.model.change_tolerance(
+                tol.value(),
+                self._proxy.get_filtered_pvs()))
         self.compare_filter_inp.setMaximumWidth(200)
         compare_layout.addWidget(self.compare_filter_inp)
 
@@ -166,6 +170,11 @@ class SnapshotCompareWidget(QWidget):
 
         self.connected_filter_inp.currentIndexChanged.connect(
             self._proxy.set_view_filter)
+        self.connected_filter_inp.currentIndexChanged.connect(
+            lambda: self.model.change_tolerance(
+                tol.value(),
+                self._proxy.get_filtered_pvs()))
+
         self.connected_filter_inp.setMaximumWidth(200)
         compare_layout.addWidget(self.connected_filter_inp)
 
