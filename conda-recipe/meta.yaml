@@ -1,29 +1,28 @@
 package:
-    name: snapshot
-    version: "{{ load_setup_py_data().version }}"
+  name: snapshot
+  version: "{{ load_setup_py_data().version }}"
 source:
-#    git_tag: 0.9.1
-#    git_url: https://github.com/channelaccess/snapshot.git
-    path: ..
+  #    git_tag: 0.9.1
+  #    git_url: https://github.com/channelaccess/snapshot.git
+  path: ..
 
 requirements:
-    build:
-        - python
-        - setuptools
-        - pyqt
-    run:
-        - python
-        - pyqt
-        - pyepics
-        - numpy
-
+  build:
+    - python
+    - setuptools
+    - pyqt
+  run:
+    - python
+    - pyqt
+    - pyepics
+    - numpy
 
 build:
   noarch: python
-  number: 0
+  number: 1
   entry_points:
     - snapshot = snapshot.snapshot:main
 
 about:
-    home: https://github.com/paulscherrerinstitute/snapshot
-    summary: "Tool to save and restore EPICS channels."
+  home: https://github.com/paulscherrerinstitute/snapshot
+  summary: "Tool to save and restore EPICS channels."
