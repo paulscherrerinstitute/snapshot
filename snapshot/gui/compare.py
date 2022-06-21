@@ -114,8 +114,7 @@ class SnapshotCompareWidget(QWidget):
         self.pv_filter_inp.textChanged.connect(self._create_name_filter)
         self.pv_filter_inp.textChanged.connect(
             lambda: self.model.change_tolerance(
-                tol.value(),
-                self._proxy.get_filtered_pvs()))
+                tol.value()))
 
         self._populate_filter_list()
 
@@ -135,8 +134,7 @@ class SnapshotCompareWidget(QWidget):
         self.regex.stateChanged.connect(self._handle_regex_change)
         self.regex.stateChanged.connect(
             lambda: self.model.change_tolerance(
-                tol.value(),
-                self._proxy.get_filtered_pvs()))
+                tol.value()))
 
         # #### Selector for comparison filter
         compare_layout = QHBoxLayout()
@@ -154,8 +152,7 @@ class SnapshotCompareWidget(QWidget):
             self._proxy.set_eq_filter)
         self.compare_filter_inp.currentIndexChanged.connect(
             lambda: self.model.change_tolerance(
-                tol.value(),
-                self._proxy.get_filtered_pvs()))
+                tol.value()))
         self.compare_filter_inp.setMaximumWidth(200)
         compare_layout.addWidget(self.compare_filter_inp)
 
@@ -172,8 +169,7 @@ class SnapshotCompareWidget(QWidget):
             self._proxy.set_view_filter)
         self.connected_filter_inp.currentIndexChanged.connect(
             lambda: self.model.change_tolerance(
-                tol.value(),
-                self._proxy.get_filtered_pvs()))
+                tol.value()))
 
         self.connected_filter_inp.setMaximumWidth(200)
         compare_layout.addWidget(self.connected_filter_inp)
@@ -185,9 +181,8 @@ class SnapshotCompareWidget(QWidget):
         tol.setValue(1)
         tol.valueChanged[int].connect(
             lambda: self.model.change_tolerance(
-                tol.value(),
-                self._proxy.get_filtered_pvs()))
-        self.model.change_tolerance(tol.value(), self._proxy.get_filtered_pvs())
+                tol.value()))
+        self.model.change_tolerance(tol.value())
 
         # Put all tolerance and filter selectors in one layout
         filter_layout = QHBoxLayout()
@@ -718,14 +713,13 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
     def set_pv_update_time(self, new_pv_update_time):
         self._updater.set_update_rate(new_pv_update_time)
 
-    def change_tolerance(self, tol_f, filtered_pvs):
+    def change_tolerance(self, tol_f):
         self._tolerance_f = tol_f
         for line in self._data:
-            if line.pvname in filtered_pvs:
-                line.change_tolerance_line(tol_f)
-                # tolerance changing requires values to be update
-                if line._pv_ref.connected:
-                    line.update_pv_value(line._pv_ref.value)
+            line.change_tolerance_line(tol_f)
+            # tolerance changing requires values to be update
+            if line._pv_ref.connected:
+                line.update_pv_value(line._pv_ref.value)
         self._emit_data_changed()
 
 
@@ -1075,12 +1069,11 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
                         (self._eq_filter == PvCompareFilter.show_neq)
                         and not compare)
                     or (self._eq_filter == PvCompareFilter.show_all))
-
-                result = name_match and compare_match and (
+                compare_conn = (
                     (self._view_filter == PvViewFilter.show_all) or
                     (not row_model.conn and (self._view_filter == PvViewFilter.show_disconn)) or
                     (row_model.conn and (self._view_filter == PvViewFilter.show_conn)))
-
+                result = name_match and compare_match and compare_conn
             else:
                 # Only name and connection filters apply
                 result = (name_match and
