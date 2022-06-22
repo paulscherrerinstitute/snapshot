@@ -215,7 +215,7 @@ class SnapshotRestoreWidget(QWidget):
         # stopping of the application.
         app = QtCore.QCoreApplication.instance()
         app.aboutToQuit.connect(self.scanner.stop)
-        QtCore.QTimer.singleShot(2 * self.scanner.update_rate * 1000,
+        QtCore.QTimer.singleShot(2 * int(self.scanner.update_rate) * 1000,
                                  self.scanner.start)
 
     def handle_new_snapshot_instance(self, snapshot, already_parsed_files):
