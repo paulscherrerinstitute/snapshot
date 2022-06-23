@@ -177,7 +177,7 @@ class SnapshotCompareWidget(QWidget):
         # Tolerance setting
         tol_label = QLabel("Tolerance:")
         tol = QSpinBox()
-        tol.setRange(1, 1000000)
+        tol.setRange(1, 10000000)
         tol.setValue(1)
         tol.valueChanged[int].connect(
             lambda: self.model.change_tolerance(
