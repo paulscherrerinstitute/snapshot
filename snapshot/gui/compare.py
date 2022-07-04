@@ -1055,7 +1055,7 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
     def lessThan(self, lhs: QtCore.QModelIndex, rhs: QtCore.QModelIndex) -> bool:
         try:
             return float(lhs.data()) < float(rhs.data())
-        except ValueError:
+        except (ValueError, TypeError) as e:
             return super().lessThan(lhs, rhs)
 
     def filterAcceptsRow(self, idx: int, source_parent: QtCore.QModelIndex):
