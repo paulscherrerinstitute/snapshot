@@ -7,6 +7,7 @@
 import enum
 import os
 import re
+import copy 
 
 from PyQt5 import QtCore
 from PyQt5.QtCore import (
@@ -422,7 +423,7 @@ class SnapshotPvTableView(QTableView):
             menu.addAction("Export selected PVs",
                            self._export_pvs,)
 
-            menu.addAction("Export selected PVs and current values",
+            menu.addAction("Export selected PVs and values",
                            self._export_pvs_values)
 
         self._menu_click_pos = point
@@ -443,6 +444,16 @@ class SnapshotPvTableView(QTableView):
             self._get_pvname_with_selection_model_idx(idx),
             mode=cb.Clipboard)
 
+    def _get_column_names_for_csv(self):
+        headers_list = copy.copy(self.model().sourceModel()._headers)
+        headers_list.remove('Unit')
+        headers_list.remove('Eff. Tol.')
+        header_str = ''
+        for column_name in headers_list:
+            header_str += column_name+','
+        header_str = header_str[:-1]+'\n'
+        return header_str
+
     def _selected_pvnames(self):
         names = (self._get_pvname_with_selection_model_idx(idx)
                  for idx in self.selectedIndexes())
@@ -457,6 +468,27 @@ class SnapshotPvTableView(QTableView):
         precision = (self._get_precision_with_selection_model_idx(idx)
                      for idx in self.selectedIndexes())
         return list(precision)
+
+    def _selected_pv_snapfiles(self):
+        headers_counter = len(self.model().sourceModel()._headers.copy())
+        old_snaps_dict = {}
+        snap_values = ''
+        counter = 0
+        for idx in self.selectedIndexes():
+            idx_data = copy.copy(idx.data())
+            snap_values += str(idx_data)+','
+            counter += 1
+            if counter == headers_counter:
+                str_old_values = ''
+                string_split = snap_values.split(',')
+                pv_name = string_split[0]
+                for i in range(len(string_split)-1):
+                    if i > 2: # ignores units, effective tolerance
+                        str_old_values += string_split[i]+','
+                old_snaps_dict[pv_name] = str_old_values
+                counter = 0
+                snap_values = ''
+        return old_snaps_dict
 
     def _get_pvname_with_selection_model_idx(self, idx: QtCore.QModelIndex):
         # Map index from selection model to original model
@@ -489,39 +521,42 @@ class SnapshotPvTableView(QTableView):
     def _export_pvs(self):
         name, fileFilter = QFileDialog().getSaveFileName(
             self, "Save file", "", "Comma-separated values (*.csv)")
-        try:
-            with open(name, 'w') as f:
-                f.write("PV\n")
-                for pvname in self._selected_pvnames():
-                    str_content = f'{pvname}\n'
-                    f.write(str_content)
-                f.close()
-        except OSError as e:
-            warn = "Problem defining file to be exported: \n" + str(e)
-            QMessageBox.warning(self, "Warning", warn,
-                                QMessageBox.Ok,
-                                QMessageBox.NoButton)
+        if len(name) > 0:
+            if not name.endswith('.csv'):
+                name += '.csv'
+            try:
+                with open(name, 'w') as f:
+                    f.write("PV\n")
+                    for pvname in self._selected_pvnames():
+                        str_content = f'{pvname}\n'
+                        f.write(str_content)
+                    f.close()
+            except OSError as e:
+                warn = "Problem defining file to be exported: \n" + str(e)
+                QMessageBox.warning(self, "Warning", warn,
+                                    QMessageBox.Ok,
+                                    QMessageBox.NoButton)
 
     def _export_pvs_values(self):
         name, fileFilter = QFileDialog().getSaveFileName(
             self, "Save file", "", "Comma-separated values (*.csv)")
-        try:
-            with open(name, 'w') as f:
-                f.write("PV,Values\n")
-                for pvname, pv_value, pv_precision in zip(
-                        self._selected_pvnames(),
-                        self._selected_pvvalues(),
-                        self._selected_pvprecision()):
-                    line_content = f'{pvname},'
-                    line_content += SnapshotPv.value_to_display_str(
-                        pv_value, pv_precision)
-                    line_content += '\n'
-                    f.write(line_content)
-                f.close()
-        except OSError as e:
-            warn = "Problem defining file to be exported: \n" + str(e)
-            QMessageBox.warning(self, "Warning", warn,
-                                QMessageBox.Ok, QMessageBox.NoButton)
+        old_snaps_data = self._selected_pv_snapfiles()
+        if len(name) > 0:
+            if not name.endswith('.csv'):
+                name += '.csv'
+            try:
+                with open(name, 'w') as f:
+                    f.write(self._get_column_names_for_csv())
+                    for pvname in self._selected_pvnames():
+                        line_content = f'{pvname},'
+                        line_content += old_snaps_data.get(pvname, 'UNDEF')
+                        line_content += '\n'
+                        f.write(line_content)
+                    f.close()
+            except OSError as e:
+                warn = "Problem defining file to be exported: \n" + str(e)
+                QMessageBox.warning(self, "Warning", warn,
+                                    QMessageBox.Ok, QMessageBox.NoButton)
 
 
 # Wrap PvUpdater into QObject for threadsafe signalling
