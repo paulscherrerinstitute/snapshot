@@ -12,6 +12,8 @@ on:
       - master
       - export_selected_feature
 
+  workflow_dispatch:
+
 jobs:
   run-linters:
     name: Run linters
