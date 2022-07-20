@@ -1,6 +1,6 @@
+import concurrent.futures
 import logging
 from enum import Enum
-import concurrent.futures
 from threading import Lock, Thread
 from time import monotonic, sleep, time
 
@@ -12,7 +12,7 @@ _print_trace = False
 
 
 def since_start(message=None):
-    seconds = '{:.2f}'.format(time() - _start_time)
+    seconds = "{:.2f}".format(time() - _start_time)
     if message and _print_trace:
         print(seconds, message)
     else:
@@ -26,8 +26,8 @@ def enable_tracing(enable=True):
 
 def process_record(pvname):
     """Assuming 'pvname' is part of an EPICS record, write to its PROC field."""
-    record = pvname.split('.')[0]
-    caput(f'{record}.PROC', 1)
+    record = pvname.split(".")[0]
+    caput(f"{record}.PROC", 1)
 
 
 class _BackgroundWorkers:
@@ -81,7 +81,7 @@ class _BackgroundWorkers:
                         w.resume()
 
     def register(self, worker_name, worker):
-        assert (worker_name not in self._workers)
+        assert worker_name not in self._workers
         self._workers[worker_name] = worker
         self._explicitly_suspended[worker_name] = False
 
@@ -106,7 +106,7 @@ class BackgroundThread:
     __sleep_quantum = 0.1
 
     def __init__(self, name=None, **kwargs):
-        assert (name is not None)
+        assert name is not None
         self._name = name
         self._lock = Lock()
         self._quit = False
@@ -138,7 +138,8 @@ class BackgroundThread:
 
     def _run(self):
         raise NotImplementedError(
-            "The BackgroundThread class should not be used directly.")
+            "The BackgroundThread class should not be used directly."
+        )
 
     def _update_period(self, period):
         self._period = period
@@ -171,14 +172,20 @@ def get_machine_param_data(machine_params):
     dict of {name: data}. In case of error, all values in data are None."""
 
     background_workers.suspend()
-    pvs = [PV(name, auto_monitor=False, connection_timeout=None)
-           for name in machine_params.values()]
-    results = [p.get_with_metadata(form='ctrl', as_numpy=True) for p in pvs]
+    pvs = [
+        PV(name, auto_monitor=False, connection_timeout=None)
+        for name in machine_params.values()
+    ]
+    results = [p.get_with_metadata(form="ctrl", as_numpy=True) for p in pvs]
     background_workers.resume()
 
-    return {p: {key: (v.get(key) if v is not None else None)
-                for key in ('value', 'units', 'precision')}
-            for p, v in zip(machine_params.keys(), results)}
+    return {
+        p: {
+            key: (v.get(key) if v is not None else None)
+            for key in ("value", "units", "precision")
+        }
+        for p, v in zip(machine_params.keys(), results)
+    }
 
 
 # Exceptions
@@ -186,6 +193,7 @@ class SnapshotError(Exception):
     """
     Parent exception class of all snapshot exceptions.
     """
+
     pass
 
 
@@ -198,6 +206,7 @@ class PvStatus(Enum):
         equal: Returned if restore value is equal to current PV value (no need to restore).
         type_err: Returned if type of restore value is wrong
     """
+
     access_err = 0
     ok = 1
     no_value = 2
@@ -217,7 +226,9 @@ class SnapshotPv(PV):
     Note: PvUpdater is a "friend class" and uses this class' internals.
     """
 
-    def __init__(self, pvname, user_config=None, connection_callback=None, **kw):
+    def __init__(
+        self, pvname, user_config=None, connection_callback=None, **kw
+    ):
         # dict format {idx: callback}
         if user_config is None:
             user_config = {}
@@ -233,10 +244,13 @@ class SnapshotPv(PV):
         self._pvget_completer = None
         self._user_config = user_config
 
-        super().__init__(pvname,
-                         connection_callback=self._internal_cnct_callback,
-                         auto_monitor=False,
-                         connection_timeout=None, **kw)
+        super().__init__(
+            pvname,
+            connection_callback=self._internal_cnct_callback,
+            auto_monitor=False,
+            connection_timeout=None,
+            **kw,
+        )
 
     @property
     def initialized(self):
@@ -286,12 +300,15 @@ class SnapshotPv(PV):
                 if val is not None and self.is_array:
                     if numpy.size(val) == 0:
                         val = None
-                    elif (numpy.size(val) == 1 and
-                          kwargs.get('as_numpy', True) and
-                          not isinstance(val, numpy.ndarray)):
+                    elif (
+                        numpy.size(val) == 1
+                        and kwargs.get("as_numpy", True)
+                        and not isinstance(val, numpy.ndarray)
+                    ):
                         val = numpy.asarray([val])
-                    elif (kwargs.get('as_numpy', True) and
-                          not isinstance(val, numpy.ndarray)):
+                    elif kwargs.get("as_numpy", True) and not isinstance(
+                        val, numpy.ndarray
+                    ):
                         val = numpy.asarray(val)
 
                 return val
@@ -301,19 +318,19 @@ class SnapshotPv(PV):
     @PV.precision.getter
     def precision(self):
         """Override so as to not block until PvUpdater initializes ctrlvars."""
-        prec = self._user_config.get('precision', -1)
+        prec = self._user_config.get("precision", -1)
         if prec >= 0:
             return prec
-        return self._args.get('precision', None)
+        return self._args.get("precision", None)
 
     @PV.units.getter
     def units(self):
         """Override to not block until PvUpdater initializes ctrlvars."""
-        return self._args.get('units', None)
+        return self._args.get("units", None)
 
     @PV.enum_strs.getter
     def enum_strs(self):
-        return self._args.get('enum_strs', None)
+        return self._args.get("enum_strs", None)
 
     def save_pv(self):
         """
@@ -329,7 +346,7 @@ class SnapshotPv(PV):
         if self.connected and self.read_access:
             saved_value = self.get(use_monitor=False)
             if saved_value is None:
-                logging.debug(f'No value returned for channel {self.pvname}')
+                logging.debug(f"No value returned for channel {self.pvname}")
                 return saved_value, PvStatus.no_value
             else:
                 return saved_value, PvStatus.ok
@@ -359,12 +376,11 @@ class SnapshotPv(PV):
                             value,
                             wait=False,
                             callback=callback,
-                            callback_data={
-                                "status": PvStatus.ok})
+                            callback_data={"status": PvStatus.ok},
+                        )
 
                     except TypeError:
-                        callback(pvname=self.pvname,
-                                 status=PvStatus.type_err)
+                        callback(pvname=self.pvname, status=PvStatus.type_err)
 
                 elif callback:
                     # No need to be restored.
@@ -390,7 +406,7 @@ class SnapshotPv(PV):
 
         # First, check for the most common stuff
         if value is None:
-            return ''
+            return ""
         elif isinstance(value, float):
             # return PrintFloat(value, precision)
 
@@ -398,26 +414,30 @@ class SnapshotPv(PV):
             # and precision zero. now a float
             #  with precision 0 is shown as integer
             try:
-                fmt = f'{{:.{precision}f}}' if precision >= 0 else '{:f}'
+                fmt = f"{{:.{precision}f}}" if precision >= 0 else "{:f}"
             except TypeError as e:
-                fmt = '{:f}'
+                fmt = "{:f}"
             return fmt.format(value)
 
         elif isinstance(value, str):
             return value
         elif isinstance(value, numpy.ndarray):
-            if value.dtype.kind == 'f':
-                fmt = f'{{:.{precision}f}}' if precision and precision > 0 else '{:f}'
+            if value.dtype.kind == "f":
+                fmt = (
+                    f"{{:.{precision}f}}"
+                    if precision and precision > 0
+                    else "{:f}"
+                )
             else:
-                fmt = '{}'
+                fmt = "{}"
 
             if numpy.size(value) > 3:
                 # abbreviate long arrays
-                return f'[{fmt} ... {fmt}]'.format(value[0], value[-1])
+                return f"[{fmt} ... {fmt}]".format(value[0], value[-1])
             else:
-                return '[' + ' '.join(fmt.format(x) for x in value) + ']'
+                return "[" + " ".join(fmt.format(x) for x in value) + "]"
         else:  # integer values come here
-            return f'{value:.0f}'
+            return f"{value:.0f}"
             # return str(value)
 
     def compare_to_curr(self, value):
@@ -428,7 +448,7 @@ class SnapshotPv(PV):
 
         :return: Result of comparison.
         """
-        return SnapshotPv.compare(value, self.value, 0.)
+        return SnapshotPv.compare(value, self.value, 0.0)
 
     @staticmethod
     def compare(value1, value2, tolerance):
@@ -501,7 +521,7 @@ class SnapshotPv(PV):
         # number of may elements "pv.nelm" (NELM field). However this also acts wrong because it simply does following:
         # if count == 1, then nelm = 1
         # The true NELM info can be found with ca.element_count(self.chid).
-        self.is_array = (ca.element_count(self.chid) > 1)
+        self.is_array = ca.element_count(self.chid) > 1
 
         # If user specifies his own connection callback, call it here.
         for clb in self.conn_callbacks.values():
@@ -530,10 +550,11 @@ class PvUpdater(BackgroundThread):
     A normal python thread is used instead of a CAThread because a fresh CA
     context is needed.
     """
+
     timeout = 1.0
 
     def __init__(self, callback=lambda: None, **kwargs):
-        super().__init__(name='pv_updater', **kwargs)
+        super().__init__(name="pv_updater", **kwargs)
         self._callback = callback
         self._pvs = []
         self._update_rate = 5.0  # seconds
@@ -553,8 +574,9 @@ class PvUpdater(BackgroundThread):
             if pv.connected:
                 ca.get_with_metadata(pv.chid, wait=False, as_numpy=True)
                 # To be used by SnapshotPv.get() in case we time out.
-                pv._pvget_completer = \
-                    lambda: PvUpdater._get_complete(pv, wait=True)
+                pv._pvget_completer = lambda: PvUpdater._get_complete(
+                    pv, wait=True
+                )
         except ca.ChannelAccessException:
             pass
 
@@ -564,19 +586,21 @@ class PvUpdater(BackgroundThread):
             if not pv.connected or not pv._pvget_completer:
                 return None
             timeout = PvUpdater.timeout if wait is False else None
-            md = ca.get_complete_with_metadata(pv.chid, as_numpy=True,
-                                               timeout=timeout)
+            md = ca.get_complete_with_metadata(
+                pv.chid, as_numpy=True, timeout=timeout
+            )
             if md is None:
                 return None
             pv._pvget_completer = None
-            val = md['value']
+            val = md["value"]
 
             # Handle arrays. See comment in SnapshotPv.get()
             if val is not None and pv.is_array:
                 if numpy.size(val) == 0:
                     val = None
-                elif (numpy.size(val) == 1 and
-                      not isinstance(val, numpy.ndarray)):
+                elif numpy.size(val) == 1 and not isinstance(
+                    val, numpy.ndarray
+                ):
                     val = numpy.asarray([val])
                 elif not (isinstance(val, numpy.ndarray)):
                     val = numpy.asarray(val)
@@ -618,12 +642,16 @@ class PvUpdater(BackgroundThread):
         since_start("Started initial getting PV values")
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            values_and_timeouts = executor.map(PvUpdater._process_pv, self._pvs)
+            values_and_timeouts = executor.map(
+                PvUpdater._process_pv, self._pvs
+            )
 
         vals = list(map(lambda x: x[0], values_and_timeouts))
         if any(map(lambda x: x[1], values_and_timeouts)):
-            logging.debug("Some connected PVs are timing out while "
-                          "fetching ctrlvars, causing slowdowns.")
+            logging.debug(
+                "Some connected PVs are timing out while "
+                "fetching ctrlvars, causing slowdowns."
+            )
 
         self._finish_getting_pvs(vals)
 
@@ -662,8 +690,10 @@ class PvUpdater(BackgroundThread):
                     newly_initialized.append(pv)
                 elif not report_init_timeout:
                     report_init_timeout = True
-                    logging.debug("Some connected PVs are timing out while "
-                                  "fetching ctrlvars, causing slowdowns.")
+                    logging.debug(
+                        "Some connected PVs are timing out while "
+                        "fetching ctrlvars, causing slowdowns."
+                    )
             # get_ctrlvars() does not fetch the value, so we still need
             # to do it. It is safe to do even in the case of timeout
             # because the ctrl and value requests are orthogonal in

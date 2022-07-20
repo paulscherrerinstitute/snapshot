@@ -9,7 +9,7 @@ from tests.pytest.helper_functions import base_dir
 
 logging.basicConfig(level=logging.DEBUG)
 
-default_metadata = {'machine_params': {}}
+default_metadata = {"machine_params": {}}
 
 
 def build_pv_list(data: dict) -> list:
@@ -20,7 +20,7 @@ def build_pv_list(data: dict) -> list:
 
 
 def test_req_load():
-    file_req = base_dir() / 'softioc' / 'test.req'
+    file_req = base_dir() / "softioc" / "test.req"
     file_content = file_req.read_text().splitlines()
     # SnapshotReqFile the input req file
     request_file = create_snapshot_file(str(file_req))
@@ -33,7 +33,7 @@ def test_req_load():
 
 @pytest.mark.skip(reason="filters and metadata break test for now")
 def test_json_load():
-    file_json = base_dir() / 'pco_cam' / 'pco.json'
+    file_json = base_dir() / "pco_cam" / "pco.json"
     # SnapshotReqFile the input req file
     request_file = create_snapshot_file(str(file_json))
     # reads return a tuple (pv, metadata)
@@ -48,7 +48,7 @@ def test_json_load():
 
 @pytest.mark.skip(reason="Seems not implemented yet?")
 def test_yaml_load():
-    file_yaml = base_dir() / 'pco_cam' / 'pco.yaml'
+    file_yaml = base_dir() / "pco_cam" / "pco.yaml"
     # SnapshotReqFile the input req file
     request_file = create_snapshot_file(str(file_yaml))
     # reads return a tuple (pv, metadata)

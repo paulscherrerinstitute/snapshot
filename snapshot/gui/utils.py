@@ -51,7 +51,8 @@ def parse_dict_macros_to_text(macros):
 
 
 class SnapshotConfigureDialog(QDialog):
-    """ Dialog window to select and apply file. """
+    """Dialog window to select and apply file."""
+
     accepted = QtCore.pyqtSignal(str, dict)
 
     def __init__(self, parent=None, init_path=None, init_macros=None, **kw):
@@ -68,15 +69,17 @@ class SnapshotConfigureDialog(QDialog):
         self.macros_input = QLineEdit(self)
         self.macros_input.setPlaceholderText("MACRO1=M1,MACRO2=M2,...")
         self.file_selector = SnapshotFileSelector(
-            self, label_width=macros_label.sizeHint().width(),
-            init_path=init_path)
+            self,
+            label_width=macros_label.sizeHint().width(),
+            init_path=init_path,
+        )
 
         macros_layout.addWidget(macros_label)
         macros_layout.addWidget(self.macros_input)
         macros_layout.setSpacing(10)
 
         if not init_macros:
-            self.macros_input.setText('')
+            self.macros_input.setText("")
 
         elif isinstance(init_macros, dict):
             self.macros_input.setText(parse_dict_macros_to_text(init_macros))
@@ -90,7 +93,8 @@ class SnapshotConfigureDialog(QDialog):
         layout.addLayout(macros_layout)
 
         button_box = QDialogButtonBox(
-            QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+        )
         layout.addWidget(button_box)
 
         button_box.accepted.connect(self._config_accepted)
@@ -100,26 +104,27 @@ class SnapshotConfigureDialog(QDialog):
         # Save to file path to local variable and emit signal
         file_path = self.file_selector.file_path or ""
         if os.path.isfile(file_path):
-            if file_path.endswith('.req'):
+            if file_path.endswith(".req"):
                 self._show_deprecation_messagebox()
             try:
                 self.accepted.emit(
-                    file_path, parse_macros(
-                        self.macros_input.text()))
+                    file_path, parse_macros(self.macros_input.text())
+                )
                 self.done(QDialog.Accepted)
             except MacroError as e:
-                QMessageBox.warning(self, "Warning", str(e),
-                                          QMessageBox.Ok,
-                                          QMessageBox.NoButton)
+                QMessageBox.warning(
+                    self,
+                    "Warning",
+                    str(e),
+                    QMessageBox.Ok,
+                    QMessageBox.NoButton,
+                )
 
         else:
             warn = f"File {file_path} does not exist!"
             QMessageBox.warning(
-                self,
-                "Warning",
-                warn,
-                QMessageBox.Ok,
-                QMessageBox.NoButton)
+                self, "Warning", warn, QMessageBox.Ok, QMessageBox.NoButton
+            )
 
     def _config_rejected(self):
         self.reject()
@@ -129,19 +134,31 @@ class SnapshotConfigureDialog(QDialog):
         self.file_selector.setFocus()
 
     def _show_deprecation_messagebox(self):
-        QMessageBox.warning(self, "Warning",
-                            'Warning "*.req" files are deprecated! Next release will remove support for these files. '
-                            'Please convert to json/yaml.', QMessageBox.Ok,
-                            QMessageBox.NoButton)
+        QMessageBox.warning(
+            self,
+            "Warning",
+            'Warning "*.req" files are deprecated! Next release will remove support for these files. '
+            "Please convert to json/yaml.",
+            QMessageBox.Ok,
+            QMessageBox.NoButton,
+        )
 
 
 class SnapshotFileSelector(QWidget):
-    """ Widget to select file with dialog box. """
+    """Widget to select file with dialog box."""
 
     path_changed = QtCore.pyqtSignal()
 
-    def __init__(self, parent=None, label_text="File:", button_text="...",
-                 label_width=None, init_path=None, show_files=True, **kw):
+    def __init__(
+        self,
+        parent=None,
+        label_text="File:",
+        button_text="...",
+        label_width=None,
+        init_path=None,
+        show_files=True,
+        **kw,
+    ):
         QWidget.__init__(self, parent, **kw)
         self.file_path = init_path
 
@@ -210,6 +227,7 @@ class SnapshotKeywordSelectorWidget(QComboBox):
     the common_settings data structure and are suggested to the user in
     drop down menu. Keywords that are selected are returned as list.
     """
+
     keywords_changed = QtCore.pyqtSignal()
 
     def __init__(self, common_settings, defaults_only=False, parent=None):
@@ -266,8 +284,12 @@ class SnapshotKeywordSelectorWidget(QComboBox):
         # Handles keyboard events in following way:
         #     if: space, enter or tab, then add current string to the selected
         #     if backspace, then delete last character, or last keyword
-        if event.key() in [Qt.Key_Tab, Qt.Key_Enter,
-                           Qt.Key_Return, Qt.Key_Space]:
+        if event.key() in [
+            Qt.Key_Tab,
+            Qt.Key_Enter,
+            Qt.Key_Return,
+            Qt.Key_Space,
+        ]:
             if self.input.text().endswith(" "):
                 key_to_add = self.input.text().split(" ")[-2]
             else:
@@ -294,14 +316,23 @@ class SnapshotKeywordSelectorWidget(QComboBox):
 
         # Skip if already selected or not in predefined labels if defaults_only
         # (force=True overrides defaults_only)
-        if keyword and (keyword not in self.selectedKeywords) and (
-                not self.defaults_only or force or self.defaults_only and keyword in default_labels):
+        if (
+            keyword
+            and (keyword not in self.selectedKeywords)
+            and (
+                not self.defaults_only
+                or force
+                or self.defaults_only
+                and keyword in default_labels
+            )
+        ):
             key_widget = SnapshotKeywordWidget(keyword, self)
             key_widget.delete.connect(self.remove_keyword)
             self.keywordWidgets[keyword] = key_widget
             self.selectedKeywords.append(keyword)
             self.layout.insertWidget(
-                len(self.selectedKeywords) - 1, key_widget)
+                len(self.selectedKeywords) - 1, key_widget
+            )
             self.keywords_changed.emit()
             self.setItemText(0, "")
 
@@ -324,10 +355,13 @@ class SnapshotKeywordSelectorWidget(QComboBox):
         # Method to be called when global list of existing labels (keywords)
         # is changed and widget must be updated.
         self.clear()
-        labels = self.common_settings['default_labels'][:]
+        labels = self.common_settings["default_labels"][:]
         if not self.defaults_only:
-            labels += [label for label in self.common_settings['existing_labels']
-                       if label not in labels]
+            labels += [
+                label
+                for label in self.common_settings["existing_labels"]
+                if label not in labels
+            ]
             self.addItem("")
         else:
             self.addItem("Select labels ...")
@@ -336,7 +370,7 @@ class SnapshotKeywordSelectorWidget(QComboBox):
         self.addItems(labels)
 
         # resize the qcombobox dropdown to show more items
-        self.setMaxVisibleItems(len(labels)+1 if len(labels) < 30 else 30)
+        self.setMaxVisibleItems(len(labels) + 1 if len(labels) < 30 else 30)
 
     def clear_keywords(self):
         keywords_to_remove = copy.copy(self.get_keywords())
@@ -360,9 +394,13 @@ class SnapshotKeywordSelectorInput(QLineEdit):
 
     def keyPressEvent(self, event):
         # Pass special key events to the main widget, handle others.
-        if event.key() in [Qt.Key_Tab, Qt.Key_Enter, Qt.Key_Return, Qt.Key_Space,
-                           Qt.Key_Escape] or (not self.text().strip() and event.key() == Qt.
-                                              Key_Backspace):
+        if event.key() in [
+            Qt.Key_Tab,
+            Qt.Key_Enter,
+            Qt.Key_Return,
+            Qt.Key_Space,
+            Qt.Key_Escape,
+        ] or (not self.text().strip() and event.key() == Qt.Key_Backspace):
             self.callback(event)
         else:
             QLineEdit.keyPressEvent(self, event)
@@ -379,6 +417,7 @@ class SnapshotKeywordWidget(QFrame):
     Graphical representation of the selected widget. A Frame with remove
     button.
     """
+
     delete = QtCore.pyqtSignal(str)
 
     def __init__(self, text=None, parent=None):
@@ -397,14 +436,16 @@ class SnapshotKeywordWidget(QFrame):
         icon_path = os.path.join(icon_path, "images/remove.png")
         delete_button.setIcon(QIcon(icon_path))
         delete_button.setStyleSheet(
-            "border: 0px; background-color: transparent; margin: 0px")
+            "border: 0px; background-color: transparent; margin: 0px"
+        )
         delete_button.clicked.connect(self.delete_pressed)
 
         self.layout.addWidget(label)
         self.layout.addWidget(delete_button)
 
         self.setStyleSheet(
-            "background-color:#CCCCCC;color:#000000; border-radius: 2px;")
+            "background-color:#CCCCCC;color:#000000; border-radius: 2px;"
+        )
 
     def delete_pressed(self):
         # Emit delete signal with information about removed keyword.
@@ -434,16 +475,17 @@ class SnapshotEditMetadataDialog(QDialog):
         # Make field for labels
         # If default labels are defined, then force default labels
         self.labels_input = SnapshotKeywordSelectorWidget(
-            common_settings, defaults_only=self.common_settings
-            ['force_default_labels'],
-            parent=self)
+            common_settings,
+            defaults_only=self.common_settings["force_default_labels"],
+            parent=self,
+        )
         for label in metadata["labels"]:
             self.labels_input.add_to_selected(label, force=True)
         form_layout.addRow("Labels:", self.labels_input)
 
         self.button_box = QDialogButtonBox(
-            QDialogButtonBox.Ok |
-            QDialogButtonBox.Cancel, parent=self)
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel, parent=self
+        )
 
         self.ok_button = self.button_box.button(QDialogButtonBox.Ok)
         self.cancel_button = self.button_box.button(QDialogButtonBox.Cancel)
@@ -475,8 +517,14 @@ class SnapshotEditMetadataDialog(QDialog):
 
 
 class DetailedMsgBox(QMessageBox):
-    def __init__(self, msg='', details='', title='', parent=None,
-                 std_buttons=QMessageBox.Yes | QMessageBox.No):
+    def __init__(
+        self,
+        msg="",
+        details="",
+        title="",
+        parent=None,
+        std_buttons=QMessageBox.Yes | QMessageBox.No,
+    ):
         super().__init__(parent=parent)
         self.setText(msg)
         self.setDetailedText(details)
@@ -499,8 +547,8 @@ class DetailedMsgBox(QMessageBox):
             textEdit.setMinimumWidth(0)
             textEdit.setMaximumWidth(16777215)
             textEdit.setSizePolicy(
-                QSizePolicy.Expanding,
-                QSizePolicy.Expanding)
+                QSizePolicy.Expanding, QSizePolicy.Expanding
+            )
 
         return result
 
@@ -510,25 +558,28 @@ def show_snapshot_parse_errors(parent, file_and_error_list):
     for item in file_and_error_list:
         if item[1]:  # list of errors
 
-            err_details += '- - - ' + item[0] + \
-                ' - - -\n * '  # file name
-            err_details += '\n * '.join(item[1])
-            err_details += '\n\n'
+            err_details += "- - - " + item[0] + " - - -\n * "  # file name
+            err_details += "\n * ".join(item[1])
+            err_details += "\n\n"
 
     err_details = err_details[:-2]  # Remove last two new lines
 
     if err_details:
-        msg = str(len(file_and_error_list)) + \
-            " of the snapshot saved files (.snap) were loaded with errors " \
+        msg = (
+            str(len(file_and_error_list))
+            + " of the snapshot saved files (.snap) were loaded with errors "
             "(see details)."
+        )
         msg_window = DetailedMsgBox(
-            msg, err_details, 'Warning', parent, QMessageBox.Ok)
+            msg, err_details, "Warning", parent, QMessageBox.Ok
+        )
         msg_window.exec_()
 
 
-def make_separator(parent, direction='vertical'):
+def make_separator(parent, direction="vertical"):
     """Makes a separator line"""
     sep = QFrame(parent)
-    sep.setFrameShape(QFrame.VLine if direction == 'vertical'
-                      else QFrame.HLine)
+    sep.setFrameShape(
+        QFrame.VLine if direction == "vertical" else QFrame.HLine
+    )
     return sep

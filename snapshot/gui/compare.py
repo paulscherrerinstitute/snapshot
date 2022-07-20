@@ -4,10 +4,10 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+import copy
 import enum
 import os
 import re
-import copy 
 
 from PyQt5 import QtCore
 from PyQt5.QtCore import (
@@ -92,8 +92,11 @@ class SnapshotCompareWidget(QWidget):
 
         if SnapshotCompareWidget.rgx_icon is None:
             SnapshotCompareWidget.rgx_icon = QIcon(
-                os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                             "images/rgx.png"))
+                os.path.join(
+                    os.path.dirname(os.path.realpath(__file__)),
+                    "images/rgx.png",
+                )
+            )
 
         # #### PV name filter
         pv_filter_label = QLabel("Filter:", self)
@@ -112,11 +115,12 @@ class SnapshotCompareWidget(QWidget):
         self.pv_filter_sel.setSizePolicy(policy)
 
         self.pv_filter_sel.currentIndexChanged.connect(
-            self._predefined_filter_selected)
+            self._predefined_filter_selected
+        )
         self.pv_filter_inp.textChanged.connect(self._create_name_filter)
         self.pv_filter_inp.textChanged.connect(
-            lambda: self.model.change_tolerance(
-                tol.value()))
+            lambda: self.model.change_tolerance(tol.value())
+        )
 
         self._populate_filter_list()
 
@@ -135,8 +139,8 @@ class SnapshotCompareWidget(QWidget):
         self.regex = QCheckBox("Regex", self)
         self.regex.stateChanged.connect(self._handle_regex_change)
         self.regex.stateChanged.connect(
-            lambda: self.model.change_tolerance(
-                tol.value()))
+            lambda: self.model.change_tolerance(tol.value())
+        )
 
         # #### Selector for comparison filter
         compare_layout = QHBoxLayout()
@@ -148,13 +152,15 @@ class SnapshotCompareWidget(QWidget):
 
         self.compare_filter_inp = QComboBox(self)
         self.compare_filter_inp.addItems(
-            ["Show all", "Different only", "Equal only"])
+            ["Show all", "Different only", "Equal only"]
+        )
 
         self.compare_filter_inp.currentIndexChanged.connect(
-            self._proxy.set_eq_filter)
+            self._proxy.set_eq_filter
+        )
         self.compare_filter_inp.currentIndexChanged.connect(
-            lambda: self.model.change_tolerance(
-                tol.value()))
+            lambda: self.model.change_tolerance(tol.value())
+        )
         self.compare_filter_inp.setMaximumWidth(200)
         compare_layout.addWidget(self.compare_filter_inp)
 
@@ -165,13 +171,15 @@ class SnapshotCompareWidget(QWidget):
 
         self.connected_filter_inp = QComboBox(self)
         self.connected_filter_inp.addItems(
-            ["Show all", "Connected", "Disconnected"])
+            ["Show all", "Connected", "Disconnected"]
+        )
 
         self.connected_filter_inp.currentIndexChanged.connect(
-            self._proxy.set_view_filter)
+            self._proxy.set_view_filter
+        )
         self.connected_filter_inp.currentIndexChanged.connect(
-            lambda: self.model.change_tolerance(
-                tol.value()))
+            lambda: self.model.change_tolerance(tol.value())
+        )
 
         self.connected_filter_inp.setMaximumWidth(200)
         compare_layout.addWidget(self.connected_filter_inp)
@@ -182,20 +190,20 @@ class SnapshotCompareWidget(QWidget):
         tol.setRange(1, 10000000)
         tol.setValue(1)
         tol.valueChanged[int].connect(
-            lambda: self.model.change_tolerance(
-                tol.value()))
+            lambda: self.model.change_tolerance(tol.value())
+        )
         self.model.change_tolerance(tol.value())
 
         # Put all tolerance and filter selectors in one layout
         filter_layout = QHBoxLayout()
         filter_layout.addWidget(tol_label)
         filter_layout.addWidget(tol)
-        filter_layout.addWidget(make_separator(self, 'vertical'))
+        filter_layout.addWidget(make_separator(self, "vertical"))
 
         filter_layout.addLayout(pv_filter_layout)
         filter_layout.addWidget(self.regex)
 
-        filter_layout.addWidget(make_separator(self, 'vertical'))
+        filter_layout.addWidget(make_separator(self, "vertical"))
 
         # Comparison dropdown
         filter_layout.addLayout(compare_layout)
@@ -211,30 +219,30 @@ class SnapshotCompareWidget(QWidget):
         self.setLayout(layout)
 
     def _populate_filter_list(self):
-        predefined_filters = self.common_settings['predefined_filters']
+        predefined_filters = self.common_settings["predefined_filters"]
         self.pv_filter_sel.blockSignals(True)
         self.pv_filter_sel.clear()
         self.pv_filter_sel.addItem(None)
 
-        for regex_item in predefined_filters.get('rgx_filters', []):
+        for regex_item in predefined_filters.get("rgx_filters", []):
             # label for regex not provided (str)
             if isinstance(regex_item, str):
-                label = f'{regex_item}'
+                label = f"{regex_item}"
             # label and regex provided ([label, regex])
             elif isinstance(regex_item, list):
-                label = f'{regex_item[0]}   |   {regex_item[1]}'
+                label = f"{regex_item[0]}   |   {regex_item[1]}"
             self.pv_filter_sel.addItem(SnapshotCompareWidget.rgx_icon, label)
 
-        self.pv_filter_sel.addItems(predefined_filters.get('filters', []))
+        self.pv_filter_sel.addItems(predefined_filters.get("filters", []))
         self.pv_filter_sel.blockSignals(False)
 
     def _handle_regex_change(self, state):
         txt = self.pv_filter_inp.text()
         self.pv_filter_inp.setText(txt)
-        if state and txt.strip() == '':
-            self.pv_filter_inp.setText('.*')
-        elif not state and txt.strip() == '.*':
-            self.pv_filter_inp.setText('')
+        if state and txt.strip() == "":
+            self.pv_filter_inp.setText(".*")
+        elif not state and txt.strip() == ".*":
+            self.pv_filter_inp.setText("")
         else:
             self._create_name_filter(txt)
 
@@ -276,8 +284,11 @@ class SnapshotCompareWidget(QWidget):
         self.restore_requested.emit(pvs_list)
 
     def _predefined_filter_selected(self, idx):
-        txt = self.pv_filter_inp.text().split(
-            "|")[-1].strip() if "|" in self.pv_filter_inp.text() else self.pv_filter_inp.text()
+        txt = (
+            self.pv_filter_inp.text().split("|")[-1].strip()
+            if "|" in self.pv_filter_inp.text()
+            else self.pv_filter_inp.text()
+        )
         if idx == 0:
             # First empty option; the menu is always reset to this.
             return
@@ -328,8 +339,8 @@ class SnapshotPvTableView(QTableView):
         self.setSortingEnabled(True)
         self.setAlternatingRowColors(True)
         self.sortByColumn(
-            PvTableColumns.name,
-            Qt.AscendingOrder)  # default sorting
+            PvTableColumns.name, Qt.AscendingOrder
+        )  # default sorting
         self.verticalHeader().setVisible(False)
         self.verticalHeader().setDefaultSectionSize(20)
         self.horizontalHeader().setHighlightSections(False)
@@ -361,8 +372,8 @@ class SnapshotPvTableView(QTableView):
         source.columnsRemoved.connect(self._apply_selection_to_full_row)
         source.modelReset.connect(self._set_columns_width)
         self.sortByColumn(
-            PvTableColumns.name,
-            Qt.AscendingOrder)  # default sorting
+            PvTableColumns.name, Qt.AscendingOrder
+        )  # default sorting
 
     def dataChanged(self, mode_idx, mode_idx1, roles):
         """
@@ -388,8 +399,10 @@ class SnapshotPvTableView(QTableView):
                 rows.append(idx.row())
                 selection.append(QItemSelectionRange(idx))
 
-        self.selectionModel().select(selection, QItemSelectionModel.Rows |
-                                     QItemSelectionModel.ClearAndSelect)
+        self.selectionModel().select(
+            selection,
+            QItemSelectionModel.Rows | QItemSelectionModel.ClearAndSelect,
+        )
 
     def _set_columns_width(self):
         self.resizeColumnsToContents()
@@ -408,25 +421,32 @@ class SnapshotPvTableView(QTableView):
         if selected_rows:
             menu.addAction("Copy PV name", self._copy_pv_name)
             menu.addAction("Copy PVs and values", self._copy_pvs_values)
-            if len(selected_rows) == 1 and len(
-                    self.model().sourceModel().get_snap_file_names()) == 1:
+            if (
+                len(selected_rows) == 1
+                and len(self.model().sourceModel().get_snap_file_names()) == 1
+            ):
                 menu.addAction(
-                    "Restore selected PV",
-                    self._restore_selected_pvs)
+                    "Restore selected PV", self._restore_selected_pvs
+                )
 
             elif len(self.model().sourceModel().get_snap_file_names()) == 1:
                 menu.addAction(
-                    "Restore selected PVs",
-                    self._restore_selected_pvs)
+                    "Restore selected PVs", self._restore_selected_pvs
+                )
 
-            menu.addAction("Process records of selected PVs",
-                           self._process_selected_records)
+            menu.addAction(
+                "Process records of selected PVs",
+                self._process_selected_records,
+            )
 
-            menu.addAction("Export selected PVs",
-                           self._export_pvs,)
+            menu.addAction(
+                "Export selected PVs",
+                self._export_pvs,
+            )
 
-            menu.addAction("Export selected PVs and values",
-                           self._export_pvs_values)
+            menu.addAction(
+                "Export selected PVs and values", self._export_pvs_values
+            )
 
         self._menu_click_pos = point
         menu.exec(QCursor.pos())
@@ -443,8 +463,8 @@ class SnapshotPvTableView(QTableView):
         cb.clear(mode=cb.Clipboard)
         idx = self.indexAt(self._menu_click_pos)
         cb.setText(
-            self._get_pvname_with_selection_model_idx(idx),
-            mode=cb.Clipboard)
+            self._get_pvname_with_selection_model_idx(idx), mode=cb.Clipboard
+        )
 
     def _copy_pvs_values(self):
         cb = QApplication.clipboard()
@@ -452,57 +472,61 @@ class SnapshotPvTableView(QTableView):
         old_snaps_data = self._selected_pv_snapfiles()
         cb_content = self._get_column_names_for_csv()
         for pvname in self._selected_pvnames():
-            cb_content += f'{pvname},'
-            cb_content += old_snaps_data.get(pvname, 'UNDEF')
-            cb_content = cb_content[:-1]+'\n'
-        cb.setText(
-            cb_content,
-            mode=cb.Clipboard)
+            cb_content += f"{pvname},"
+            cb_content += old_snaps_data.get(pvname, "UNDEF")
+            cb_content = cb_content[:-1] + "\n"
+        cb.setText(cb_content, mode=cb.Clipboard)
 
     def _get_column_names_for_csv(self):
         headers_list = copy.copy(self.model().sourceModel()._headers)
-        headers_list.remove('Unit')
-        headers_list.remove('Eff. Tol.')
-        header_str = ''
+        headers_list.remove("Unit")
+        headers_list.remove("Eff. Tol.")
+        header_str = ""
         for column_name in headers_list:
-            header_str += column_name+','
-        header_str = header_str[:-1]+'\n'
+            header_str += column_name + ","
+        header_str = header_str[:-1] + "\n"
         return header_str
 
     def _selected_pvnames(self):
-        names = (self._get_pvname_with_selection_model_idx(idx)
-                 for idx in self.selectedIndexes())
+        names = (
+            self._get_pvname_with_selection_model_idx(idx)
+            for idx in self.selectedIndexes()
+        )
         return list(set(names))
 
     def _selected_pvvalues(self):
-        values = (self._get_value_with_selection_model_idx(idx)
-                  for idx in self.selectedIndexes())
+        values = (
+            self._get_value_with_selection_model_idx(idx)
+            for idx in self.selectedIndexes()
+        )
         return list(values)
 
     def _selected_pvprecision(self):
-        precision = (self._get_precision_with_selection_model_idx(idx)
-                     for idx in self.selectedIndexes())
+        precision = (
+            self._get_precision_with_selection_model_idx(idx)
+            for idx in self.selectedIndexes()
+        )
         return list(precision)
 
     def _selected_pv_snapfiles(self):
         headers_counter = len(self.model().sourceModel()._headers.copy())
         old_snaps_dict = {}
-        snap_values = ''
+        snap_values = ""
         counter = 0
         for idx in self.selectedIndexes():
             idx_data = copy.copy(idx.data())
-            snap_values += str(idx_data)+','
+            snap_values += str(idx_data) + ","
             counter += 1
             if counter == headers_counter:
-                str_old_values = ''
-                string_split = snap_values.split(',')
+                str_old_values = ""
+                string_split = snap_values.split(",")
                 pv_name = string_split[0]
-                for i in range(len(string_split)-1):
-                    if i > 2: # ignores units, effective tolerance
-                        str_old_values += string_split[i]+','
+                for i in range(len(string_split) - 1):
+                    if i > 2:  # ignores units, effective tolerance
+                        str_old_values += string_split[i] + ","
                 old_snaps_dict[pv_name] = str_old_values
                 counter = 0
-                snap_values = ''
+                snap_values = ""
         return old_snaps_dict
 
     def _get_pvname_with_selection_model_idx(self, idx: QtCore.QModelIndex):
@@ -510,24 +534,37 @@ class SnapshotPvTableView(QTableView):
         # Access original model through proxy model and get pv name.
         # Doing it this way is safer than just reading row content, since in
         # future visualization can change.
-        return self.model().sourceModel().get_pvname(
-            self.selectionModel().model().mapToSource(idx).row())
+        return (
+            self.model()
+            .sourceModel()
+            .get_pvname(self.selectionModel().model().mapToSource(idx).row())
+        )
 
     def _get_value_with_selection_model_idx(self, idx: QtCore.QModelIndex):
         # Map index from selection model to original model
         # Access original model through proxy model and get pv name.
         # Doing it this way is safer than just reading row content, since in
         # future visualization can change.
-        return self.model().sourceModel().get_pv_ref_value(
-            self.selectionModel().model().mapToSource(idx).row())
+        return (
+            self.model()
+            .sourceModel()
+            .get_pv_ref_value(
+                self.selectionModel().model().mapToSource(idx).row()
+            )
+        )
 
     def _get_precision_with_selection_model_idx(self, idx: QtCore.QModelIndex):
         # Map index from selection model to original model
         # Access original model through proxy model and get pv name.
         # Doing it this way is safer than just reading row content, since in
         # future visualization can change.
-        return self.model().sourceModel().get_pv_precision(
-            self.selectionModel().model().mapToSource(idx).row())
+        return (
+            self.model()
+            .sourceModel()
+            .get_pv_precision(
+                self.selectionModel().model().mapToSource(idx).row()
+            )
+        )
 
     def _process_selected_records(self):
         for pvname in self._selected_pvnames():
@@ -535,43 +572,46 @@ class SnapshotPvTableView(QTableView):
 
     def _export_pvs(self):
         name, fileFilter = QFileDialog().getSaveFileName(
-            self, "Save file", "", "Comma-separated values (*.csv)")
+            self, "Save file", "", "Comma-separated values (*.csv)"
+        )
         if len(name) > 0:
-            if not name.endswith('.csv'):
-                name += '.csv'
+            if not name.endswith(".csv"):
+                name += ".csv"
             try:
-                with open(name, 'w') as f:
+                with open(name, "w") as f:
                     f.write("PV\n")
                     for pvname in self._selected_pvnames():
-                        str_content = f'{pvname}\n'
+                        str_content = f"{pvname}\n"
                         f.write(str_content)
                     f.close()
             except OSError as e:
                 warn = "Problem defining file to be exported: \n" + str(e)
-                QMessageBox.warning(self, "Warning", warn,
-                                    QMessageBox.Ok,
-                                    QMessageBox.NoButton)
+                QMessageBox.warning(
+                    self, "Warning", warn, QMessageBox.Ok, QMessageBox.NoButton
+                )
 
     def _export_pvs_values(self):
         name, fileFilter = QFileDialog().getSaveFileName(
-            self, "Save file", "", "Comma-separated values (*.csv)")
+            self, "Save file", "", "Comma-separated values (*.csv)"
+        )
         old_snaps_data = self._selected_pv_snapfiles()
         if len(name) > 0:
-            if not name.endswith('.csv'):
-                name += '.csv'
+            if not name.endswith(".csv"):
+                name += ".csv"
             try:
-                with open(name, 'w') as f:
+                with open(name, "w") as f:
                     f.write(self._get_column_names_for_csv())
                     for pvname in self._selected_pvnames():
-                        line_content = f'{pvname},'
-                        line_content += old_snaps_data.get(pvname, 'UNDEF')
-                        line_content += '\n'
+                        line_content = f"{pvname},"
+                        line_content += old_snaps_data.get(pvname, "UNDEF")
+                        line_content += "\n"
                         f.write(line_content)
                     f.close()
             except OSError as e:
                 warn = "Problem defining file to be exported: \n" + str(e)
-                QMessageBox.warning(self, "Warning", warn,
-                                    QMessageBox.Ok, QMessageBox.NoButton)
+                QMessageBox.warning(
+                    self, "Warning", warn, QMessageBox.Ok, QMessageBox.NoButton
+                )
 
 
 # Wrap PvUpdater into QObject for threadsafe signalling
@@ -583,8 +623,9 @@ class ModelUpdater(QtCore.QObject, PvUpdater):
         super().__init__(parent=parent, callback=self._callback)
 
         # Use a blocking connection to throttle the thread.
-        self._internal_update.connect(self.update_complete,
-                                      QtCore.Qt.BlockingQueuedConnection)
+        self._internal_update.connect(
+            self.update_complete, QtCore.Qt.BlockingQueuedConnection
+        )
 
     def _callback(self, pvs):
         self._internal_update.emit(pvs)
@@ -612,11 +653,11 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self._file_names = []
         self._tolerance_f = 1
 
-        self._headers = [''] * PvTableColumns.snapshots
-        self._headers[PvTableColumns.name] = 'PV'
-        self._headers[PvTableColumns.unit] = 'Unit'
-        self._headers[PvTableColumns.effective_tol] = 'Eff. Tol.'
-        self._headers[PvTableColumns.value] = 'Current value'
+        self._headers = [""] * PvTableColumns.snapshots
+        self._headers[PvTableColumns.name] = "PV"
+        self._headers[PvTableColumns.unit] = "Unit"
+        self._headers[PvTableColumns.effective_tol] = "Eff. Tol."
+        self._headers[PvTableColumns.value] = "Current value"
 
         self._updater = ModelUpdater(self)
         self._updater.update_complete.connect(self._handle_pv_update)
@@ -653,8 +694,9 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self.beginResetModel()
         for line in self._data:
             line.disconnect_callbacks()
-        self._data = [SnapshotPvTableLine(pv, self._tolerance_f, self)
-                      for pv in pvs]
+        self._data = [
+            SnapshotPvTableLine(pv, self._tolerance_f, self) for pv in pvs
+        ]
         self.endResetModel()
 
     def add_snap_files(self, files: dict):
@@ -668,20 +710,24 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             return
         self._file_names += list(files.keys())
         parent_idx = QtCore.QModelIndex()
-        self.beginInsertColumns(parent_idx, self.columnCount(parent_idx),
-                                len(files) + self.columnCount(parent_idx) - 1)
+        self.beginInsertColumns(
+            parent_idx,
+            self.columnCount(parent_idx),
+            len(files) + self.columnCount(parent_idx) - 1,
+        )
         errors = []
         for file_name, file_data in files.items():
-            pvs_list_full_names, err = \
-                self._replace_macros_on_file_data(file_data)
+            pvs_list_full_names, err = self._replace_macros_on_file_data(
+                file_data
+            )
             if err:
-                errors.append((file_data['file_name'], err))
+                errors.append((file_data["file_name"], err))
 
             # To get a proper update, need to go through all existing pvs.
             # Otherwise values of PVs listed in request but not in the saved
             # file are not cleared (value from previous file is seen on the
             # screen)
-            prefix = self.parent().common_settings['save_file_prefix']
+            prefix = self.parent().common_settings["save_file_prefix"]
             short_name = file_name.lstrip(prefix).rstrip(save_file_suffix)
             self._headers.append(short_name)
             for pv_line in self._data:
@@ -694,23 +740,28 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
 
     def clear_snap_files(self):
         self._file_names = []
-        self.beginRemoveColumns(QtCore.QModelIndex(), PvTableColumns.snapshots,
-                                self.columnCount(self.createIndex(-1, -1)) - 1)
+        self.beginRemoveColumns(
+            QtCore.QModelIndex(),
+            PvTableColumns.snapshots,
+            self.columnCount(self.createIndex(-1, -1)) - 1,
+        )
         # remove all snap files
         for pv_line in self._data:
             pv_line.clear_snap_values()
 
-        self._headers = self._headers[:PvTableColumns.snapshots]
+        self._headers = self._headers[: PvTableColumns.snapshots]
         self.endRemoveColumns()
 
     def _replace_macros_on_file_data(self, file_data):
         macros = self.snapshot.macros or file_data["meta_data"].get(
-            "macros", dict())
-        pvs_list, _, errors = parse_from_save_file(file_data['file_path'])
+            "macros", dict()
+        )
+        pvs_list, _, errors = parse_from_save_file(file_data["file_path"])
         # PVS data mapped to real pvs names (no macros)
         pvs_list_full_names = {
             SnapshotPv.macros_substitution(pv_name_raw, macros): pv_data
-            for pv_name_raw, pv_data in pvs_list.items()}
+            for pv_name_raw, pv_data in pvs_list.items()
+        }
 
         return pvs_list_full_names, errors
 
@@ -722,14 +773,18 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         return len(self._headers)
 
     def data(self, index, role):
-        if role == QtCore.Qt.ToolTipRole and \
-                index.column() == 2:
-            return '' if self._data[index.row()]._string_enum else self._data[index.row()].eff_tol_tooltip
+        if role == QtCore.Qt.ToolTipRole and index.column() == 2:
+            return (
+                ""
+                if self._data[index.row()]._string_enum
+                else self._data[index.row()].eff_tol_tooltip
+            )
         elif role == QtCore.Qt.DisplayRole:
-            return self._data[index.row()].data[index.column()].get('data', '')
+            return self._data[index.row()].data[index.column()].get("data", "")
         elif role == QtCore.Qt.DecorationRole:
-            return self._data[index.row()].data[index.column()
-                                                ].get('icon', None)
+            return (
+                self._data[index.row()].data[index.column()].get("icon", None)
+            )
 
     def _handle_pv_update(self, new_values):
         for value, line in zip(new_values, self._data):
@@ -744,18 +799,21 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         # No need to update PV names, units
         self.dataChanged.emit(
             self.createIndex(0, PvTableColumns.value),
-            self.createIndex(len(self._data),
-                             self.columnCount() - 1))
+            self.createIndex(len(self._data), self.columnCount() - 1),
+        )
 
     def handle_pv_connection_status(self, line_model):
         row = self._data.index(line_model)
         last_column = len(line_model.data) - 1
-        self.dataChanged.emit(self.createIndex(row, 0),
-                              self.createIndex(row, last_column))
+        self.dataChanged.emit(
+            self.createIndex(row, 0), self.createIndex(row, last_column)
+        )
 
     def headerData(self, section, orientation, role):
-        if role == QtCore.Qt.DisplayRole \
-           and orientation == QtCore.Qt.Horizontal:
+        if (
+            role == QtCore.Qt.DisplayRole
+            and orientation == QtCore.Qt.Horizontal
+        ):
             return self._headers[section]
 
         return super().headerData(section, orientation, role)
@@ -779,7 +837,8 @@ class SnapshotPvTableLine(QtCore.QObject):
     visualization of the PV state. The value is updated by the parent (i.e.
     SnapshotPvTableModel).
     """
-    connectionStatusChanged = QtCore.pyqtSignal('PyQt_PyObject')
+
+    connectionStatusChanged = QtCore.pyqtSignal("PyQt_PyObject")
     _pv_conn_changed = QtCore.pyqtSignal(dict)
     _DIR_PATH = os.path.dirname(os.path.realpath(__file__))
     _WARN_ICON = None
@@ -791,11 +850,14 @@ class SnapshotPvTableLine(QtCore.QObject):
 
         if SnapshotPvTableLine._WARN_ICON is None:
             SnapshotPvTableLine._WARN_ICON = QIcon(
-                os.path.join(self._DIR_PATH, "images/warn.png"))
+                os.path.join(self._DIR_PATH, "images/warn.png")
+            )
             SnapshotPvTableLine._NEQ_ICON = QIcon(
-                os.path.join(self._DIR_PATH, "images/neq.png"))
+                os.path.join(self._DIR_PATH, "images/neq.png")
+            )
             SnapshotPvTableLine._EQ_ICON = QIcon(
-                os.path.join(self._DIR_PATH, "images/eq.png"))
+                os.path.join(self._DIR_PATH, "images/eq.png")
+            )
 
         self._tolerance_f = tolerance_f
         self._pv_ref = pv_ref
@@ -811,17 +873,22 @@ class SnapshotPvTableLine(QtCore.QObject):
         self._config_loaded = False
 
         self.data = [None] * PvTableColumns.snapshots
-        self.data[PvTableColumns.name] = {
-            'data': pv_ref.pvname}
-        self.data[PvTableColumns.unit] = {'data': 'UNDEF', 'icon': None}
-        self.data[PvTableColumns.effective_tol] = {
-            'data': f''} if self._string_enum else {'data': self.effective_tolerance}
+        self.data[PvTableColumns.name] = {"data": pv_ref.pvname}
+        self.data[PvTableColumns.unit] = {"data": "UNDEF", "icon": None}
+        self.data[PvTableColumns.effective_tol] = (
+            {"data": f""}
+            if self._string_enum
+            else {"data": self.effective_tolerance}
+        )
 
-        self.data[PvTableColumns.value] = {'data': 'PV disconnected',
-                                           'icon': self._WARN_ICON}
+        self.data[PvTableColumns.value] = {
+            "data": "PV disconnected",
+            "icon": self._WARN_ICON,
+        }
 
-        self.connectionStatusChanged \
-            .connect(parent.handle_pv_connection_status)
+        self.connectionStatusChanged.connect(
+            parent.handle_pv_connection_status
+        )
         self._conn_clb_id = pv_ref.add_conn_callback(self._conn_callback)
 
         # Internal signal
@@ -829,8 +896,8 @@ class SnapshotPvTableLine(QtCore.QObject):
 
         if pv_ref.connected:
             self.conn = pv_ref.connected
-            self.data[PvTableColumns.value]['data'] = ''
-            self.data[PvTableColumns.value]['icon'] = None
+            self.data[PvTableColumns.value]["data"] = ""
+            self.data[PvTableColumns.value]["icon"] = None
             self._precision = self._pv_ref.precision
 
         else:
@@ -846,15 +913,18 @@ class SnapshotPvTableLine(QtCore.QObject):
     @property
     def effective_tolerance(self):
         try:
-            eff_tol_value = 10**(-self.precision) * self._tolerance_f if (
-                self.precision is not None and self.precision >= 0) else 1*self._tolerance_f
+            eff_tol_value = (
+                10 ** (-self.precision) * self._tolerance_f
+                if (self.precision is not None and self.precision >= 0)
+                else 1 * self._tolerance_f
+            )
         except TypeError as e:
-            eff_tol_value = ''
+            eff_tol_value = ""
         return eff_tol_value
 
     @property
     def eff_tol_tooltip(self):
-        return f'Eff. Tol. = Tolerance ({self._tolerance_f}) × 10^-Precision ({self.precision})'
+        return f"Eff. Tol. = Tolerance ({self._tolerance_f}) × 10^-Precision ({self.precision})"
 
     @property
     def precision(self):
@@ -871,8 +941,11 @@ class SnapshotPvTableLine(QtCore.QObject):
     def change_tolerance_line(self, tol_f):
         self._tolerance_f = tol_f
         # update eff. tol column
-        self.data[PvTableColumns.effective_tol] = {
-            'data': f''} if self._string_enum else {'data': self.effective_tolerance}
+        self.data[PvTableColumns.effective_tol] = (
+            {"data": f""}
+            if self._string_enum
+            else {"data": self.effective_tolerance}
+        )
         self._compare()
 
     def append_snap_value(self, value):
@@ -882,10 +955,11 @@ class SnapshotPvTableLine(QtCore.QObject):
             if self.precision is None:
                 self._precision = 6
             sval = SnapshotPvTableLine.string_repr_snap_value(
-                value, self.precision)
-            self.data.append({'data': sval, 'raw_value': value})
+                value, self.precision
+            )
+            self.data.append({"data": sval, "raw_value": value})
         else:
-            self.data.append({'data': '', 'raw_value': None})
+            self.data.append({"data": "", "raw_value": None})
 
         # Do compare
         self._compare()
@@ -893,34 +967,40 @@ class SnapshotPvTableLine(QtCore.QObject):
     def change_snap_value(self, column_idx, value):
         if value is not None:
             sval = SnapshotPvTableLine.string_repr_snap_value(
-                value, self.precision)
-            self.data[column_idx]['data'] = sval
+                value, self.precision
+            )
+            self.data[column_idx]["data"] = sval
         else:
-            self.data[column_idx]['data'] = ''
-        self.data[column_idx]['raw_value'] = value
+            self.data[column_idx]["data"] = ""
+        self.data[column_idx]["raw_value"] = value
         # Do compare
         self._compare()
 
     def clear_snap_values(self):
-        self.data = self.data[:PvTableColumns.snapshots]
+        self.data = self.data[: PvTableColumns.snapshots]
         self._compare()
 
     def are_snap_values_eq(self):
         n_files = self.get_snap_count()
         if n_files >= 2:
-            first_data = self.data[PvTableColumns.snapshots]['raw_value']
-            for data in self.data[PvTableColumns.snapshots + 1:]:
-                if not SnapshotPv.compare(first_data, data['raw_value'],
-                                          self.tolerance_from_precision()):
+            first_data = self.data[PvTableColumns.snapshots]["raw_value"]
+            for data in self.data[PvTableColumns.snapshots + 1 :]:
+                if not SnapshotPv.compare(
+                    first_data,
+                    data["raw_value"],
+                    self.tolerance_from_precision(),
+                ):
                     return False
         return True
 
     def is_snap_eq_to_pv(self, idx):
         idx = PvTableColumns.snap_index(idx)
         if self._pv_ref.connected:
-            return SnapshotPv.compare(self._pv_ref.value,
-                                      self.data[idx]['raw_value'],
-                                      self.tolerance_from_precision())
+            return SnapshotPv.compare(
+                self._pv_ref.value,
+                self.data[idx]["raw_value"],
+                self.tolerance_from_precision(),
+            )
         else:
             return False
 
@@ -935,27 +1015,30 @@ class SnapshotPvTableLine(QtCore.QObject):
         # case of the leftmost snapshot).
         n_files = self.get_snap_count()
         if n_files > 0:
-            values = [pv_value] + [x['raw_value'] for x in
-                                   self.data[PvTableColumns.snapshots:]]
+            values = [pv_value] + [
+                x["raw_value"] for x in self.data[PvTableColumns.snapshots:]
+            ]
             tolerance = self.tolerance_from_precision()
             connected = self._pv_ref.connected
             for i in range(1, len(values)):
-                comparison = SnapshotPv.compare(values[i - 1], values[i],
-                                                tolerance)
+                comparison = SnapshotPv.compare(
+                    values[i - 1], values[i], tolerance
+                )
                 snap = self.data[PvTableColumns.snapshots + i - 1]
                 if i == 1 and not connected:
-                    snap['icon'] = self._WARN_ICON
+                    snap["icon"] = self._WARN_ICON
                 elif not comparison:
-                    snap['icon'] = self._NEQ_ICON
+                    snap["icon"] = self._NEQ_ICON
                 else:
-                    snap['icon'] = self._EQ_ICON
+                    snap["icon"] = self._EQ_ICON
 
                 # if enum strings available, use the value to
                 # get the desired str representation of it
                 try:
-                    if 0 <= int(snap['data']) < len(self._pv_ref.enum_strs):
-                        self.data[PvTableColumns.snapshots + i -
-                                  1]['data'] = self._pv_ref.enum_strs[int(snap['data'])]
+                    if 0 <= int(snap["data"]) < len(self._pv_ref.enum_strs):
+                        self.data[PvTableColumns.snapshots + i - 1][
+                            "data"
+                        ] = self._pv_ref.enum_strs[int(snap["data"])]
                 except (TypeError, ValueError, IndexError):
                     pass
 
@@ -966,9 +1049,9 @@ class SnapshotPvTableLine(QtCore.QObject):
             # behaviour. It makes no sense to do comparison to a higher
             # precision than what the user can see.
             prec = 6
-        return self._tolerance_f * 10**(-prec)
+        return self._tolerance_f * 10 ** (-prec)
 
-    @ staticmethod
+    @staticmethod
     def string_repr_snap_value(value, precision):
         if isinstance(value, str):
             # If string do not dump it will add "" to a string
@@ -980,7 +1063,6 @@ class SnapshotPvTableLine(QtCore.QObject):
     def update_pv_value(self, pv_value):
         value_col = self.data[PvTableColumns.value]
         unit_col = self.data[PvTableColumns.unit]
-        eff_col = self.data[PvTableColumns.effective_tol]
 
         # Since sometimees the precision fails to load
         # properly at the beginning, this will reload it
@@ -991,12 +1073,10 @@ class SnapshotPvTableLine(QtCore.QObject):
             self._precision_loaded = True
 
         if pv_value is None:
-            value_col['data'] = ''
+            value_col["data"] = ""
             self._compare(None, get_missing=False)
             return True
-        new_value = SnapshotPv.value_to_display_str(
-            pv_value, self.precision
-        )
+        new_value = SnapshotPv.value_to_display_str(pv_value, self.precision)
         # if enum strings available, use the value to
         # get the desired str representation of it
         try:
@@ -1004,18 +1084,19 @@ class SnapshotPvTableLine(QtCore.QObject):
                 enum_str_value = self._pv_ref.enum_strs[int(pv_value)]
                 new_value = enum_str_value
                 self._string_enum = True
-                self.data[PvTableColumns.effective_tol] = {
-                    'data': f''} if self._string_enum else {'data': self.effective_tolerance}
+                self.data[PvTableColumns.effective_tol] = (
+                    {"data": ""} if self._string_enum else {"data": self.effective_tolerance}
+                )
         except (TypeError, ValueError, IndexError):
             pass
 
-        if unit_col['data'] == 'UNDEF':
-            unit_col['data'] = self._pv_ref.units
+        if unit_col["data"] == "UNDEF":
+            unit_col["data"] = self._pv_ref.units
 
-        if value_col['data'] == new_value:
+        if value_col["data"] == new_value:
             return False
 
-        value_col['data'] = new_value
+        value_col["data"] = new_value
         self._compare(pv_value)
 
         return True
@@ -1024,9 +1105,12 @@ class SnapshotPvTableLine(QtCore.QObject):
         self._pv_conn_changed.emit(kwargs)
 
     def _handle_conn_callback(self, data):
-        self.conn = data.get('conn')
-        self.data[PvTableColumns.value] = {'data': '', 'icon': None} if self.conn else {
-            'data': 'PV disconnected', 'icon': self._WARN_ICON}
+        self.conn = data.get("conn")
+        self.data[PvTableColumns.value] = (
+            {"data": "", "icon": None}
+            if self.conn
+            else {"data": "PV disconnected", "icon": self._WARN_ICON}
+        )
 
         self.connectionStatusChanged.emit(self)
 
@@ -1035,12 +1119,13 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
     """
     Proxy model providing a custom filtering functionality for PV table
     """
+
     filtered = QtCore.pyqtSignal(set)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._view_filter = PvViewFilter.show_all
-        self._name_filter = ''  # string or regex object
+        self._name_filter = ""  # string or regex object
         self._eq_filter = PvCompareFilter.show_all
         self._filtered_pvs = set()
 
@@ -1067,7 +1152,9 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
         # during invalidateFilter(), filterAcceptsRow() is called for each row
         self.invalidateFilter()
 
-    def lessThan(self, lhs: QtCore.QModelIndex, rhs: QtCore.QModelIndex) -> bool:
+    def lessThan(
+        self, lhs: QtCore.QModelIndex, rhs: QtCore.QModelIndex
+    ) -> bool:
         try:
             return float(lhs.data()) < float(rhs.data())
         except (ValueError, TypeError) as e:
@@ -1092,24 +1179,41 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
             else:
                 # regex parser
                 name_match = (
-                    self._name_filter.fullmatch(
-                        row_model.pvname) is not None)
+                    self._name_filter.fullmatch(row_model.pvname) is not None
+                )
 
             if n_files > 1:  # multi-file mode
                 files_equal = row_model.are_snap_values_eq()
 
                 compare_match = (
-                    ((self._eq_filter == PvCompareFilter.show_eq) and
-                     files_equal)
+                    (
+                        (self._eq_filter == PvCompareFilter.show_eq)
+                        and files_equal
+                    )
                     or (
                         (self._eq_filter == PvCompareFilter.show_neq)
-                        and not files_equal)
-                    or (self._eq_filter == PvCompareFilter.show_all))
+                        and not files_equal
+                    )
+                    or (self._eq_filter == PvCompareFilter.show_all)
+                )
 
-                result = name_match and compare_match and (
-                    (self._view_filter == PvViewFilter.show_all) or
-                    (not row_model.conn and (self._view_filter == PvViewFilter.show_disconn)) or
-                    (row_model.conn and (self._view_filter == PvViewFilter.show_conn)))
+                result = (
+                    name_match
+                    and compare_match
+                    and (
+                        (self._view_filter == PvViewFilter.show_all)
+                        or (
+                            not row_model.conn
+                            and (
+                                self._view_filter == PvViewFilter.show_disconn
+                            )
+                        )
+                        or (
+                            row_model.conn
+                            and (self._view_filter == PvViewFilter.show_conn)
+                        )
+                    )
+                )
 
             elif n_files == 1:  # "pv-compare" mode
                 compare = row_model.is_snap_eq_to_pv(0)
@@ -1117,19 +1221,35 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
                     ((self._eq_filter == PvCompareFilter.show_eq) and compare)
                     or (
                         (self._eq_filter == PvCompareFilter.show_neq)
-                        and not compare)
-                    or (self._eq_filter == PvCompareFilter.show_all))
+                        and not compare
+                    )
+                    or (self._eq_filter == PvCompareFilter.show_all)
+                )
                 compare_conn = (
-                    (self._view_filter == PvViewFilter.show_all) or
-                    (not row_model.conn and (self._view_filter == PvViewFilter.show_disconn)) or
-                    (row_model.conn and (self._view_filter == PvViewFilter.show_conn)))
+                    (self._view_filter == PvViewFilter.show_all)
+                    or (
+                        not row_model.conn
+                        and (self._view_filter == PvViewFilter.show_disconn)
+                    )
+                    or (
+                        row_model.conn
+                        and (self._view_filter == PvViewFilter.show_conn)
+                    )
+                )
                 result = name_match and compare_match and compare_conn
             else:
                 # Only name and connection filters apply
-                result = (name_match and
-                          ((self._view_filter == PvViewFilter.show_all) or
-                           (not row_model.conn and (self._view_filter == PvViewFilter.show_disconn)) or
-                           (row_model.conn and (self._view_filter == PvViewFilter.show_conn))))
+                result = name_match and (
+                    (self._view_filter == PvViewFilter.show_all)
+                    or (
+                        not row_model.conn
+                        and (self._view_filter == PvViewFilter.show_disconn)
+                    )
+                    or (
+                        row_model.conn
+                        and (self._view_filter == PvViewFilter.show_conn)
+                    )
+                )
 
         if result:
             self._filtered_pvs.add(row_model.pvname)

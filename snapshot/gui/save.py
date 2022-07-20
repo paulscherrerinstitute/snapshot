@@ -73,9 +73,10 @@ class SnapshotSaveWidget(QWidget):
         # Create collapsible group with advanced options,
         # then update output file name and finish adding widgets to layout
         self.advanced = SnapshotAdvancedSaveSettings(
-            self.common_settings, self)
+            self.common_settings, self
+        )
 
-        self.name_extension = ''
+        self.name_extension = ""
         self.update_name()
 
         filename_layout.addWidget(file_name_label)
@@ -88,10 +89,11 @@ class SnapshotSaveWidget(QWidget):
         self.save_button = QPushButton("Save", self)
         self.save_button.clicked.connect(self.start_save)
         # read only mode
-        if self.common_settings['read_only']:
+        if self.common_settings["read_only"]:
             self.save_button.setDisabled(True)
             self.save_button.setText(
-                f'{self.save_button.text()} (read-only mode)')
+                f"{self.save_button.text()} (read-only mode)"
+            )
             self.setAutoFillBackground(True)
             p = self.palette()
             p.setColor(self.backgroundRole(), Qt.darkGray)
@@ -114,7 +116,7 @@ class SnapshotSaveWidget(QWidget):
         self.update_name()
         self.update_labels()
         self.advanced.labels_input.clear_keywords()
-        self.advanced.comment_input.setText('')
+        self.advanced.comment_input.setText("")
 
     def start_save(self):
         # Update file name and chek if exists. Then disable button for the time
@@ -131,20 +133,32 @@ class SnapshotSaveWidget(QWidget):
             labels = self.advanced.labels_input.get_keywords()
             comment = self.advanced.comment_input.text()
 
-            machine_params = self.common_settings['machine_params']
+            machine_params = self.common_settings["machine_params"]
             params_data = get_machine_param_data(machine_params)
-            invalid_params = {p: v['value'] for p, v in params_data.items()
-                              if type(v['value']) not in (float, int, str)}
+            invalid_params = {
+                p: v["value"]
+                for p, v in params_data.items()
+                if type(v["value"]) not in (float, int, str)
+            }
             if invalid_params:
-                msg = "Some machine parameters have invalid values " \
+                msg = (
+                    "Some machine parameters have invalid values "
                     "(see details). Do you want to save anyway?\n"
+                )
                 msg_window = DetailedMsgBox(
-                    msg, '\n'.join(
-                        [f"{p} ({machine_params[p]}) has no value" if v is None
-                         else f"{p} ({machine_params[p]}) has unsupported "
-                         f"type {type(v)}"
-                         for p, v in invalid_params.items()]),
-                    "Warning", self)
+                    msg,
+                    "\n".join(
+                        [
+                            f"{p} ({machine_params[p]}) has no value"
+                            if v is None
+                            else f"{p} ({machine_params[p]}) has unsupported "
+                            f"type {type(v)}"
+                            for p, v in invalid_params.items()
+                        ]
+                    ),
+                    "Warning",
+                    self,
+                )
                 reply = msg_window.exec_()
                 if reply == QMessageBox.No:
                     self.sts_info.clear_status()
@@ -157,28 +171,42 @@ class SnapshotSaveWidget(QWidget):
             # finished
             output_file = os.path.join(
                 self.common_settings["save_dir"],
-                self.common_settings["save_file_prefix"] + 'latest' +
-                save_file_suffix)
+                self.common_settings["save_file_prefix"]
+                + "latest"
+                + save_file_suffix,
+            )
             status, pvs_status = self.snapshot.save_pvs(
-                self.file_path, force=force, labels=labels, comment=comment,
-                machine_params=params_data, symlink_path=output_file)
+                self.file_path,
+                force=force,
+                labels=labels,
+                comment=comment,
+                machine_params=params_data,
+                symlink_path=output_file,
+            )
 
             if status == ActionStatus.no_conn:
                 # Prompt user and ask if he wants to save in force mode
-                msg = "Some PVs are not connected (see details). " \
+                msg = (
+                    "Some PVs are not connected (see details). "
                     "Do you want to save anyway?\n"
+                )
 
                 msg_window = DetailedMsgBox(
-                    msg, "\n".join(list(pvs_status.keys())), "Warning", self)
+                    msg, "\n".join(list(pvs_status.keys())), "Warning", self
+                )
                 reply = msg_window.exec_()
 
                 if reply != QMessageBox.No:
                     # Start saving process in forced mode and notify when
                     # finished
                     status, pvs_status = self.snapshot.save_pvs(
-                        self.file_path, force=True, labels=labels,
-                        comment=comment, machine_params=params_data,
-                        symlink_path=output_file)
+                        self.file_path,
+                        force=True,
+                        labels=labels,
+                        comment=comment,
+                        machine_params=params_data,
+                        symlink_path=output_file,
+                    )
 
                     # finished in forced mode
                     self.save_done(pvs_status, True, output_file)
@@ -186,7 +214,8 @@ class SnapshotSaveWidget(QWidget):
                     # User rejected saving with unconnected PVs. Not an error
                     # state.
                     self.sts_log.log_msgs(
-                        "Save rejected by user.", time.time())
+                        "Save rejected by user.", time.time()
+                    )
                     self.sts_info.clear_status()
                     self.save_button.setEnabled(True)
 
@@ -196,13 +225,15 @@ class SnapshotSaveWidget(QWidget):
 
             elif status == ActionStatus.os_error:
                 msg = f"Could not write to file {self.file_path}."
-                QMessageBox.warning(self, "Warning", msg,
-                                    QMessageBox.Ok, QMessageBox.NoButton)
+                QMessageBox.warning(
+                    self, "Warning", msg, QMessageBox.Ok, QMessageBox.NoButton
+                )
 
             else:
                 msg = f"Error occurred with code {status}."
-                QMessageBox.warning(self, "Warning", msg,
-                                    QMessageBox.Ok, QMessageBox.NoButton)
+                QMessageBox.warning(
+                    self, "Warning", msg, QMessageBox.Ok, QMessageBox.NoButton
+                )
 
         else:
             # User rejected saving into existing file.
@@ -222,11 +253,13 @@ class SnapshotSaveWidget(QWidget):
                     # if here and not in force mode, then this is error state
                     success = success and not forced
                     msgs.append(
-                        f"WARNING: {pvname}: Not saved (no connection or no read access)")
+                        f"WARNING: {pvname}: Not saved (no connection or no read access)"
+                    )
                 else:
                     success = False
                     msgs.append(
-                        f"WARNING: {pvname}: Not saved, error status {sts}.")
+                        f"WARNING: {pvname}: Not saved, error status {sts}."
+                    )
                 msg_times.append(time.time())
                 status_txt = "Save error"
                 status_background = "#F06464"
@@ -234,7 +267,7 @@ class SnapshotSaveWidget(QWidget):
 
         if success:
             self.sts_log.log_msgs("Save finished.", time.time())
-            status_txt = f'Save done (output file: {output_file})'
+            status_txt = f"Save done (output file: {output_file})"
             status_background = "#64C864"
 
         self.save_button.setEnabled(True)
@@ -247,25 +280,36 @@ class SnapshotSaveWidget(QWidget):
     def update_name(self):
         name_extension_rb = "{TIMESTAMP}" + save_file_suffix
         self.name_extension = datetime.datetime.fromtimestamp(
-            time.time()).strftime('%Y%m%d_%H%M%S')
+            time.time()
+        ).strftime("%Y%m%d_%H%M%S")
 
-        self.common_settings["save_file_prefix"] = os.path.split(
-            self.common_settings["req_file_path"])[1].split(".")[0] + "_"
+        self.common_settings["save_file_prefix"] = (
+            os.path.split(self.common_settings["req_file_path"])[1].split(".")[
+                0
+            ]
+            + "_"
+        )
 
-        self.file_path = os.path.join(self.common_settings["save_dir"],
-                                      self.common_settings["save_file_prefix"]
-                                      + self.name_extension + save_file_suffix)
-        self.file_name_rb.setText(self.common_settings["save_file_prefix"]
-                                  + name_extension_rb)
+        self.file_path = os.path.join(
+            self.common_settings["save_dir"],
+            self.common_settings["save_file_prefix"]
+            + self.name_extension
+            + save_file_suffix,
+        )
+        self.file_name_rb.setText(
+            self.common_settings["save_file_prefix"] + name_extension_rb
+        )
 
     def check_file_name_available(self):
         # If file exists, user must decide whether to overwrite it or not
         if os.path.exists(self.file_path):
-            msg = "File already exists. Do you want to overwrite it?\n" + \
-                  self.file_path
-            reply = QMessageBox.question(self, 'Message', msg,
-                                               QMessageBox.Yes,
-                                               QMessageBox.No)
+            msg = (
+                "File already exists. Do you want to overwrite it?\n"
+                + self.file_path
+            )
+            reply = QMessageBox.question(
+                self, "Message", msg, QMessageBox.Yes, QMessageBox.No
+            )
 
             if reply == QMessageBox.No:
                 return False
@@ -306,8 +350,9 @@ class SnapshotAdvancedSaveSettings(QWidget):
         # If default labels are defined, then force default labels
         self.labels_input = SnapshotKeywordSelectorWidget(
             common_settings,
-            defaults_only=common_settings['force_default_labels'],
-            parent=self)
+            defaults_only=common_settings["force_default_labels"],
+            parent=self,
+        )
         labels_layout.addWidget(labels_label)
         labels_layout.addWidget(self.labels_input)
 

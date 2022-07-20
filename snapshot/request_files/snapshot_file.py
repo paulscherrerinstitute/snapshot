@@ -13,4 +13,5 @@ class ReqParseError(SnapshotError):
     """
     Parent exception class for exceptions that can happen while parsing a request file.
     """
+
     pass

@@ -35,6 +35,7 @@ from snapshot.parser import (
     parse_from_save_file,
     save_file_suffix,
 )
+
 from .utils import (
     DetailedMsgBox,
     SnapshotEditMetadataDialog,
@@ -58,18 +59,19 @@ class FileListScanner(QtCore.QObject, BackgroundThread):
     files_changed = QtCore.pyqtSignal()
     _internal_sig = QtCore.pyqtSignal()
 
-    update_rate = 5.  # seconds
+    update_rate = 5.0  # seconds
 
     def __init__(self, parent=None):
-        super().__init__(name='file_scanner', parent=parent)
+        super().__init__(name="file_scanner", parent=parent)
 
         self._save_dir = None
         self._req_file_name = None
         self._existing_files = None
         self._only_paths = None
 
-        self._internal_sig.connect(self.files_changed,
-                                   QtCore.Qt.QueuedConnection)
+        self._internal_sig.connect(
+            self.files_changed, QtCore.Qt.QueuedConnection
+        )
 
     def change_paths(self, save_dir, req_file_path):
         with self._lock:
@@ -80,22 +82,30 @@ class FileListScanner(QtCore.QObject, BackgroundThread):
         # The restore widget stores files as a dict {name: metadata}.
         # We just need full path and modification time.
         with self._lock:
-            self._existing_files = {f['file_path']: f['modif_time']
-                                    for f in files.values()}
+            self._existing_files = {
+                f["file_path"]: f["modif_time"] for f in files.values()
+            }
             self._only_paths = set(self._existing_files.keys())
 
     def _run(self):
         self._periodic_loop(self.update_rate, self._task)
 
     def _task(self):
-        if not all((self._save_dir, self._req_file_name,
-                    self._existing_files, self._only_paths)):
+        if not all(
+            (
+                self._save_dir,
+                self._req_file_name,
+                self._existing_files,
+                self._only_paths,
+            )
+        ):
             return
 
         since_start("Started looking for changes in snapshot files")
 
         req_file_name, file_paths, modif_times = list_save_files(
-            self._save_dir, self._req_file_name)
+            self._save_dir, self._req_file_name
+        )
         change_detected = False
 
         try:
@@ -130,6 +140,7 @@ class SnapshotRestoreWidget(QWidget):
     Data about current app state (such as request file) must be provided as
     part of the structure "common_settings".
     """
+
     files_selected = QtCore.pyqtSignal(dict)
     files_updated = QtCore.pyqtSignal()
     restored_callback = QtCore.pyqtSignal(dict, bool)
@@ -150,8 +161,9 @@ class SnapshotRestoreWidget(QWidget):
         self.setLayout(layout)
 
         # Create list with: file names, comment, labels, machine params
-        self.file_selector = SnapshotRestoreFileSelector(snapshot,
-                                                         common_settings, self)
+        self.file_selector = SnapshotRestoreFileSelector(
+            snapshot, common_settings, self
+        )
 
         self.file_selector.files_selected.connect(self.handle_selected_files)
 
@@ -164,13 +176,15 @@ class SnapshotRestoreWidget(QWidget):
         self.restore_button = QPushButton("Restore Filtered", self)
         self.restore_button.clicked.connect(self.start_restore_filtered)
         self.restore_button.setToolTip(
-            "Restores only currently filtered PVs from the selected .snap file.")
+            "Restores only currently filtered PVs from the selected .snap file."
+        )
         self.restore_button.setEnabled(False)
 
         self.restore_all_button = QPushButton("Restore All", self)
         self.restore_all_button.clicked.connect(self.start_restore_all)
         self.restore_all_button.setToolTip(
-            "Restores all PVs from the selected .snap file.")
+            "Restores all PVs from the selected .snap file."
+        )
         self.restore_all_button.setEnabled(False)
 
         btn_layout = QHBoxLayout()
@@ -178,15 +192,17 @@ class SnapshotRestoreWidget(QWidget):
         btn_layout.addStretch()
 
         # read only mode
-        if self.common_settings['read_only']:
+        if self.common_settings["read_only"]:
             self.restore_all_button.setVisible(False)
             self.restore_all_button.setDisabled(True)
             self.restore_button.setVisible(False)
             self.restore_button.setDisabled(True)
             self.restore_button.setText(
-                f'{self.restore_button.text()} (read-only mode)')
+                f"{self.restore_button.text()} (read-only mode)"
+            )
             self.restore_all_button.setText(
-                f'{self.restore_all_button.text()} (read-only mode)')
+                f"{self.restore_all_button.text()} (read-only mode)"
+            )
             self.setAutoFillBackground(True)
             p = self.palette()
             p.setColor(self.backgroundRole(), Qt.darkGray)
@@ -215,14 +231,17 @@ class SnapshotRestoreWidget(QWidget):
         # stopping of the application.
         app = QtCore.QCoreApplication.instance()
         app.aboutToQuit.connect(self.scanner.stop)
-        QtCore.QTimer.singleShot(2 * int(self.scanner.update_rate) * 1000,
-                                 self.scanner.start)
+        QtCore.QTimer.singleShot(
+            2 * int(self.scanner.update_rate) * 1000, self.scanner.start
+        )
 
     def handle_new_snapshot_instance(self, snapshot, already_parsed_files):
         self.file_selector.handle_new_snapshot_instance(snapshot)
         self.snapshot = snapshot
-        self.scanner.change_paths(self.common_settings["save_dir"],
-                                  self.common_settings["req_file_path"])
+        self.scanner.change_paths(
+            self.common_settings["save_dir"],
+            self.common_settings["req_file_path"],
+        )
         self.rebuild_file_list(already_parsed_files)
 
     def hide_restore_buttons(self):
@@ -234,10 +253,10 @@ class SnapshotRestoreWidget(QWidget):
         self.restore_button.setVisible(True)
 
     def indicate_refresh_needed(self):
-        self.refresh_button.setStyleSheet('background-color: red;')
+        self.refresh_button.setStyleSheet("background-color: red;")
 
     def start_refresh(self):
-        self.refresh_button.setStyleSheet('')
+        self.refresh_button.setStyleSheet("")
         self.rebuild_file_list()
 
     def start_restore_all(self):
@@ -261,32 +280,39 @@ class SnapshotRestoreWidget(QWidget):
 
     def do_restore(self, pvs_list=None):
         num_pvs = len(pvs_list) if pvs_list else "ALL"
-        response = QMessageBox.question(self, "Confirm restore",
-                                        "Do you wish to restore "
-                                        f"{num_pvs} PVs?")
+        response = QMessageBox.question(
+            self,
+            "Confirm restore",
+            "Do you wish to restore " f"{num_pvs} PVs?",
+        )
         if response != QMessageBox.Yes:
             return
 
         # Restore can be done only if specific file is selected
         if len(self.file_selector.selected_files) == 1:
             file_data = self.file_selector.file_list.get(
-                self.file_selector.selected_files[0])
+                self.file_selector.selected_files[0]
+            )
 
             # Prepare pvs with values to restore
             if file_data:
                 # Ignore parsing errors: the user has already seen them when
                 # when opening the snapshot.
-                pvs_in_file, _, _ = \
-                    parse_from_save_file(file_data['file_path'])
+                pvs_in_file, _, _ = parse_from_save_file(
+                    file_data["file_path"]
+                )
                 pvs_to_restore = copy.copy(pvs_in_file)  # is actually a dict
                 macros = self.snapshot.macros
 
                 if pvs_list is not None:
                     for pvname in pvs_in_file.keys():
-                        if SnapshotPv.macros_substitution(
-                                pvname, macros) not in pvs_list:
+                        if (
+                            SnapshotPv.macros_substitution(pvname, macros)
+                            not in pvs_list
+                        ):
                             pvs_to_restore.pop(
-                                pvname, None)  # remove unfiltered pvs
+                                pvname, None
+                            )  # remove unfiltered pvs
 
                 force = self.common_settings["force"]
 
@@ -303,19 +329,29 @@ class SnapshotRestoreWidget(QWidget):
                 self.sts_info.set_status("Restoring ...", 0, "orange")
 
                 status, pvs_status = self.snapshot.restore_pvs(
-                    pvs_to_restore, callback=self.restore_done_callback, force=force)
+                    pvs_to_restore,
+                    callback=self.restore_done_callback,
+                    force=force,
+                )
 
                 if status == ActionStatus.no_conn:
                     # Ask user if he wants to force restoring
                     msg = "Some PVs are not connected (see details). Do you want to restore anyway?\n"
-                    msg_window = DetailedMsgBox(msg, "\n".join(
-                        list(pvs_status.keys())), 'Warning', self)
+                    msg_window = DetailedMsgBox(
+                        msg,
+                        "\n".join(list(pvs_status.keys())),
+                        "Warning",
+                        self,
+                    )
                     reply = msg_window.exec_()
 
                     if reply != QMessageBox.No:
                         # Force restore
                         status, pvs_status = self.snapshot.restore_pvs(
-                            pvs_to_restore, callback=self.restore_done_callback, force=True)
+                            pvs_to_restore,
+                            callback=self.restore_done_callback,
+                            force=True,
+                        )
 
                         # If here restore started successfully. Waiting for
                         # callbacks.
@@ -324,23 +360,27 @@ class SnapshotRestoreWidget(QWidget):
                         # User rejected restoring with unconnected PVs. Not an
                         # error state.
                         self.sts_log.log_msgs(
-                            "Restore rejected by user.", time.time())
+                            "Restore rejected by user.", time.time()
+                        )
                         self.sts_info.clear_status()
                         self.restore_all_button.setEnabled(True)
                         self.restore_button.setEnabled(True)
 
                 elif status == ActionStatus.no_data:
                     self.sts_log.log_msgs(
-                        "ERROR: Nothing to restore.", time.time())
+                        "ERROR: Nothing to restore.", time.time()
+                    )
                     self.sts_info.set_status(
-                        "Restore rejected", 3000, "#F06464")
+                        "Restore rejected", 3000, "#F06464"
+                    )
                     self.restore_all_button.setEnabled(True)
                     self.restore_button.setEnabled(True)
 
                 elif status == ActionStatus.busy:
                     self.sts_log.log_msgs(
                         "ERROR: Restore rejected. Previous restore not finished.",
-                        time.time())
+                        time.time(),
+                    )
                     self.restore_all_button.setEnabled(True)
                     self.restore_button.setEnabled(True)
 
@@ -349,18 +389,18 @@ class SnapshotRestoreWidget(QWidget):
             else:
                 # Problem reading data from file
                 warn = "Cannot start a restore. Problem reading data from selected file."
-                QMessageBox.warning(self, "Warning", warn,
-                                          QMessageBox.Ok,
-                                          QMessageBox.NoButton)
+                QMessageBox.warning(
+                    self, "Warning", warn, QMessageBox.Ok, QMessageBox.NoButton
+                )
                 self.restore_all_button.setEnabled(True)
                 self.restore_button.setEnabled(True)
 
         else:
             # Don't start a restore if file not selected
             warn = "Cannot start a restore. File with saved values is not selected."
-            QMessageBox.warning(self, "Warning", warn,
-                                      QMessageBox.Ok,
-                                      QMessageBox.NoButton)
+            QMessageBox.warning(
+                self, "Warning", warn, QMessageBox.Ok, QMessageBox.NoButton
+            )
             self.restore_all_button.setEnabled(True)
             self.restore_button.setEnabled(True)
 
@@ -378,9 +418,12 @@ class SnapshotRestoreWidget(QWidget):
         status_background = ""
         for pvname, sts in status.items():
             if sts == PvStatus.access_err:
-                error = not forced  # if here and not in force mode, then this is error state
+                error = (
+                    not forced
+                )  # if here and not in force mode, then this is error state
                 msgs.append(
-                    f"WARNING: {pvname}: Not restored (no connection or no write access).")
+                    f"WARNING: {pvname}: Not restored (no connection or no write access)."
+                )
 
                 msg_times.append(time.time())
                 status_txt = "Restore error"
@@ -457,10 +500,12 @@ class SnapshotRestoreFileSelector(QWidget):
         # Filter handling
         self.file_filter = {"keys": [], "comment": ""}
         self.filter_input = SnapshotFileFilterWidget(
-            self.common_settings, self)
+            self.common_settings, self
+        )
 
         self.filter_input.file_filter_updated.connect(
-            self.filter_file_list_selector)
+            self.filter_file_list_selector
+        )
 
         # Create list with: file names, comment, labels, machine params.
         # This is done with a single-level QTreeWidget instead of QTableWidget
@@ -475,8 +520,9 @@ class SnapshotRestoreFileSelector(QWidget):
         self.file_selector.setAllColumnsShowFocus(True)
         self.file_selector.setSortingEnabled(True)
         # Sort by file name (alphabetical order)
-        self.file_selector.sortItems(FileSelectorColumns.filename,
-                                     Qt.DescendingOrder)
+        self.file_selector.sortItems(
+            FileSelectorColumns.filename, Qt.DescendingOrder
+        )
 
         self.file_selector.itemSelectionChanged.connect(self.select_files)
         self.file_selector.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -537,15 +583,16 @@ class SnapshotRestoreFileSelector(QWidget):
             labels = meta_data.get("labels", [])
             params = meta_data.get("machine_params", {})
 
-            assert(new_file not in self.file_list)
+            assert new_file not in self.file_list
             new_labels.update(labels)
             new_params.update(params.keys())
 
         new_labels = list(new_labels)
         new_params = list(new_params)
-        defined_params = list(self.common_settings['machine_params'].keys())
-        all_params = defined_params + \
-            [p for p in new_params if p not in defined_params]
+        defined_params = list(self.common_settings["machine_params"].keys())
+        all_params = defined_params + [
+            p for p in new_params if p not in defined_params
+        ]
         for new_file, new_data in file_list.items():
             meta_data = new_data["meta_data"]
             labels = meta_data.get("labels", [])
@@ -553,12 +600,13 @@ class SnapshotRestoreFileSelector(QWidget):
             comment = meta_data.get("comment", "")
 
             row = [new_file, comment, " ".join(labels)]
-            assert(len(row) == FileSelectorColumns.params)
+            assert len(row) == FileSelectorColumns.params
             param_vals = [None] * len(all_params)
             for p, v in params.items():
                 string = SnapshotPv.value_to_display_str(
-                    v['value'],
-                    v['precision'] if v['precision'] is not None else 0)
+                    v["value"],
+                    v["precision"] if v["precision"] is not None else 0,
+                )
                 idx = all_params.index(p)
                 param_vals[idx] = string
             selector_item = QTreeWidgetItem(row + param_vals)
@@ -572,13 +620,14 @@ class SnapshotRestoreFileSelector(QWidget):
 
         # Add units to column headers; get units from the latest file that has
         # them.
-        params_mtimes = [(data['meta_data']['machine_params'],
-                          data['modif_time'])
-                         for data in file_list.values()]
+        params_mtimes = [
+            (data["meta_data"]["machine_params"], data["modif_time"])
+            for data in file_list.values()
+        ]
         params_mtimes.sort(key=lambda d: d[1], reverse=True)
         for i, p in enumerate(all_params):
             for file_params, _ in params_mtimes:
-                if file_params.get(p, {}).get('units', None):
+                if file_params.get(p, {}).get("units", None):
                     all_params[i] += f" ({file_params[p]['units']})"
                     break
 
@@ -589,11 +638,13 @@ class SnapshotRestoreFileSelector(QWidget):
 
         # There can be some rather long comments in the snapshots, so let's
         # make sure that they don't push out more useful stuff.
-        if self.file_selector.columnWidth(FileSelectorColumns.comment) \
-           > self.file_selector.columnWidth(FileSelectorColumns.filename):
+        if self.file_selector.columnWidth(
+            FileSelectorColumns.comment
+        ) > self.file_selector.columnWidth(FileSelectorColumns.filename):
             self.file_selector.setColumnWidth(
                 FileSelectorColumns.comment,
-                self.file_selector.columnWidth(FileSelectorColumns.filename))
+                self.file_selector.columnWidth(FileSelectorColumns.filename),
+            )
 
     def filter_file_list_selector(self):
         file_filter = self.filter_input.file_filter
@@ -620,7 +671,7 @@ class SnapshotRestoreFileSelector(QWidget):
                     return False
                 if len(vals) == 1:
                     v1 = vals[0]
-                    v2 = file_params[p]['value']
+                    v2 = file_params[p]["value"]
                     v1, v2 = ensure_nums_or_strings(v1, v2)
                     if isinstance(v2, float):
                         # If precision is defined, compare with tolerance.
@@ -628,8 +679,10 @@ class SnapshotRestoreFileSelector(QWidget):
                         # formatting behaviour. It makes no sense to do
                         # comparison to a higher precision than what the user
                         # can see.
-                        prec = file_params[p]['precision']
-                        tol = 10**(-prec) if (prec and prec > 0) else 10**-6
+                        prec = file_params[p]["precision"]
+                        tol = (
+                            10 ** (-prec) if (prec and prec > 0) else 10**-6
+                        )
                         if abs(v1 - v2) > tol:
                             return False
                     elif v1 != v2:
@@ -639,7 +692,7 @@ class SnapshotRestoreFileSelector(QWidget):
                     vals = ensure_nums_or_strings(*vals)
                     low = min(vals)
                     high = max(vals)
-                    v = file_params[p]['value']
+                    v = file_params[p]["value"]
                     v, low, high = ensure_nums_or_strings(v, low, high)
                     if v < low or v > high:
                         return False
@@ -667,13 +720,18 @@ class SnapshotRestoreFileSelector(QWidget):
                                 break
                     # identical length
                     elif len(keys_filter) == len(
-                            file_to_filter["meta_data"]["labels"]) and set(keys_filter) == set(
-                                file_to_filter["meta_data"]["labels"]):
+                        file_to_filter["meta_data"]["labels"]
+                    ) and set(keys_filter) == set(
+                        file_to_filter["meta_data"]["labels"]
+                    ):
                         keys_status = True
                     else:  # verify if the file keys contain all the filter keys
                         not_good = True
                         for key in keys_filter:
-                            if key not in file_to_filter["meta_data"]["labels"]:
+                            if (
+                                key
+                                not in file_to_filter["meta_data"]["labels"]
+                            ):
                                 not_good = False
                         if not_good:
                             keys_status = True
@@ -681,7 +739,10 @@ class SnapshotRestoreFileSelector(QWidget):
                     keys_status = True
 
                 if comment_filter:
-                    comment_status = comment_filter in file_to_filter["meta_data"]["comment"]
+                    comment_status = (
+                        comment_filter
+                        in file_to_filter["meta_data"]["comment"]
+                    )
                 else:
                     comment_status = True
 
@@ -694,12 +755,18 @@ class SnapshotRestoreFileSelector(QWidget):
                 if params_filter:
                     params_status = check_params(
                         params_filter,
-                        file_to_filter['meta_data']['machine_params'])
+                        file_to_filter["meta_data"]["machine_params"],
+                    )
 
                 # Set visibility if any of the filters conditions met
                 file_line.setHidden(
-                    not (name_status and keys_status and comment_status
-                         and params_status))
+                    not (
+                        name_status
+                        and keys_status
+                        and comment_status
+                        and params_status
+                    )
+                )
 
     def open_menu(self, point):
         item_idx = self.file_selector.indexAt(point)
@@ -707,30 +774,37 @@ class SnapshotRestoreFileSelector(QWidget):
             return
 
         text = item_idx.data()
-        field = self.file_selector.model().headerData(item_idx.column(),
-                                                      Qt.Horizontal)
+        field = self.file_selector.model().headerData(
+            item_idx.column(), Qt.Horizontal
+        )
         clipboard = QGuiApplication.clipboard()
 
         menu = QMenu(self)
         if item_idx.column() < FileSelectorColumns.params:
-            menu.addAction(f"Copy {field.lower()}",
-                           lambda: clipboard.setText(text))
+            menu.addAction(
+                f"Copy {field.lower()}", lambda: clipboard.setText(text)
+            )
         else:
             # Machine param fields end with the unit in parentheses which needs
             # to be stripped to recognize them.
             try:
-                param_name = field[:field.rindex('(')].rstrip()
+                param_name = field[: field.rindex("(")].rstrip()
             except ValueError:
                 param_name = field
 
-            menu.addAction(f"Copy {param_name} name",
-                           lambda: clipboard.setText(param_name))
-            menu.addAction(f"Copy {param_name} value",
-                           lambda: clipboard.setText(text))
-            if param_name in self.common_settings['machine_params']:
-                pv_name = self.common_settings['machine_params'][param_name]
-                menu.addAction(f"Copy {param_name} PV name",
-                               lambda: clipboard.setText(pv_name))
+            menu.addAction(
+                f"Copy {param_name} name",
+                lambda: clipboard.setText(param_name),
+            )
+            menu.addAction(
+                f"Copy {param_name} value", lambda: clipboard.setText(text)
+            )
+            if param_name in self.common_settings["machine_params"]:
+                pv_name = self.common_settings["machine_params"][param_name]
+                menu.addAction(
+                    f"Copy {param_name} PV name",
+                    lambda: clipboard.setText(pv_name),
+                )
 
         menu.addAction("Delete selected files", self.delete_files)
         menu.addAction("Edit file meta-data", self.update_file_metadata)
@@ -744,7 +818,8 @@ class SnapshotRestoreFileSelector(QWidget):
         if self.file_selector.selectedItems():
             self.selected_files.extend(
                 item.text(FileSelectorColumns.filename)
-                for item in self.file_selector.selectedItems())
+                for item in self.file_selector.selectedItems()
+            )
 
         self.files_selected.emit(self.selected_files)
 
@@ -753,19 +828,25 @@ class SnapshotRestoreFileSelector(QWidget):
             return
         msg = "Do you want to delete selected files?"
         reply = QMessageBox.question(
-            self, 'Message', msg, QMessageBox.Yes, QMessageBox.No)
+            self, "Message", msg, QMessageBox.Yes, QMessageBox.No
+        )
         if reply == QMessageBox.Yes:
             background_workers.suspend()
-            symlink_file = self.common_settings["save_file_prefix"] \
-                + 'latest' + save_file_suffix
-            symlink_path = os.path.join(self.common_settings["save_dir"],
-                                        symlink_file)
+            symlink_file = (
+                self.common_settings["save_file_prefix"]
+                + "latest"
+                + save_file_suffix
+            )
+            symlink_path = os.path.join(
+                self.common_settings["save_dir"], symlink_file
+            )
             symlink_target = os.path.realpath(symlink_path)
 
             files = self.selected_files[:]
-            paths = [os.path.join(self.common_settings["save_dir"],
-                                  selected_file)
-                     for selected_file in self.selected_files]
+            paths = [
+                os.path.join(self.common_settings["save_dir"], selected_file)
+                for selected_file in self.selected_files
+            ]
 
             if symlink_target in paths and symlink_file not in files:
                 files.append(symlink_file)
@@ -777,16 +858,23 @@ class SnapshotRestoreFileSelector(QWidget):
                     self.file_list.pop(selected_file)
                     self.pvs = {}
                     items = self.file_selector.findItems(
-                        selected_file, Qt.MatchCaseSensitive,
-                        FileSelectorColumns.filename)
+                        selected_file,
+                        Qt.MatchCaseSensitive,
+                        FileSelectorColumns.filename,
+                    )
                     self.file_selector.takeTopLevelItem(
-                        self.file_selector.indexOfTopLevelItem(items[0]))
+                        self.file_selector.indexOfTopLevelItem(items[0])
+                    )
 
                 except OSError as e:
                     warn = "Problem deleting file:\n" + str(e)
-                    QMessageBox.warning(self, "Warning", warn,
-                                              QMessageBox.Ok,
-                                              QMessageBox.NoButton)
+                    QMessageBox.warning(
+                        self,
+                        "Warning",
+                        warn,
+                        QMessageBox.Ok,
+                        QMessageBox.NoButton,
+                    )
             self.files_updated.emit(self.file_list)
             background_workers.resume()
 
@@ -796,7 +884,9 @@ class SnapshotRestoreFileSelector(QWidget):
         if len(self.selected_files) == 1:
             settings_window = SnapshotEditMetadataDialog(
                 self.file_list.get(self.selected_files[0])["meta_data"],
-                self.common_settings, self)
+                self.common_settings,
+                self,
+            )
             settings_window.resize(800, 200)
             # if OK was pressed, update actual file and reflect changes in
             # the list
@@ -804,20 +894,29 @@ class SnapshotRestoreFileSelector(QWidget):
                 background_workers.suspend()
                 file_data = self.file_list.get(self.selected_files[0])
                 try:
-                    self.snapshot.replace_metadata(file_data['file_path'],
-                                                   file_data['meta_data'])
+                    self.snapshot.replace_metadata(
+                        file_data["file_path"], file_data["meta_data"]
+                    )
                 except OSError as e:
                     warn = "Problem modifying file:\n" + str(e)
-                    QMessageBox.warning(self, "Warning", warn,
-                                        QMessageBox.Ok,
-                                        QMessageBox.NoButton)
+                    QMessageBox.warning(
+                        self,
+                        "Warning",
+                        warn,
+                        QMessageBox.Ok,
+                        QMessageBox.NoButton,
+                    )
 
                 self.rebuild_file_list()
                 background_workers.resume()
         else:
-            QMessageBox.information(self, "Information", "Please select one file only",
-                                          QMessageBox.Ok,
-                                          QMessageBox.NoButton)
+            QMessageBox.information(
+                self,
+                "Information",
+                "Please select one file only",
+                QMessageBox.Ok,
+                QMessageBox.NoButton,
+            )
 
     def clear_file_selector(self):
         self.file_selector.clear()  # Clears and "deselects" itmes on file selector
@@ -831,7 +930,7 @@ def num_or_string(string):
     float, an int or a string, returns it directly, otherwise returns None.
     This ensures that the numbers are well-formed and that strings are properly
     quoted."""
-    if string == '':
+    if string == "":
         return None
     try:
         val = json.loads(string)
@@ -852,7 +951,7 @@ class ParamFilterValidator(QtGui.QValidator):
     will return the parsing result as a dict.
     """
 
-    param_rgx = re.compile('([^ ,()]+)\\(([^()]*)\\) *')
+    param_rgx = re.compile("([^ ,()]+)\\(([^()]*)\\) *")
     valid_params = []
 
     def __init__(self, parent=None):
@@ -864,7 +963,7 @@ class ParamFilterValidator(QtGui.QValidator):
     def parse(self, input_data):
         # Replace all "param(values)" with nothing and if anything but spaces
         # remains, it's wrong.
-        if self.param_rgx.sub('', input_data).strip() != '':
+        if self.param_rgx.sub("", input_data).strip() != "":
             return
 
         # Extract all "param(values)" into ("param", "values").
@@ -880,8 +979,9 @@ class ParamFilterValidator(QtGui.QValidator):
         for param, value_string in pv_pairs:
             if param not in self.valid_params or param in result:
                 return
-            values = [num_or_string(v.strip())
-                      for v in value_string.split(',')]
+            values = [
+                num_or_string(v.strip()) for v in value_string.split(",")
+            ]
             if not values or len(values) > 2:
                 return
             if any((x is None for x in values)):
@@ -897,15 +997,16 @@ class ParamFilterValidator(QtGui.QValidator):
 
 class SnapshotFileFilterWidget(QWidget):
     """
-        Is a widget with 3 filter options:
-            - by time (removed)
-            - by comment
-            - by labels
-            - by name
-            - by machine parameters
+    Is a widget with 3 filter options:
+        - by time (removed)
+        - by comment
+        - by labels
+        - by name
+        - by machine parameters
 
-        Emits signal: filter_changed when any of the filter changed.
+    Emits signal: filter_changed when any of the filter changed.
     """
+
     file_filter_updated = QtCore.pyqtSignal()
 
     def __init__(self, common_settings, parent=None, **kw):
@@ -926,7 +1027,8 @@ class SnapshotFileFilterWidget(QWidget):
         self.file_filter = {"keys": [], "comment": "", "name": ""}
         # Labels filter
         self.keys_input = SnapshotKeywordSelectorWidget(
-            self.common_settings, parent=self)  # No need to force defaults
+            self.common_settings, parent=self
+        )  # No need to force defaults
         self.keys_input.setPlaceholderText("label_1 label_2 ...")
         self.keys_input.keywords_changed.connect(self.update_filter)
         right_layout.addRow("Labels:", self.keys_input)
@@ -964,21 +1066,27 @@ class SnapshotFileFilterWidget(QWidget):
 
     def update_filter(self):
         self.file_filter["keys"] = self.keys_input.get_keywords() or []
-        self.file_filter["comment"] = self.comment_input.text().strip('')
-        self.file_filter["name"] = self.name_input.text().strip('')
+        self.file_filter["comment"] = self.comment_input.text().strip("")
+        self.file_filter["name"] = self.name_input.text().strip("")
         self.file_filter["params"] = self.validator.parse(
-            self.param_input.text())
+            self.param_input.text()
+        )
         self.file_filter_updated.emit()
 
     def update_params(self):
         self.keys_input.update_suggested_keywords()
-        defined_params = list(self.common_settings['machine_params'].keys())
-        self.validator.set_params(defined_params + [
-            p for p in self.common_settings['existing_params']
-            if p not in self.common_settings['machine_params']])
+        defined_params = list(self.common_settings["machine_params"].keys())
+        self.validator.set_params(
+            defined_params
+            + [
+                p
+                for p in self.common_settings["existing_params"]
+                if p not in self.common_settings["machine_params"]
+            ]
+        )
 
     def clear(self):
         self.keys_input.clear_keywords()
-        self.name_input.setText('')
-        self.comment_input.setText('')
+        self.name_input.setText("")
+        self.comment_input.setText("")
         self.update_filter()

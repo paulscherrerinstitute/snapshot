@@ -15,8 +15,12 @@ from enum import Enum
 from epics import ca
 
 from snapshot.core import PvStatus, SnapshotPv, background_workers, since_start
-from snapshot.parser import parse_from_save_file, parse_macros, parse_to_save_file
 from snapshot.create_snapshot_file import create_snapshot_file
+from snapshot.parser import (
+    parse_from_save_file,
+    parse_macros,
+    parse_to_save_file,
+)
 
 # For pyepics versions older than 3.2.4, this was set to True only for
 ca.AUTO_CLEANUP = True
@@ -36,6 +40,7 @@ class ActionStatus(Enum):
         no_conn: Returned if one of the PVs is not connected and not in force mode.
         timeout: Returned by restore_pvs_blocking() when timeout occurs before all PVs are restored.
     """
+
     busy = 0
     ok = 1
     no_data = 2
@@ -64,7 +69,7 @@ class Snapshot(object):
 
         self.pvs = {}
         self.macros = macros
-        self.req_file_path = ''
+        self.req_file_path = ""
         self.req_file_metadata = {}
 
         # Other important states
@@ -80,10 +85,12 @@ class Snapshot(object):
         if req_file_path:
             since_start("Started parsing reqfile")
             # holds path to the req_file_path as this is sort of identifier
-            self.req_file_path = \
-                os.path.normpath(os.path.abspath(req_file_path))
-            req_f = create_snapshot_file(self.req_file_path,
-                                         changeable_macros=list(macros.keys()))
+            self.req_file_path = os.path.normpath(
+                os.path.abspath(req_file_path)
+            )
+            req_f = create_snapshot_file(
+                self.req_file_path, changeable_macros=list(macros.keys())
+            )
             pvs, metadata, pvs_config = req_f.read()
             since_start("Finished parsing reqfile")
 
@@ -105,16 +112,19 @@ class Snapshot(object):
         # If pv not yet on list add it.
         if len(pv_list) == len(pv_configs):
             for pvname_raw, pvname_config in zip(pv_list, pv_configs):
-                p_name = SnapshotPv.macros_substitution(pvname_raw, self.macros)
+                p_name = SnapshotPv.macros_substitution(
+                    pvname_raw, self.macros
+                )
                 if not self.pvs.get(p_name):
-                    pv_ref = SnapshotPv(p_name, pvname_config.get(
-                        p_name, {}))
+                    pv_ref = SnapshotPv(p_name, pvname_config.get(p_name, {}))
 
                     # if not self.pvs.get(pv_ref.pvname):
                     self.pvs[pv_ref.pvname] = pv_ref
         else:
             for pvname_raw in pv_list:
-                p_name = SnapshotPv.macros_substitution(pvname_raw, self.macros)
+                p_name = SnapshotPv.macros_substitution(
+                    pvname_raw, self.macros
+                )
                 if not self.pvs.get(p_name):
                     pv_ref = SnapshotPv(p_name)
 
@@ -178,8 +188,9 @@ class Snapshot(object):
 
         background_workers.suspend()
         pvs_data = {}
-        logging.debug("Create snapshot for %d channels" %
-                      len(self.pvs.items()))
+        logging.debug(
+            "Create snapshot for %d channels" % len(self.pvs.items())
+        )
         for pvname, pv_ref in self.pvs.items():
             # Get current value, status of operation.
             value, status = pv_ref.save_pv()
@@ -187,20 +198,17 @@ class Snapshot(object):
             # Make data structure with data to be saved
             pvs_status[pvname] = status
             pvs_data[pvname] = OrderedDict()
-            pvs_data[pvname]['raw_name'] = pv_ref.pvname
+            pvs_data[pvname]["raw_name"] = pv_ref.pvname
             if status == PvStatus.ok or pv_ref.initialized:
-                pvs_data[pvname]['val'] = value
+                pvs_data[pvname]["val"] = value
             else:
-                pvs_data[pvname]['val'] = None
+                pvs_data[pvname]["val"] = None
 
         logging.debug("Writing snapshot to file")
         try:
             parse_to_save_file(
-                pvs_data,
-                save_file_path,
-                self.macros,
-                symlink_path,
-                **kw)
+                pvs_data, save_file_path, self.macros, symlink_path, **kw
+            )
             status = ActionStatus.ok
         except OSError:
             status = ActionStatus.os_error
@@ -209,8 +217,9 @@ class Snapshot(object):
 
         return status, pvs_status
 
-    def restore_pvs(self, pvs_raw, force=False,
-                    callback=None, custom_macros=None):
+    def restore_pvs(
+        self, pvs_raw, force=False, callback=None, custom_macros=None
+    ):
         """
         Restore PVs form snapshot file or dictionary. If restore is successfully started (ActionStatus.ok returned),
         then restore stressfulness will be returned in callback as: status={'pvname': PvStatus}, forced=was_restore?
@@ -242,7 +251,7 @@ class Snapshot(object):
         if isinstance(pvs_raw, str):
             pvs_raw, meta_data, err = parse_from_save_file(pvs_raw)
             # if no self.macros use ones from file
-            custom_macros = meta_data.get('macros', dict())
+            custom_macros = meta_data.get("macros", dict())
 
         pvs = {}
 
@@ -250,8 +259,9 @@ class Snapshot(object):
         if macros:
             # Replace macros
             for pvname_raw, pv_data in pvs_raw.items():
-                pvs[SnapshotPv.macros_substitution(
-                    pvname_raw, macros)] = pv_data
+                pvs[
+                    SnapshotPv.macros_substitution(pvname_raw, macros)
+                ] = pv_data
         else:
             pvs = pvs_raw
 
@@ -281,8 +291,10 @@ class Snapshot(object):
         for pvname, pv_ref in self.pvs.items():
             save_data = pvs.get(pvname)  # Check if this pv is to be restored
             if save_data:
-                pv_ref.restore_pv(save_data.get('value', None),
-                                  callback=self._check_restore_complete)
+                pv_ref.restore_pv(
+                    save_data.get("value", None),
+                    callback=self._check_restore_complete,
+                )
             else:
                 # pv is not in subset in the "selected only" mode checking
                 # algorithm should think this one was successfully restored
@@ -296,14 +308,17 @@ class Snapshot(object):
         self.restored_pvs_list.append((pvname, status))
         if len(self.restored_pvs_list) == len(self.pvs):
             if self.restore_callback:
-                self.restore_callback(status=dict(self.restored_pvs_list),
-                                      forced=self._current_restore_forced)
+                self.restore_callback(
+                    status=dict(self.restored_pvs_list),
+                    forced=self._current_restore_forced,
+                )
                 self.restore_callback = None
             self._restore_started = False
             background_workers.resume()
 
     def restore_pvs_blocking(
-            self, pvs_raw=None, force=False, timeout=10, custom_macros=None):
+        self, pvs_raw=None, force=False, timeout=10, custom_macros=None
+    ):
         """
         Similar as restore_pvs, but block until restore finished or timeout.
 
@@ -322,8 +337,11 @@ class Snapshot(object):
         self._restore_blocking_done = False
         self._blocking_restore_pvs_status = {}
         status, pvs_status = self.restore_pvs(
-            pvs_raw, force=force, custom_macros=custom_macros,
-            callback=self._set_restore_blocking_done)
+            pvs_raw,
+            force=force,
+            custom_macros=custom_macros,
+            callback=self._set_restore_blocking_done,
+        )
         if status != ActionStatus.ok:
             return status, pvs_status
 
@@ -380,12 +398,12 @@ class Snapshot(object):
         """
         # Will replace metadata in the save file with the provided one
 
-        with open(save_file_path, 'r') as save_file:
+        with open(save_file_path, "r") as save_file:
             lines = save_file.readlines()
-            if lines[0].startswith('#'):
+            if lines[0].startswith("#"):
                 lines[0] = "#" + json.dumps(metadata) + "\n"
             else:
                 lines.insert(0, "#" + json.dumps(metadata) + "\n")
 
-            with open(save_file_path, 'w') as save_file_write:
+            with open(save_file_path, "w") as save_file_write:
                 save_file_write.writelines(lines)

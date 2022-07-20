@@ -40,7 +40,11 @@ from snapshot.core import (
 from snapshot.gui.compare import SnapshotCompareWidget
 from snapshot.gui.restore import SnapshotRestoreWidget
 from snapshot.gui.save import SnapshotSaveWidget
-from snapshot.gui.utils import DetailedMsgBox, SnapshotConfigureDialog, make_separator
+from snapshot.gui.utils import (
+    DetailedMsgBox,
+    SnapshotConfigureDialog,
+    make_separator,
+)
 from snapshot.parser import get_save_files, initialize_config
 from snapshot.request_files.snapshot_file import ReqParseError
 
@@ -64,10 +68,12 @@ class SnapshotGui(QMainWindow):
         self.output_path = None
         self.resize(1500, 850)
 
-        if not config or config['config_ok'] is False:
-            msg = "Loading configuration file failed! " \
-                  "Do you want to continue without it?\n"
-            msg_window = DetailedMsgBox(msg, config['config_error'], 'Warning')
+        if not config or config["config_ok"] is False:
+            msg = (
+                "Loading configuration file failed! "
+                "Do you want to continue without it?\n"
+            )
+            msg_window = DetailedMsgBox(msg, config["config_error"], "Warning")
             reply = msg_window.exec_()
 
             if reply == QMessageBox.No:
@@ -76,15 +82,15 @@ class SnapshotGui(QMainWindow):
 
         self.common_settings = config
 
-        if not config['req_file_path'] or not config['macros_ok']:
-            req_file_macros = config['req_file_macros']
-            req_file_path = config['req_file_path']
-            init_path = config['init_path']
-            configure_dialog = \
-                SnapshotConfigureDialog(self,
-                                        init_macros=req_file_macros,
-                                        init_path=os.path.join(init_path,
-                                                               req_file_path))
+        if not config["req_file_path"] or not config["macros_ok"]:
+            req_file_macros = config["req_file_macros"]
+            req_file_path = config["req_file_path"]
+            init_path = config["init_path"]
+            configure_dialog = SnapshotConfigureDialog(
+                self,
+                init_macros=req_file_macros,
+                init_path=os.path.join(init_path, req_file_path),
+            )
             configure_dialog.accepted.connect(self.set_request_file)
             if configure_dialog.exec_() == QDialog.Rejected:
                 QTimer.singleShot(0, lambda: self.close())
@@ -120,7 +126,7 @@ class SnapshotGui(QMainWindow):
         save_menu_action.setMenuRole(QAction.NoRole)
         save_menu_action.triggered.connect(self.save_new_output_dir)
         # read-only mode
-        if self.common_settings['read_only']:
+        if self.common_settings["read_only"]:
             save_menu_action.setDisabled(True)
         file_menu.addAction(save_menu_action)
 
@@ -146,18 +152,22 @@ class SnapshotGui(QMainWindow):
 
         # Creating main layout
         # Compare widget. Must be updated in case of file selection
-        self.compare_widget = SnapshotCompareWidget(self.snapshot,
-                                                    self.common_settings, self)
+        self.compare_widget = SnapshotCompareWidget(
+            self.snapshot, self.common_settings, self
+        )
 
         self.compare_widget.pvs_filtered.connect(self.handle_pvs_filtered)
         self.compare_widget.restore_requested.connect(
-            self._handle_restore_request)
+            self._handle_restore_request
+        )
 
-        self.save_widget = SnapshotSaveWidget(self.snapshot,
-                                              self.common_settings, self)
+        self.save_widget = SnapshotSaveWidget(
+            self.snapshot, self.common_settings, self
+        )
 
-        self.restore_widget = SnapshotRestoreWidget(self.snapshot,
-                                                    self.common_settings, self)
+        self.restore_widget = SnapshotRestoreWidget(
+            self.snapshot, self.common_settings, self
+        )
         self.restore_widget.files_updated.connect(self.handle_files_updated)
 
         self.restore_widget.files_selected.connect(self.handle_selected_files)
@@ -174,12 +184,13 @@ class SnapshotGui(QMainWindow):
         self.pv_update_time.setMaximumWidth(50)
         self.pv_update_time.setCurrentIndex(1)  # Default is 5s
         self.pv_update_time.currentIndexChanged.connect(
-            self.set_pv_update_timer)
+            self.set_pv_update_timer
+        )
 
         left_layout = QVBoxLayout()
         left_layout.addWidget(self.save_widget)
         left_layout.addStretch()
-        left_layout.addWidget(make_separator(self, 'horizontal'))
+        left_layout.addWidget(make_separator(self, "horizontal"))
         pv_updater_layout = QHBoxLayout()
         pv_updater_layout.addWidget(self.autorefresh)
         pv_updater_layout.addWidget(self.pv_update_time)
@@ -208,8 +219,9 @@ class SnapshotGui(QMainWindow):
         # Show GUI and manage window properties
         self.show()
         self.setWindowTitle(
-            os.path.basename(self.common_settings["req_file_path"]) +
-            ' - Snapshot')
+            os.path.basename(self.common_settings["req_file_path"])
+            + " - Snapshot"
+        )
 
         # Status log default height should be 100px Set with splitter methods
         widgets_sizes = main_splitter.sizes()
@@ -220,43 +232,51 @@ class SnapshotGui(QMainWindow):
         QTimer.singleShot(
             100,
             lambda: self.change_req_file(
-                self.common_settings['req_file_path'],
-                self.common_settings['req_file_macros'],))
+                self.common_settings["req_file_path"],
+                self.common_settings["req_file_macros"],
+            ),
+        )
 
         if self.common_settings["read_only"]:
             self.status_bar.set_read_only()
 
     def set_pv_update_timer(self):
         self.compare_widget.set_pv_update_time(
-            int(self.pv_update_time.currentText().strip('s')))
+            int(self.pv_update_time.currentText().strip("s"))
+        )
 
     def toggle_autorefresh(self, checked):
         if checked:
             self.autorefresh.setText("Periodic PV update")
             self.autorefresh.setStyleSheet("")
-            background_workers.resume_one('pv_updater')
+            background_workers.resume_one("pv_updater")
         else:
             current_text = self.autorefresh.text()
             time_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
             self.autorefresh.setText(
-                f'{current_text}   (last update: {time_str})')
+                f"{current_text}   (last update: {time_str})"
+            )
             # background color to medium gray when not activated
             self.autorefresh.setStyleSheet(
-                "QCheckBox {background-color : #868482;}")
+                "QCheckBox {background-color : #868482;}"
+            )
             # self.autorefresh.setStyleSheet("QCheckBox {border-left-color: darkgray;}")
-            background_workers.suspend_one('pv_updater')
+            background_workers.suspend_one("pv_updater")
 
     def save_new_output_dir(self):
         new_output_dir = QFileDialog.getExistingDirectory(
-            self, 'Select Folder')
+            self, "Select Folder"
+        )
         if len(new_output_dir) > 0:
-            self.common_settings['save_dir'] = new_output_dir
+            self.common_settings["save_dir"] = new_output_dir
             self.output_path = new_output_dir
 
     def open_new_req_file(self):
         configure_dialog = SnapshotConfigureDialog(
-            self, init_path=self.common_settings['req_file_path'],
-            init_macros=self.common_settings['req_file_macros'])
+            self,
+            init_path=self.common_settings["req_file_path"],
+            init_macros=self.common_settings["req_file_macros"],
+        )
         configure_dialog.accepted.connect(self.change_req_file)
         configure_dialog.exec_()  # Do not act on rejected
 
@@ -265,17 +285,16 @@ class SnapshotGui(QMainWindow):
         self.status_bar.set_status("Loading new request file ...", 0, "orange")
 
         self.set_request_file(req_file_path, macros)
-        save_dir = self.common_settings['save_dir']
+        save_dir = self.common_settings["save_dir"]
 
         # Read snapshots and instantiate PVs in parallel
         def getfiles(*args):
             return get_save_files(*args)
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            future_files = executor.submit(getfiles, save_dir,
-                                           req_file_path)
+            future_files = executor.submit(getfiles, save_dir, req_file_path)
         self.init_snapshot(req_file_path, macros)
-        if self.common_settings['save_dir'] == save_dir:
+        if self.common_settings["save_dir"] == save_dir:
             already_parsed_files = future_files.result()
         else:
             # Apparently init_snapshot() found that the request file was
@@ -283,16 +302,18 @@ class SnapshotGui(QMainWindow):
             # already read snapfiles.
             future_files.cancel()
             already_parsed_files = get_save_files(
-                self.common_settings['save_dir'],
-                self.common_settings['req_file_path'])
+                self.common_settings["save_dir"],
+                self.common_settings["req_file_path"],
+            )
 
         # handle all gui components
-        self.restore_widget.handle_new_snapshot_instance(self.snapshot,
-                                                         already_parsed_files)
+        self.restore_widget.handle_new_snapshot_instance(
+            self.snapshot, already_parsed_files
+        )
         self.save_widget.handle_new_snapshot_instance(self.snapshot)
         self.compare_widget.handle_new_snapshot_instance(self.snapshot)
 
-        self.setWindowTitle(os.path.basename(req_file_path) + ' - Snapshot')
+        self.setWindowTitle(os.path.basename(req_file_path) + " - Snapshot")
 
         self.status_bar.set_status("New request file loaded.", 3000, "#64C864")
         background_workers.resume()
@@ -301,8 +322,8 @@ class SnapshotGui(QMainWindow):
     def set_request_file(self, path: str, macros: dict):
         self.common_settings["req_file_path"] = path
         self.common_settings["req_file_macros"] = macros
-        if not self.common_settings['save_dir']:
-            self.common_settings['save_dir'] = os.path.dirname(path)
+        if not self.common_settings["save_dir"]:
+            self.common_settings["save_dir"] = os.path.dirname(path)
 
     def init_snapshot(self, req_file_path, req_macros=None):
         self.snapshot.clear_pvs()
@@ -313,33 +334,37 @@ class SnapshotGui(QMainWindow):
             self.set_request_file(req_file_path, req_macros)
 
             # readonly mode detection
-            self.common_settings['read_only'] = self.snapshot.req_file_metadata.get(
-                'read_only', self.common_settings['read_only'])
-            if self.common_settings['read_only']:
+            self.common_settings[
+                "read_only"
+            ] = self.snapshot.req_file_metadata.get(
+                "read_only", self.common_settings["read_only"]
+            )
+            if self.common_settings["read_only"]:
                 self.restore_widget.hide_restore_buttons()
             else:
                 self.restore_widget.show_restore_buttons()
 
         except (ReqParseError, OSError) as e:
-            msg = 'Request file cannot be loaded. ' \
-                'See details for type of error.'
-            msg_window = DetailedMsgBox(msg, str(e), 'Warning', self,
-                                        QMessageBox.Ok)
+            msg = (
+                "Request file cannot be loaded. "
+                "See details for type of error."
+            )
+            msg_window = DetailedMsgBox(
+                msg, str(e), "Warning", self, QMessageBox.Ok
+            )
             msg_window.exec_()
             reopen_config = True
 
         except SnapshotError as e:
             QMessageBox.warning(
-                self,
-                "Warning",
-                str(e),
-                QMessageBox.Ok,
-                QMessageBox.NoButton)
+                self, "Warning", str(e), QMessageBox.Ok, QMessageBox.NoButton
+            )
             reopen_config = True
 
         if reopen_config:
             configure_dialog = SnapshotConfigureDialog(
-                self, init_path=req_file_path, init_macros=req_macros)
+                self, init_path=req_file_path, init_macros=req_macros
+            )
             configure_dialog.accepted.connect(self.init_snapshot)
             if configure_dialog.exec_() == QDialog.Rejected:
                 self.close()
@@ -349,24 +374,27 @@ class SnapshotGui(QMainWindow):
         # TODO Labels and filters are only overridden if given in the request
         # file, for backwards compatibility with config files. After config
         # files are out of use, change this to always override old values.
-        req_labels = self.snapshot.req_file_metadata.get('labels', {})
+        req_labels = self.snapshot.req_file_metadata.get("labels", {})
         if req_labels:
-            self.common_settings['force_default_labels'] = \
-                req_labels.get('force_default_labels', False)
-            self.common_settings['default_labels'] = \
-                req_labels.get('labels', [])
-        req_filters = self.snapshot.req_file_metadata.get('filters', {})
+            self.common_settings["force_default_labels"] = req_labels.get(
+                "force_default_labels", False
+            )
+            self.common_settings["default_labels"] = req_labels.get(
+                "labels", []
+            )
+        req_filters = self.snapshot.req_file_metadata.get("filters", {})
         if req_filters:
-            filters = self.common_settings['predefined_filters']
-            for fltype in ('filters', 'rgx_filters', 'rgx_filters_names'):
+            filters = self.common_settings["predefined_filters"]
+            for fltype in ("filters", "rgx_filters", "rgx_filters_names"):
                 filters[fltype] = req_filters.get(fltype, [])
 
-        self.common_settings['machine_params'] = \
-            self.snapshot.req_file_metadata.get('machine_params', {})
+        self.common_settings[
+            "machine_params"
+        ] = self.snapshot.req_file_metadata.get("machine_params", {})
 
         # Metadata to be filled from snapshot files.
-        self.common_settings['existing_labels'] = []
-        self.common_settings['existing_params'] = []
+        self.common_settings["existing_labels"] = []
+        self.common_settings["existing_params"] = []
 
     def handle_files_updated(self):
         self.save_widget.update_labels()
@@ -389,7 +417,7 @@ class SnapshotGui(QMainWindow):
 
 # -------- Status widgets -----------
 class SnapshotStatusLog(QWidget):
-    """ Command line like logger widget """
+    """Command line like logger widget"""
 
     def __init__(self, parent=None):
         QWidget.__init__(self, parent)
@@ -408,16 +436,14 @@ class SnapshotStatusLog(QWidget):
         if not isinstance(msg_times, list):
             msg_times = [msg_times] * len(msgs)
 
-        msg_times = (datetime.datetime.fromtimestamp(
-            t).strftime('%H:%M:%S.%f') for t in msg_times)
+        msg_times = (
+            datetime.datetime.fromtimestamp(t).strftime("%H:%M:%S.%f")
+            for t in msg_times
+        )
         self.sts_log.insertPlainText(
-            "\n".join(
-                "[{}] {}".format(
-                    *
-                    t) for t in zip(
-                    msg_times,
-                    msgs)) +
-            "\n")
+            "\n".join("[{}] {}".format(*t) for t in zip(msg_times, msgs))
+            + "\n"
+        )
         self.sts_log.ensureCursorVisible()
 
 
@@ -437,8 +463,9 @@ class SnapshotStatus(QStatusBar):
     def set_read_only(self):
         self.read_only_text = " (read-only mode)"
 
-    def set_status(self, text="Ready", duration=0,
-                   background="rgba(0, 0, 0, 30)"):
+    def set_status(
+        self, text="Ready", duration=0, background="rgba(0, 0, 0, 30)"
+    ):
         # Stop any existing timers
         self.timer.stop()
 
@@ -455,12 +482,12 @@ class SnapshotStatus(QStatusBar):
             self.timer.start(duration)
 
     def clear_status(self):
-        self.set_status(f'Ready {self.read_only_text}', 0, "rgba(0, 0, 0, 30)")
+        self.set_status(f"Ready {self.read_only_text}", 0, "rgba(0, 0, 0, 30)")
 
 
 # This function should be called from outside, to start the gui
 def start_gui(*args, **kwargs):
-    if kwargs.get('trace_execution'):
+    if kwargs.get("trace_execution"):
         enable_tracing()
 
     since_start("Interpreter started")
