@@ -2,8 +2,6 @@ package:
   name: snapshot
   version: "{{ load_setup_py_data().version }}"
 source:
-  #    git_tag: 0.9.1
-  #    git_url: https://github.com/channelaccess/snapshot.git
   path: ..
 
 requirements:
@@ -21,10 +19,13 @@ requirements:
 
 build:
   noarch: python
-  number: 5
+  number: 0
   entry_points:
     - snapshot = snapshot.snapshot:main
 
 about:
+  license: GPL-3.0-or-later
+  license_file: ../LICENSE
   home: https://github.com/paulscherrerinstitute/snapshot
-  summary: "Tool to save and restore EPICS channels."
+  summary: "{{ load_setup_py_data().description }}"
+  description: "{{ load_setup_py_data().description }}"
