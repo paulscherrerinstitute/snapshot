@@ -101,6 +101,7 @@ class SnapshotCompareWidget(QWidget):
 
         self.pv_filter_sel = QComboBox(self)
         self.pv_filter_sel.setEditable(True)
+        self.pv_filter_sel.setInsertPolicy(QComboBox.NoInsert)
         self.pv_filter_sel.setIconSize(QtCore.QSize(35, 15))
         self.pv_filter_sel.setMaxVisibleItems(30)
         self.pv_filter_inp = self.pv_filter_sel.lineEdit()
@@ -406,6 +407,7 @@ class SnapshotPvTableView(QTableView):
 
         if selected_rows:
             menu.addAction("Copy PV name", self._copy_pv_name)
+            menu.addAction("Copy PVs and values", self._copy_pvs_values)
             if len(selected_rows) == 1 and len(
                     self.model().sourceModel().get_snap_file_names()) == 1:
                 menu.addAction(
@@ -442,6 +444,19 @@ class SnapshotPvTableView(QTableView):
         idx = self.indexAt(self._menu_click_pos)
         cb.setText(
             self._get_pvname_with_selection_model_idx(idx),
+            mode=cb.Clipboard)
+
+    def _copy_pvs_values(self):
+        cb = QApplication.clipboard()
+        cb.clear(mode=cb.Clipboard)
+        old_snaps_data = self._selected_pv_snapfiles()
+        cb_content = self._get_column_names_for_csv()
+        for pvname in self._selected_pvnames():
+            cb_content += f'{pvname},'
+            cb_content += old_snaps_data.get(pvname, 'UNDEF')
+            cb_content = cb_content[:-1]+'\n'
+        cb.setText(
+            cb_content,
             mode=cb.Clipboard)
 
     def _get_column_names_for_csv(self):
