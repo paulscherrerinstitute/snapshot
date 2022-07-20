@@ -1,59 +1,58 @@
 # Overview
 
-Snapshot is Python based tool with a graphical user interface which is able to
-store (and later restore) values of Channel Access process variables (PVs).
-
-![Screenshot](snapshot.png)
-
-# Installation
-
-Snapshot is available as an Anaconda package on the paulscherrerinstitute
-Anaconda package channel. It can be easily installed as follows:
+Snapshot is Python based tool with a graphical user interface which enables users to view, save, restore and compare values of Channel Access process variables (PVs). It can be conveniently loaded and used by sourcing the python environments, as in:
 
 ```bash
-conda install -c https://conda.anaconda.org/paulscherrerinstitute snapshot
+source /opt/gfa/python NNN
 ```
+
+> **_Note:_**  NNN is the Python version: 3.8 or 3.10
 
 # Usage
 
-To define a set of PVs which should be saved/restored the _snapshot_ tool
-requires a "request" file. Request files are in the following format. Beside
-accepting explicit channels also the use of macros are possible. From version
-1.5.0 on, request files format was extended to support nested loading of request
-files. From version 2.0.26 on, the request file can begin with a JSON
-configuration (see further down for details).
-
-> :warning: **"\*.req" files are deprecated**: Next release will remove support for these files, please use JSON/YAML file format.
-
-```
-examplePv:test-1
-examplePv:test-2
-$(SYS):test-3
-
-# Loading other request files with different macro values
-!./relative/path/file1.req, "SYS=$(SYS),ID=1"
-!./relative/path/file1.req, "SYS=$(SYS),ID=2"
-
-# Also from absolute path
-!/absolute/path/file2.req, "SYS=$(SYS),ID=1"
-```
-
-After snapshot is build and deployed as conda package (see section
-[Instalation](#installation) it can be used in graphical mode or as command line
-tool.
-
-To use graphical interface snapshot must be started with following command:
+Snapshot includes multiple commands: gui, save, restore, convert. Which are intended to different usages and purposes, please find more details on each command section.
 
 ```bash
-usage: snapshot.py gui [-h] [-m MACRO] [-d DIR] [-b BASE] [-f] [--labels LABELS] [--force_labels] [--config CONFIG] [--trace-execution] [--read_only] [FILE]
+usage: snapshot [-h] {gui,save,restore,convert} ...
 
-Longer version of same command:
-usage: snapshot.py gui [-h] [-m MACRO] [-d DIR] [-b BASE] [-f] [--labels LABELS] [--force_labels] [--config CONFIG] [--trace-execution] [--read_only] [FILE]
+Tool for saving and restoring snapshots of EPICS process variables (PVs).
+Can be used as graphical interface tool or a command line tool.
 
 positional arguments:
-  FILE                  request file.
+  {gui,save,restore,convert}
+                        modes of work (if not specified "gui" will be used)
+    gui                 open graphical interface (default)
+    save                save current state of PVs to file without using GUI
+    restore             restore saved state of PVs from file without using GUI
+    convert             convert ".req" file to json/yaml format
 
-optional arguments:
+options:
+  -h, --help            show this help message and exit
+```
+
+## Gui
+
+Snapshot graphical interface is built using [PyQT5](https://pypi.org/project/PyQt5/). The GUI is composed of 3 main widgets: PVs list, save, restore and compare.
+
+The PVs list is where the pvs will be presented, including its name, unit, effective tolerance (Eff. Tol. = Tolerance × 10^-Precision) and value. The tolerance is defined on the user interface input field.
+
+The Restore widget allows to evaluate previously saved snap files and compare machine parameters among them, including filtering based on comments, labels, etc.
+
+The Compare widget allows to combine previously saved snap files, which are selected via the restore widget, with the current values that are loaded and presented in the PVs list side-by-side. It will create new columns for each snap file selected and icons will help to identify values that differ.
+
+The save widget allows to save a snap file with the current values that are present, one can also define name (input field) and output directory (dropdown top menu). Once the snap file is saved, it is automatically added to the Restore widget.
+
+GUI is the default method of snapshot (if nothing is provided) and it can be started using the following command:
+
+```bash
+usage: snapshot gui [-h] [-m MACRO] [-d DIR] [-b BASE] [-f] [--labels LABELS] [--force_labels] [--config CONFIG] [--trace-execution]
+                    [--read_only]
+                    [FILE]
+
+positional arguments:
+  FILE                  REQ/YAML/JSON file.
+
+options:
   -h, --help            show this help message and exit
   -m MACRO, --macro MACRO
                         macros for request file e.g.: "SYS=TEST,DEV=D1"
@@ -70,16 +69,18 @@ optional arguments:
 The `--config` option is deprecated, although it remains. It is recommended
 that the configuration snippet is stored in the beginning of the request file.
 
-To be used as command line tool it must be run either with `snapshot save` or
-`snapshot restore` depending on action needed.
+
+## Save
+
+Snapshot save command allows to save a snap file based on a Req/Yaml/JSON request file via the cli. 
 
 ```bash
-usage: snapshot.py save [-h] [-m MACRO] [-o OUT] [-f] [--labels LABELS] [--comment COMMENT] [--timeout TIMEOUT] [--regex REGEX] FILE
+usage: snapshot save [-h] [-m MACRO] [-o OUT] [-f] [--labels LABELS] [--comment COMMENT] [--timeout TIMEOUT] [--regex REGEX] FILE
 
 positional arguments:
-  FILE                  request file.
+  FILE                  REQ/YAML/JSON file.
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   -m MACRO, --macro MACRO
                         macros for request file e.g.: "SYS=TEST,DEV=D1"
@@ -91,18 +92,26 @@ optional arguments:
   --regex REGEX         Regex filter to be used when saving PVs
 ```
 
+## Restore
+
+Snapshot restore command allows to restore values to PVs based on a previously saved snap file via the cli.
+
 ```bash
-usage: snapshot.py restore [-h] [-f] [--timeout TIMEOUT] [--regex REGEX] FILE
+usage: snapshot restore [-h] [-f] [--timeout TIMEOUT] [--regex REGEX] FILE
 
 positional arguments:
   FILE               saved snapshot file
 
-optional arguments:
+options:
   -h, --help         show this help message and exit
   -f, --force        force restore in case of disconnected PVs after timeout
   --timeout TIMEOUT  max time waiting for PVs to be connected and restored
   --regex REGEX      Regex filter to be used when restoring PVs
 ```
+
+## Convert
+
+Snapshot convert command is a utility function to convert Req files (soon to be deprecated) to the newer YAML/JSON formats.
 
 ```bash
 -------- Command line convert mode --------
@@ -188,22 +197,85 @@ examplePv:test-3,"string"
 examplePv:test-4,[5.0, 6.0, 7.0, 8.0, 9.0, 0.0, 1.0, 2.0, 3.0, 4.0]
 ```
 
-## Advanced usage of snapshot
+## Input file (REQ/YAML/JSON)
 
-Snapshot can also be used as a module inside other python applications. Find
-simple example bellow. For more details have a look at
-[example/example.py](./example/example.py).
+The _snapshot_ tool requires an input file (REQ, YAML or JSON) that contains a list of pvs and, optionally, labels, machine parameters, filters and macros.
 
-```python
-from snapshot.ca_core import Snapshot
+> :warning: **"\*.req" files are deprecated**: After release V2.0.34 the support for *.req files will be removed, please use JSON/YAML file format.
 
-snapshot = Snapshot('path/to/my/request/file.req')
-snapshot.save_pvs('path/to/desired/save/file.snap')
-snapshot.restore_pvs('path/to/desired/save/file.snap', callback=my_restore_done_callback)
-snapshot.restore_pvs_blocking('path/to/desired/save/file.snap')
+An example of YAML file is as follows:
+
+```bash
+pvs:
+  list:
+    - name: examplePv:test-1
+      precision: 5
+    - name: examplePv:test-2
+      precision: 2
+    - name: examplePv:test-3
+config:
+  filters:
+    - examplePv
+    - test-3
+  read_only: false
+  rgx_filters:
+    - - LabelForMyRgxFilter
+      - examplePv.*
+  force_labels: true
+  labels:
+    - LabelForFilterExample
+  machine_params:
+    - - LabelForMyMachineParam
+      - examplePv:test-1
+include:
+- name: cfg/wf_included.yaml
+```
+
+The `include` section above is the so-called macro, it allows to easily include multiple pvs that follow similar naming patterns. The content of the `wf_included.yaml` file is below:
+
+```bash
+include:
+  - name: wf.req
+    macros:
+      - { NAME: snapshot:test }
+      - { NAME: fake:pvs }
+```
+
+and the content of the `wf.req` is:
+
+```bash
+$(NAME):wf_strings
+$(NAME):wf_strings_large
+$(NAME):wf_ints
+$(NAME):wf_chars
+$(NAME):wf_double
+$(NAME):wf_double_prec_2
+$(NAME):wf_double_prec_5
+```
+
+The macro functiona that combines `wf_included.yaml` and `wf.req` will result on a list of pvs as in:
+
+```bash
+snapshot:test:wf_strings
+snapshot:test:wf_strings_large
+snapshot:test:wf_ints
+...
+fake:test:wf_strings
+fake:test:wf_strings_large
+fake:test:wf_ints
+...
 ```
 
 # Development
+
+## Installation
+
+Snapshot is available as an Anaconda package on the paulscherrerinstitute
+Anaconda package channel. It can be easily installed as follows:
+
+```bash
+conda install -c https://conda.anaconda.org/paulscherrerinstitute snapshot
+```
 
 ## Testing
 
@@ -215,3 +287,13 @@ docker run -it --rm -v `pwd`:/data -p 5064:5064 -p 5065:5065 -p 5064:5064/udp -p
 ```
 
 A test _.req_ file (test.req) is located in the _tests_ directory as well.
+
+
+# Authors
+
+Paul Scherrer Institute: 
+
+- Didier Voulout
+- Leonardo Hax
+- Maciej Patro
+- Simon Ebner
