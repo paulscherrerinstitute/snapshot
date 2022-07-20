@@ -39,9 +39,7 @@ def parse_dict_macros_to_text(macros):
     :return: macro string
     """
 
-    macros_str = "".join(
-        macro + "=" + subs + "," for macro, subs in macros.items()
-    )
+    macros_str = "".join(macro + "=" + subs + "," for macro, subs in macros.items())
 
     if macros_str:
         # Clear last comma
@@ -92,9 +90,7 @@ class SnapshotConfigureDialog(QDialog):
         layout.addWidget(self.file_selector)
         layout.addLayout(macros_layout)
 
-        button_box = QDialogButtonBox(
-            QDialogButtonBox.Ok | QDialogButtonBox.Cancel
-        )
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         layout.addWidget(button_box)
 
         button_box.accepted.connect(self._config_accepted)
@@ -107,9 +103,7 @@ class SnapshotConfigureDialog(QDialog):
             if file_path.endswith(".req"):
                 self._show_deprecation_messagebox()
             try:
-                self.accepted.emit(
-                    file_path, parse_macros(self.macros_input.text())
-                )
+                self.accepted.emit(file_path, parse_macros(self.macros_input.text()))
                 self.done(QDialog.Accepted)
             except MacroError as e:
                 QMessageBox.warning(
@@ -330,9 +324,7 @@ class SnapshotKeywordSelectorWidget(QComboBox):
             key_widget.delete.connect(self.remove_keyword)
             self.keywordWidgets[keyword] = key_widget
             self.selectedKeywords.append(keyword)
-            self.layout.insertWidget(
-                len(self.selectedKeywords) - 1, key_widget
-            )
+            self.layout.insertWidget(len(self.selectedKeywords) - 1, key_widget)
             self.keywords_changed.emit()
             self.setItemText(0, "")
 
@@ -546,9 +538,7 @@ class DetailedMsgBox(QMessageBox):
             textEdit.setMaximumHeight(16777215)
             textEdit.setMinimumWidth(0)
             textEdit.setMaximumWidth(16777215)
-            textEdit.setSizePolicy(
-                QSizePolicy.Expanding, QSizePolicy.Expanding
-            )
+            textEdit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         return result
 
@@ -570,16 +560,12 @@ def show_snapshot_parse_errors(parent, file_and_error_list):
             + " of the snapshot saved files (.snap) were loaded with errors "
             "(see details)."
         )
-        msg_window = DetailedMsgBox(
-            msg, err_details, "Warning", parent, QMessageBox.Ok
-        )
+        msg_window = DetailedMsgBox(msg, err_details, "Warning", parent, QMessageBox.Ok)
         msg_window.exec_()
 
 
 def make_separator(parent, direction="vertical"):
     """Makes a separator line"""
     sep = QFrame(parent)
-    sep.setFrameShape(
-        QFrame.VLine if direction == "vertical" else QFrame.HLine
-    )
+    sep.setFrameShape(QFrame.VLine if direction == "vertical" else QFrame.HLine)
     return sep

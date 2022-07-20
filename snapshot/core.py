@@ -226,9 +226,7 @@ class SnapshotPv(PV):
     Note: PvUpdater is a "friend class" and uses this class' internals.
     """
 
-    def __init__(
-        self, pvname, user_config=None, connection_callback=None, **kw
-    ):
+    def __init__(self, pvname, user_config=None, connection_callback=None, **kw):
         # dict format {idx: callback}
         if user_config is None:
             user_config = {}
@@ -423,11 +421,7 @@ class SnapshotPv(PV):
             return value
         elif isinstance(value, numpy.ndarray):
             if value.dtype.kind == "f":
-                fmt = (
-                    f"{{:.{precision}f}}"
-                    if precision and precision > 0
-                    else "{:f}"
-                )
+                fmt = f"{{:.{precision}f}}" if precision and precision > 0 else "{:f}"
             else:
                 fmt = "{}"
 
@@ -574,9 +568,7 @@ class PvUpdater(BackgroundThread):
             if pv.connected:
                 ca.get_with_metadata(pv.chid, wait=False, as_numpy=True)
                 # To be used by SnapshotPv.get() in case we time out.
-                pv._pvget_completer = lambda: PvUpdater._get_complete(
-                    pv, wait=True
-                )
+                pv._pvget_completer = lambda: PvUpdater._get_complete(pv, wait=True)
         except ca.ChannelAccessException:
             pass
 
@@ -586,9 +578,7 @@ class PvUpdater(BackgroundThread):
             if not pv.connected or not pv._pvget_completer:
                 return None
             timeout = PvUpdater.timeout if wait is False else None
-            md = ca.get_complete_with_metadata(
-                pv.chid, as_numpy=True, timeout=timeout
-            )
+            md = ca.get_complete_with_metadata(pv.chid, as_numpy=True, timeout=timeout)
             if md is None:
                 return None
             pv._pvget_completer = None
@@ -598,9 +588,7 @@ class PvUpdater(BackgroundThread):
             if val is not None and pv.is_array:
                 if numpy.size(val) == 0:
                     val = None
-                elif numpy.size(val) == 1 and not isinstance(
-                    val, numpy.ndarray
-                ):
+                elif numpy.size(val) == 1 and not isinstance(val, numpy.ndarray):
                     val = numpy.asarray([val])
                 elif not (isinstance(val, numpy.ndarray)):
                     val = numpy.asarray(val)
@@ -642,9 +630,7 @@ class PvUpdater(BackgroundThread):
         since_start("Started initial getting PV values")
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            values_and_timeouts = executor.map(
-                PvUpdater._process_pv, self._pvs
-            )
+            values_and_timeouts = executor.map(PvUpdater._process_pv, self._pvs)
 
         vals = list(map(lambda x: x[0], values_and_timeouts))
         if any(map(lambda x: x[1], values_and_timeouts)):

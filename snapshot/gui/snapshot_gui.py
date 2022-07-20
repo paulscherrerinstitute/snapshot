@@ -157,13 +157,9 @@ class SnapshotGui(QMainWindow):
         )
 
         self.compare_widget.pvs_filtered.connect(self.handle_pvs_filtered)
-        self.compare_widget.restore_requested.connect(
-            self._handle_restore_request
-        )
+        self.compare_widget.restore_requested.connect(self._handle_restore_request)
 
-        self.save_widget = SnapshotSaveWidget(
-            self.snapshot, self.common_settings, self
-        )
+        self.save_widget = SnapshotSaveWidget(self.snapshot, self.common_settings, self)
 
         self.restore_widget = SnapshotRestoreWidget(
             self.snapshot, self.common_settings, self
@@ -183,9 +179,7 @@ class SnapshotGui(QMainWindow):
         # self.pv_update_time.setMinimumWidth(25)
         self.pv_update_time.setMaximumWidth(50)
         self.pv_update_time.setCurrentIndex(1)  # Default is 5s
-        self.pv_update_time.currentIndexChanged.connect(
-            self.set_pv_update_timer
-        )
+        self.pv_update_time.currentIndexChanged.connect(self.set_pv_update_timer)
 
         left_layout = QVBoxLayout()
         left_layout.addWidget(self.save_widget)
@@ -219,8 +213,7 @@ class SnapshotGui(QMainWindow):
         # Show GUI and manage window properties
         self.show()
         self.setWindowTitle(
-            os.path.basename(self.common_settings["req_file_path"])
-            + " - Snapshot"
+            os.path.basename(self.common_settings["req_file_path"]) + " - Snapshot"
         )
 
         # Status log default height should be 100px Set with splitter methods
@@ -253,20 +246,14 @@ class SnapshotGui(QMainWindow):
         else:
             current_text = self.autorefresh.text()
             time_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            self.autorefresh.setText(
-                f"{current_text}   (last update: {time_str})"
-            )
+            self.autorefresh.setText(f"{current_text}   (last update: {time_str})")
             # background color to medium gray when not activated
-            self.autorefresh.setStyleSheet(
-                "QCheckBox {background-color : #868482;}"
-            )
+            self.autorefresh.setStyleSheet("QCheckBox {background-color : #868482;}")
             # self.autorefresh.setStyleSheet("QCheckBox {border-left-color: darkgray;}")
             background_workers.suspend_one("pv_updater")
 
     def save_new_output_dir(self):
-        new_output_dir = QFileDialog.getExistingDirectory(
-            self, "Select Folder"
-        )
+        new_output_dir = QFileDialog.getExistingDirectory(self, "Select Folder")
         if len(new_output_dir) > 0:
             self.common_settings["save_dir"] = new_output_dir
             self.output_path = new_output_dir
@@ -334,9 +321,7 @@ class SnapshotGui(QMainWindow):
             self.set_request_file(req_file_path, req_macros)
 
             # readonly mode detection
-            self.common_settings[
-                "read_only"
-            ] = self.snapshot.req_file_metadata.get(
+            self.common_settings["read_only"] = self.snapshot.req_file_metadata.get(
                 "read_only", self.common_settings["read_only"]
             )
             if self.common_settings["read_only"]:
@@ -345,13 +330,8 @@ class SnapshotGui(QMainWindow):
                 self.restore_widget.show_restore_buttons()
 
         except (ReqParseError, OSError) as e:
-            msg = (
-                "Request file cannot be loaded. "
-                "See details for type of error."
-            )
-            msg_window = DetailedMsgBox(
-                msg, str(e), "Warning", self, QMessageBox.Ok
-            )
+            msg = "Request file cannot be loaded. " "See details for type of error."
+            msg_window = DetailedMsgBox(msg, str(e), "Warning", self, QMessageBox.Ok)
             msg_window.exec_()
             reopen_config = True
 
@@ -379,18 +359,16 @@ class SnapshotGui(QMainWindow):
             self.common_settings["force_default_labels"] = req_labels.get(
                 "force_default_labels", False
             )
-            self.common_settings["default_labels"] = req_labels.get(
-                "labels", []
-            )
+            self.common_settings["default_labels"] = req_labels.get("labels", [])
         req_filters = self.snapshot.req_file_metadata.get("filters", {})
         if req_filters:
             filters = self.common_settings["predefined_filters"]
             for fltype in ("filters", "rgx_filters", "rgx_filters_names"):
                 filters[fltype] = req_filters.get(fltype, [])
 
-        self.common_settings[
-            "machine_params"
-        ] = self.snapshot.req_file_metadata.get("machine_params", {})
+        self.common_settings["machine_params"] = self.snapshot.req_file_metadata.get(
+            "machine_params", {}
+        )
 
         # Metadata to be filled from snapshot files.
         self.common_settings["existing_labels"] = []
@@ -441,8 +419,7 @@ class SnapshotStatusLog(QWidget):
             for t in msg_times
         )
         self.sts_log.insertPlainText(
-            "\n".join("[{}] {}".format(*t) for t in zip(msg_times, msgs))
-            + "\n"
+            "\n".join("[{}] {}".format(*t) for t in zip(msg_times, msgs)) + "\n"
         )
         self.sts_log.ensureCursorVisible()
 
@@ -463,9 +440,7 @@ class SnapshotStatus(QStatusBar):
     def set_read_only(self):
         self.read_only_text = " (read-only mode)"
 
-    def set_status(
-        self, text="Ready", duration=0, background="rgba(0, 0, 0, 30)"
-    ):
+    def set_status(self, text="Ready", duration=0, background="rgba(0, 0, 0, 30)"):
         # Stop any existing timers
         self.timer.stop()
 

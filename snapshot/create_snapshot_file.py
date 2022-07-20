@@ -5,9 +5,7 @@ from snapshot.request_files.snapshot_json_file import SnapshotJsonFile
 from snapshot.request_files.snapshot_req_file import SnapshotReqFile
 
 
-def create_snapshot_file(
-    path: str, changeable_macros: list = None
-) -> SnapshotFile:
+def create_snapshot_file(path: str, changeable_macros: list = None) -> SnapshotFile:
     filepath = Path(path)
     if filepath.suffix in (".req", ".snap"):
         return SnapshotReqFile(path, changeable_macros=changeable_macros)

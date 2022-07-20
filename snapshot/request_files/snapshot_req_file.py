@@ -104,14 +104,10 @@ class SnapshotReqFile(SnapshotFile):
         # key-value pairs to preserve order. Here, we can rely on
         # having an ordered dict.
         try:
-            metadata["machine_params"] = dict(
-                metadata.get("machine_params", [])
-            )
+            metadata["machine_params"] = dict(metadata.get("machine_params", []))
             if not all(
                 isinstance(x, str)
-                for x in chain.from_iterable(
-                    metadata["machine_params"].items()
-                )
+                for x in chain.from_iterable(metadata["machine_params"].items())
             ):
                 raise ReqParseError
         except Exception:
@@ -160,9 +156,7 @@ class SnapshotReqFile(SnapshotFile):
             # Ensure line counts make sense for error reporting.
             actual_data = md[end_of_metadata:].lstrip()
             actual_data_index = self._file_data.find(actual_data)
-            self._curr_line_n = len(
-                self._file_data[:actual_data_index].splitlines()
-            )
+            self._curr_line_n = len(self._file_data[:actual_data_index].splitlines())
             self._file_data = self._file_data[actual_data_index:]
         else:
             metadata = {}
@@ -188,9 +182,7 @@ class SnapshotReqFile(SnapshotFile):
                     self._validate_macros_in_txt(pvname)
                 except MacroError as e:
                     return ReqParseError(
-                        self._format_err(
-                            (self._curr_line_n, self._curr_line), e
-                        )
+                        self._format_err((self._curr_line_n, self._curr_line), e)
                     )
                 else:
                     pvs.append(pvname)
@@ -225,9 +217,7 @@ class SnapshotReqFile(SnapshotFile):
 
                     except MacroError as e:
                         return ReqParseError(
-                            self._format_err(
-                                (self._curr_line_n, self._curr_line), e
-                            )
+                            self._format_err((self._curr_line_n, self._curr_line), e)
                         )
                 else:
                     macros = {}
@@ -235,9 +225,7 @@ class SnapshotReqFile(SnapshotFile):
                 msg = self._check_looping(path)
                 if msg:
                     return ReqFileInfLoopError(
-                        self._format_err(
-                            (self._curr_line_n, self._curr_line), msg
-                        )
+                        self._format_err((self._curr_line_n, self._curr_line), msg)
                     )
                 try:
                     sub_f = SnapshotReqFile(path, parent=self, macros=macros)
@@ -245,9 +233,7 @@ class SnapshotReqFile(SnapshotFile):
 
                 except OSError as e:
                     return OSError(
-                        self._format_err(
-                            (self._curr_line, self._curr_line_n), e
-                        )
+                        self._format_err((self._curr_line, self._curr_line_n), e)
                     )
         return pvs, metadata, includes, pvs_config
 
@@ -256,20 +242,10 @@ class SnapshotReqFile(SnapshotFile):
         # Ensure backward compatibility - some keys previously were using "-" instead of "_"
         # To further support these keys (e.g. "rgx-filters", "force-labels"
         # we normalize them to "rgx_filters", "force_labels"
-        if (
-            "labels" in metadata.keys()
-            and "force-labels" in metadata["labels"].keys()
-        ):
-            metadata["labels"]["force_labels"] = metadata["labels"].pop(
-                "force-labels"
-            )
-        if (
-            "filters" in metadata.keys()
-            and "rgx-filters" in metadata["filters"].keys()
-        ):
-            metadata["filters"]["rgx_filters"] = metadata["filters"].pop(
-                "rgx-filters"
-            )
+        if "labels" in metadata.keys() and "force-labels" in metadata["labels"].keys():
+            metadata["labels"]["force_labels"] = metadata["labels"].pop("force-labels")
+        if "filters" in metadata.keys() and "rgx-filters" in metadata["filters"].keys():
+            metadata["filters"]["rgx_filters"] = metadata["filters"].pop("rgx-filters")
         return metadata
 
     def _extract_pvs_from_req(self):

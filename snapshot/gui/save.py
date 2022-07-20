@@ -72,9 +72,7 @@ class SnapshotSaveWidget(QWidget):
 
         # Create collapsible group with advanced options,
         # then update output file name and finish adding widgets to layout
-        self.advanced = SnapshotAdvancedSaveSettings(
-            self.common_settings, self
-        )
+        self.advanced = SnapshotAdvancedSaveSettings(self.common_settings, self)
 
         self.name_extension = ""
         self.update_name()
@@ -91,9 +89,7 @@ class SnapshotSaveWidget(QWidget):
         # read only mode
         if self.common_settings["read_only"]:
             self.save_button.setDisabled(True)
-            self.save_button.setText(
-                f"{self.save_button.text()} (read-only mode)"
-            )
+            self.save_button.setText(f"{self.save_button.text()} (read-only mode)")
             self.setAutoFillBackground(True)
             p = self.palette()
             p.setColor(self.backgroundRole(), Qt.darkGray)
@@ -171,9 +167,7 @@ class SnapshotSaveWidget(QWidget):
             # finished
             output_file = os.path.join(
                 self.common_settings["save_dir"],
-                self.common_settings["save_file_prefix"]
-                + "latest"
-                + save_file_suffix,
+                self.common_settings["save_file_prefix"] + "latest" + save_file_suffix,
             )
             status, pvs_status = self.snapshot.save_pvs(
                 self.file_path,
@@ -213,9 +207,7 @@ class SnapshotSaveWidget(QWidget):
                 else:
                     # User rejected saving with unconnected PVs. Not an error
                     # state.
-                    self.sts_log.log_msgs(
-                        "Save rejected by user.", time.time()
-                    )
+                    self.sts_log.log_msgs("Save rejected by user.", time.time())
                     self.sts_info.clear_status()
                     self.save_button.setEnabled(True)
 
@@ -257,9 +249,7 @@ class SnapshotSaveWidget(QWidget):
                     )
                 else:
                     success = False
-                    msgs.append(
-                        f"WARNING: {pvname}: Not saved, error status {sts}."
-                    )
+                    msgs.append(f"WARNING: {pvname}: Not saved, error status {sts}.")
                 msg_times.append(time.time())
                 status_txt = "Save error"
                 status_background = "#F06464"
@@ -279,15 +269,12 @@ class SnapshotSaveWidget(QWidget):
 
     def update_name(self):
         name_extension_rb = "{TIMESTAMP}" + save_file_suffix
-        self.name_extension = datetime.datetime.fromtimestamp(
-            time.time()
-        ).strftime("%Y%m%d_%H%M%S")
+        self.name_extension = datetime.datetime.fromtimestamp(time.time()).strftime(
+            "%Y%m%d_%H%M%S"
+        )
 
         self.common_settings["save_file_prefix"] = (
-            os.path.split(self.common_settings["req_file_path"])[1].split(".")[
-                0
-            ]
-            + "_"
+            os.path.split(self.common_settings["req_file_path"])[1].split(".")[0] + "_"
         )
 
         self.file_path = os.path.join(
@@ -303,10 +290,7 @@ class SnapshotSaveWidget(QWidget):
     def check_file_name_available(self):
         # If file exists, user must decide whether to overwrite it or not
         if os.path.exists(self.file_path):
-            msg = (
-                "File already exists. Do you want to overwrite it?\n"
-                + self.file_path
-            )
+            msg = "File already exists. Do you want to overwrite it?\n" + self.file_path
             reply = QMessageBox.question(
                 self, "Message", msg, QMessageBox.Yes, QMessageBox.No
             )
