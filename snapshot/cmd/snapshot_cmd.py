@@ -27,9 +27,7 @@ def save(
         )
         save_file_path += "/{}_{}.snap".format(
             os.path.splitext(os.path.basename(req_file_path))[0],
-            datetime.datetime.fromtimestamp(time.time()).strftime(
-                "%Y%m%d_%H%M%S"
-            ),
+            datetime.datetime.fromtimestamp(time.time()).strftime("%Y%m%d_%H%M%S"),
         )
 
     labels = []
@@ -41,9 +39,7 @@ def save(
             if label:
                 labels.append(label)
 
-    logging.basicConfig(
-        level=logging.INFO, format="[%(levelname)s] %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
     logging.info("Start saving the snapshot.")
     if force:
         logging.info("Started in force mode. Unavailable PVs will be ignored.")
@@ -51,9 +47,7 @@ def save(
     try:
         snapshot = Snapshot(req_file_path, macros)
     except (OSError, SnapshotError) as e:
-        logging.error(
-            f"Snapshot cannot be loaded due to a following error: {e}"
-        )
+        logging.error(f"Snapshot cannot be loaded due to a following error: {e}")
         sys.exit(1)
     logging.info(f"Waiting for PVs connections (timeout: {timeout} s) ...")
     end_time = time.time() + timeout
@@ -83,8 +77,7 @@ def save(
             return
         logging.info(
             "Machine parameters are not accessible or have "
-            "invalid values. Force mode is on, proceeding.\n"
-            + "\n".join(pv_errors)
+            "invalid values. Force mode is on, proceeding.\n" + "\n".join(pv_errors)
         )
         for p in invalid_params:
             params_data[p] = None
@@ -121,9 +114,7 @@ def save(
 
 
 def restore(saved_file_path, force=False, timeout=10, filter_param=""):
-    logging.basicConfig(
-        level=logging.INFO, format="[%(levelname)s] %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
     logging.info("Start restoring the snapshot.")
     if force:
         logging.info("Started in force mode. Unavailable PVs will be ignored.")
@@ -138,22 +129,16 @@ def restore(saved_file_path, force=False, timeout=10, filter_param=""):
                 + "\n * ".join(err)
             )
         # Use saved file as request file here
-        snapshot = Snapshot(
-            saved_file_path, macros=meta_data.get("macros", dict())
-        )
+        snapshot = Snapshot(saved_file_path, macros=meta_data.get("macros", dict()))
 
         if filter_param != "":
             list_pvs = snapshot.get_pvs_names()
             srch_filter = re.compile(filter_param)
-            remove_pvs = [
-                i for i in list_pvs if srch_filter.fullmatch(i) is None
-            ]
+            remove_pvs = [i for i in list_pvs if srch_filter.fullmatch(i) is None]
             snapshot.remove_pvs(remove_pvs)
 
     except (OSError, SnapshotError) as e:
-        logging.error(
-            f"Snapshot cannot be loaded due to a following error: {e}"
-        )
+        logging.error(f"Snapshot cannot be loaded due to a following error: {e}")
         sys.exit(1)
 
     logging.info(f"Waiting for PVs connections (timeout: {timeout} s) ...")
@@ -192,8 +177,6 @@ def restore(saved_file_path, force=False, timeout=10, filter_param=""):
     else:
         for pv_name, pv_status in pvs_status.items():
             if pv_status == PvStatus.access_err:
-                logging.error(
-                    f'"{pv_name}": No connection or no write access.'
-                )
+                logging.error(f'"{pv_name}": No connection or no write access.')
 
         logging.error("Snapshot file was not restored.")

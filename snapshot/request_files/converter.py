@@ -41,9 +41,7 @@ def convert(
 def convert_req_to_dict(
     request_file_content: str, include_extension: str = ".req"
 ) -> dict:
-    raw_metadata, rest_of_content = __extract_metadata(
-        request_file_content.lstrip()
-    )
+    raw_metadata, rest_of_content = __extract_metadata(request_file_content.lstrip())
     metadata = __adapt_metadata(raw_metadata)
 
     stripped_lines = [
@@ -63,9 +61,7 @@ def convert_req_to_dict(
 def convert_req_to_yaml(
     request_file_content: str, include_extension: str = ".req"
 ) -> str:
-    return yaml.dump(
-        convert_req_to_dict(request_file_content, include_extension)
-    )
+    return yaml.dump(convert_req_to_dict(request_file_content, include_extension))
 
 
 def convert_req_to_json(
@@ -82,14 +78,10 @@ def __adapt_pvs(raw_pvs: list) -> list:
 
 def __adapt_metadata(raw_metadata: dict) -> dict:
     metadata = raw_metadata.copy()
-    metadata["rgx_filters"] = raw_metadata.get("filters", {}).get(
-        "rgx-filters", []
-    )
+    metadata["rgx_filters"] = raw_metadata.get("filters", {}).get("rgx-filters", [])
     metadata["filters"] = raw_metadata.get("filters", {}).get("filters", [])
     metadata["labels"] = raw_metadata.get("labels", {}).get("labels", [])
-    metadata["force_labels"] = raw_metadata.get("labels", {}).get(
-        "force-labels", False
-    )
+    metadata["force_labels"] = raw_metadata.get("labels", {}).get("force-labels", False)
     return metadata
 
 
@@ -103,9 +95,7 @@ def __adapt_includes(stripped_lines: list, include_extension: str) -> list:
                 __get_macros_for_includes(arguments)[0]
             )
         else:
-            intermediate_includes[filename] = __get_macros_for_includes(
-                arguments
-            )
+            intermediate_includes[filename] = __get_macros_for_includes(arguments)
 
     parsed_includes = [
         {"name": name, "macros": macros}
@@ -124,12 +114,7 @@ def __remove_empty_macros(parsed_includes: list) -> None:
 def __get_macros_for_includes(arguments: list) -> list:
     if len(arguments) == 2:
         raw_macro = re.split(r"[,=]", arguments[1].strip()[1:-1])
-        return [
-            {
-                raw_macro[i]: raw_macro[i + 1]
-                for i in range(0, len(raw_macro), 2)
-            }
-        ]
+        return [{raw_macro[i]: raw_macro[i + 1] for i in range(0, len(raw_macro), 2)}]
     return []
 
 
@@ -139,9 +124,7 @@ def __extract_includes(stripped_lines: list) -> list:
 
 def __extract_pvs(stripped_lines: list) -> list:
     return [
-        line
-        for line in stripped_lines
-        if not line.startswith(("#", "data{", "}", "!"))
+        line for line in stripped_lines if not line.startswith(("#", "data{", "}", "!"))
     ]
 
 

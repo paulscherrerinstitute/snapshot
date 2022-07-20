@@ -85,9 +85,7 @@ class Snapshot(object):
         if req_file_path:
             since_start("Started parsing reqfile")
             # holds path to the req_file_path as this is sort of identifier
-            self.req_file_path = os.path.normpath(
-                os.path.abspath(req_file_path)
-            )
+            self.req_file_path = os.path.normpath(os.path.abspath(req_file_path))
             req_f = create_snapshot_file(
                 self.req_file_path, changeable_macros=list(macros.keys())
             )
@@ -112,9 +110,7 @@ class Snapshot(object):
         # If pv not yet on list add it.
         if len(pv_list) == len(pv_configs):
             for pvname_raw, pvname_config in zip(pv_list, pv_configs):
-                p_name = SnapshotPv.macros_substitution(
-                    pvname_raw, self.macros
-                )
+                p_name = SnapshotPv.macros_substitution(pvname_raw, self.macros)
                 if not self.pvs.get(p_name):
                     pv_ref = SnapshotPv(p_name, pvname_config.get(p_name, {}))
 
@@ -122,9 +118,7 @@ class Snapshot(object):
                     self.pvs[pv_ref.pvname] = pv_ref
         else:
             for pvname_raw in pv_list:
-                p_name = SnapshotPv.macros_substitution(
-                    pvname_raw, self.macros
-                )
+                p_name = SnapshotPv.macros_substitution(pvname_raw, self.macros)
                 if not self.pvs.get(p_name):
                     pv_ref = SnapshotPv(p_name)
 
@@ -188,9 +182,7 @@ class Snapshot(object):
 
         background_workers.suspend()
         pvs_data = {}
-        logging.debug(
-            "Create snapshot for %d channels" % len(self.pvs.items())
-        )
+        logging.debug("Create snapshot for %d channels" % len(self.pvs.items()))
         for pvname, pv_ref in self.pvs.items():
             # Get current value, status of operation.
             value, status = pv_ref.save_pv()
@@ -217,9 +209,7 @@ class Snapshot(object):
 
         return status, pvs_status
 
-    def restore_pvs(
-        self, pvs_raw, force=False, callback=None, custom_macros=None
-    ):
+    def restore_pvs(self, pvs_raw, force=False, callback=None, custom_macros=None):
         """
         Restore PVs form snapshot file or dictionary. If restore is successfully started (ActionStatus.ok returned),
         then restore stressfulness will be returned in callback as: status={'pvname': PvStatus}, forced=was_restore?
@@ -259,9 +249,7 @@ class Snapshot(object):
         if macros:
             # Replace macros
             for pvname_raw, pv_data in pvs_raw.items():
-                pvs[
-                    SnapshotPv.macros_substitution(pvname_raw, macros)
-                ] = pv_data
+                pvs[SnapshotPv.macros_substitution(pvname_raw, macros)] = pv_data
         else:
             pvs = pvs_raw
 
