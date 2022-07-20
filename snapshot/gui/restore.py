@@ -14,34 +14,16 @@ import time
 from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QCursor, QGuiApplication, QPalette
-from PyQt5.QtWidgets import (
-    QFormLayout,
-    QHBoxLayout,
-    QLineEdit,
-    QMenu,
-    QMessageBox,
-    QPushButton,
-    QTreeWidget,
-    QTreeWidgetItem,
-    QVBoxLayout,
-    QWidget,
-)
-
+from PyQt5.QtWidgets import (QFormLayout, QHBoxLayout, QLineEdit, QMenu,
+                             QMessageBox, QPushButton, QTreeWidget,
+                             QTreeWidgetItem, QVBoxLayout, QWidget)
 from snapshot.ca_core import ActionStatus, PvStatus, SnapshotPv
 from snapshot.core import BackgroundThread, background_workers, since_start
-from snapshot.parser import (
-    get_save_files,
-    list_save_files,
-    parse_from_save_file,
-    save_file_suffix,
-)
+from snapshot.parser import (get_save_files, list_save_files,
+                             parse_from_save_file, save_file_suffix)
 
-from .utils import (
-    DetailedMsgBox,
-    SnapshotEditMetadataDialog,
-    SnapshotKeywordSelectorWidget,
-    show_snapshot_parse_errors,
-)
+from .utils import (DetailedMsgBox, SnapshotEditMetadataDialog,
+                    SnapshotKeywordSelectorWidget, show_snapshot_parse_errors)
 
 
 @enum.unique
@@ -379,8 +361,7 @@ class SnapshotRestoreWidget(QWidget):
                 elif status == ActionStatus.busy:
                     self.sts_log.log_msgs(
                         "ERROR: Restore rejected. Previous restore not finished.",
-                        time.time(),
-                    )
+                        time.time(),)
                     self.restore_all_button.setEnabled(True)
                     self.restore_button.setEnabled(True)
 
@@ -951,7 +932,7 @@ class ParamFilterValidator(QtGui.QValidator):
     will return the parsing result as a dict.
     """
 
-    param_rgx = re.compile("([^ ,()]+)\\(([^()]*)\\) *")
+    param_rgx = re.compile('([^ ,()]+)\\(([^()]*)\\) *')
     valid_params = []
 
     def __init__(self, parent=None):
