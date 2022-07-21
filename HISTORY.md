@@ -4,6 +4,8 @@ Changelog
 
 (unreleased)
 ------------
+- Changing script permissions. [lhdamiani]
+- Release: version 2.1.0. [lhdamiani]
 - Release: version 2.1.0. [lhdamiani]
 - Script to generate msg when release. [Leonardo Hax Damiani]
 - Release: version 2.1.0. [lhdamiani]
