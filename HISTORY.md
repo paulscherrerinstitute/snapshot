@@ -4,6 +4,12 @@ Changelog
 
 (unreleased)
 ------------
+- Merge branch 'main' of
+  https://github.com/paulscherrerinstitute/snapshot into main.
+  [lhdamiani]
+- Action trigger when code is tagged. [Leonardo Hax Damiani]
+- Actions to create release when publishing. [Leonardo Hax Damiani]
+- Release: version 2.1.0. [lhdamiani]
 - Release: version 2.1.0. [lhdamiani]
 - Release: version 2.1.0. [lhdamiani]
 - Fix branch name for github actions. [lhdamiani]
