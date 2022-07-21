@@ -5,6 +5,7 @@ Changelog
 (unreleased)
 ------------
 - Release: version 2.1.0. [lhdamiani]
+- Release: version 2.1.0. [lhdamiani]
 - Fix branch name for github actions. [lhdamiani]
 - Release: version 2.1.0. [lhdamiani]
 - Release: version. [Leonardo Hax Damiani]
