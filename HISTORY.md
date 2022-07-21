@@ -4,6 +4,7 @@ Changelog
 
 (unreleased)
 ------------
+- Release: version. [Leonardo Hax Damiani]
 - Merge branch 'export_selected_feature' of
   https://github.com/paulscherrerinstitute/snapshot into
   export_selected_feature. [Leonardo Hax Damiani]
