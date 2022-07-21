@@ -4,6 +4,7 @@ Changelog
 
 (unreleased)
 ------------
+- Release: version 2.1.0. [lhdamiani]
 - Script to generate msg when release. [Leonardo Hax Damiani]
 - Release: version 2.1.0. [lhdamiani]
 - Merge branch 'main' of
@@ -43,6 +44,19 @@ Changelog
 - Create lint.yaml. [Leonardo Hax Damiani]
 - Merge branch 'master' into export_selected_feature. [lhdamiani]
 - Metadata fix for files without extension type. [lhdamiani]
+- Bugfix files without extension (req is default) [lhdamiani]
+- Pyyaml dependency added to recipe. [Leonardo Hax Damiani]
+- Merge pull request #41 from paulscherrerinstitute/py38fix. [Leonardo
+  Hax Damiani]
+
+  Fix python 3.10 explicit integer cast arg
+- Py3.10 fix for integer arg. bugfix content variable. [lhdamiani]
+- Build dep pyepics. [lhdamiani]
+- Merge pull request #40 from paulscherrerinstitute/py38fix. [Leonardo
+  Hax Damiani]
+
+  bugfix when parsing req files
+- Bugfix content when parsing req files. [lhdamiani]
 - Updated readme. [lhdamiani]
 - Copy to clipboard pvs+values. filter combobox filter fix. [Leonardo
   Hax Damiani]
@@ -166,6 +180,16 @@ Changelog
   Hax Damiani]
 
   master commits merge
+- Removed dependency to epics.utils3. [ebner]
+- Cleanup - removed obsolete build. [ebner]
+- Add manual trigger. [ebner]
+- Test. [ebner]
+- Add github action workflow. [ebner]
+- Bump version to 2.0.31. [ebner]
+- Merge pull request #38 from xiaoqiangwang/master. [Simon Gregor Ebner]
+
+  catch exception of unequal length arrays
+- Catch exception of unequal length arrays. [Xiaoqiang Wang]
 - Precision defined via json and code improvements. [lhdamiani]
 - Confirmation dialog before 'restore all' [lhdamiani]
 - Debug instructions with json file for default. [lhdamiani]
@@ -212,41 +236,6 @@ Changelog
 - Cleanup and reorganization. [lhdamiani]
 - Removal of duplicate. [lhdamiani]
 - Yaml fixes. epics3 deprecate dependency fix. [lhdamiani]
-
-
-2.0.33 (2022-06-02)
--------------------
-- Bugfix files without extension (req is default) [lhdamiani]
-- Pyyaml dependency added to recipe. [Leonardo Hax Damiani]
-- Merge pull request #41 from paulscherrerinstitute/py38fix. [Leonardo
-  Hax Damiani]
-
-  Fix python 3.10 explicit integer cast arg
-- Py3.10 fix for integer arg. bugfix content variable. [lhdamiani]
-- Build dep pyepics. [lhdamiani]
-- Merge pull request #40 from paulscherrerinstitute/py38fix. [Leonardo
-  Hax Damiani]
-
-  bugfix when parsing req files
-- Bugfix content when parsing req files. [lhdamiani]
-- Removed dependency to epics.utils3. [ebner]
-- Cleanup - removed obsolete build. [ebner]
-- Add manual trigger. [ebner]
-- Test. [ebner]
-- Add github action workflow. [ebner]
-
-
-2.0.31 (2021-10-11)
--------------------
-- Bump version to 2.0.31. [ebner]
-- Merge pull request #38 from xiaoqiangwang/master. [Simon Gregor Ebner]
-
-  catch exception of unequal length arrays
-- Catch exception of unequal length arrays. [Xiaoqiang Wang]
-
-
-2.0.30 (2021-05-26)
--------------------
 - Merge branch 'pep8' [lhdamiani]
 - Code improvements. [lhdamiani]
 - Yml pco example. snapshot_ca improvements. [lhdamiani]
@@ -277,10 +266,6 @@ Changelog
   [Jure Varlec]
 - Fix the way snapshot comparison behaves with disconnected PVs. [Jure
   Varlec]
-
-
-2.0.28 (2020-05-22)
--------------------
 - Bump version. [Simon Ebner]
 - Merge pull request #33 from exzombie/machine-param-polish. [Simon
   Gregor Ebner]
@@ -299,10 +284,6 @@ Changelog
 - Ensure the comment column is not wider than filename column. [Jure
   Varlec]
 - Store also units and precision of machine parameters. [Jure Varlec]
-
-
-2.0.27 (2020-05-22)
--------------------
 - Bump version. [Simon Ebner]
 - Merge pull request #32 from exzombie/consolidate-arrays. [Simon Gregor
   Ebner]
@@ -587,10 +568,6 @@ Changelog
 - Disable PV monitoring, deactivate callbacks. [Jure Varlec]
 
   Callbacks are not removed as they will be refactored later.
-
-
-2.0.10 (2020-02-13)
--------------------
 - QT fixes. [Simon Ebner]
 - Bump version to 2.0.9. [Simon Ebner]
 - Fix bug. [Simon Ebner]
@@ -598,10 +575,6 @@ Changelog
 - Bump version. [Simon Ebner]
 - Migration QT4 to QT5. [Simon Ebner]
 - Add some more tests, update git ignore. [Simon Ebner]
-
-
-2.0.7 (2020-02-05)
-------------------
 - Bump version. [Simon Ebner]
 - Merge pull request #23 from exzombie/refactor-parsing. [Simon Gregor
   Ebner]
@@ -614,34 +587,14 @@ Changelog
   [Jure Varlec]
 - On startup and refresh, only parse snapshot metadata, not data. [Jure
   Varlec]
-
-
-2.0.6 (2018-10-30)
-------------------
 - Add sleep, resize column. [Simon Ebner]
-
-
-2.0.5 (2018-10-30)
-------------------
 - Add try around filesystem operation. [Simon Ebner]
-
-
-2.0.4 (2018-10-30)
-------------------
 - Version 2.0.4. [Simon Ebner]
 - Add refresh button adjust sorting. [Simon Ebner]
 - Use monitor value for snapshot. [Simon Ebner]
 - Add timeout and log messages. [Simon Ebner]
-
-
-2.0.3 (2018-10-19)
-------------------
 - Version 2.0.3. [Simon Ebner]
 - Add reduction of emits. [Simon Ebner]
-
-
-2.0.2 (2018-10-12)
-------------------
 - Remove forgotten print statement. [Simon Ebner]
 - Add test ioc and req file. [Simon Ebner]
 - Remove rate throttling and decreased gui update intervall. [Simon
@@ -665,10 +618,6 @@ Changelog
 - Added init.py. [Simon Ebner]
 - Add test for snaphot class. [Simon Ebner]
 - Recactoring. [Simon Ebner]
-
-
-1.7.2 (2018-06-29)
-------------------
 - Update version. [ebner]
 - Merge pull request #20 from ganymede42/master. [Simon Gregor Ebner]
 
@@ -678,33 +627,21 @@ Changelog
   instead of parsing all files in the snapshot directory, only parse those with the common prefix
 - Fix 3.6 build. [ebner]
 - Add build for python 3.6. [ebner]
-
-
-1.7.1 (2017-04-07)
-------------------
 - Update version to 1.7.1. [ebner]
 - Fix latest link. [ebner]
 - Merge pull request #19 from paulscherrerinstitute/cmd_labels_comments.
   [Simon Gregor Ebner]
 
   Cmd labels comments
+- Readme. [Vintar Rok]
+- Adding option to have labels and comment in command line. [Vintar Rok]
+- Bug fix ... apply filter when changing selected file or PV changes
+  value. [Vintar Rok]
 - Fix upload config to only upload on new tag. [ebner]
 - Merge pull request #18 from paulscherrerinstitute/restore_selected.
   [Simon Gregor Ebner]
 
   Restore selected
-
-
-1.7.0 (2017-03-17)
-------------------
-- Readme. [Vintar Rok]
-- Adding option to have labels and comment in command line. [Vintar Rok]
-- Bug fix ... apply filter when changing selected file or PV changes
-  value. [Vintar Rok]
-
-
-1.6.0 (2017-03-01)
-------------------
 - Bug fix. [Vintar Rok]
 - Bypassing pyepics waveform of strings problem. [Vintar Rok]
 - Remove pyepics code used for debugging. [Vintar Rok]
@@ -714,10 +651,6 @@ Changelog
 - Hack to work with string waveforms. [Vintar Rok]
 - Bug fix. [Vintar Rok]
 - Restore only selected PVs. [Vintar Rok]
-
-
-1.5.6 (2017-02-03)
-------------------
 - Fixed builds. [ebner]
 - Merge pull request #17 from paulscherrerinstitute/file_load_fix.
   [Simon Gregor Ebner]
@@ -727,10 +660,6 @@ Changelog
 - Cosmetics. [Vintar Rok]
 - Update GUI periodically not on every change, since big numer of
   changing channels can freeze the application. [Vintar Rok]
-
-
-1.5.5 (2016-12-22)
-------------------
 - New version 1.5.5. [ebner]
 - Add back some capturing of the return values. [ebner]
 - Increase version. [ebner]
@@ -766,10 +695,6 @@ Changelog
   Gregor Ebner]
 
   Conn fix
-
-
-1.5.2 (2016-12-09)
-------------------
 - Nicer implementation. [Vintar Rok]
 - Version changed to 1.5.2. [Vintar Rok]
 - Internal docs updated. [Vintar Rok]
@@ -796,23 +721,14 @@ Changelog
   paulscherrerinstitute/default_save_dir_fix. [Simon Gregor Ebner]
 
   minor fix defining default save directory
-- Merge pull request #13 from paulscherrerinstitute/req_upgrade. [Simon
-  Gregor Ebner]
-
-  Implementation of COSYLAB-912 and COSYLAB-911
-- Fix link in readme. [ebner]
-
-
-1.5.1 (2016-11-28)
-------------------
 - Additional fixes. [Vintar Rok]
 - Bug fix. [Vintar Rok]
 - Version changed. [Vintar Rok]
 - Minor fix defining default save directory. [Vintar Rok]
+- Merge pull request #13 from paulscherrerinstitute/req_upgrade. [Simon
+  Gregor Ebner]
 
-
-1.5.0 (2016-11-28)
-------------------
+  Implementation of COSYLAB-912 and COSYLAB-911
 - Version change. [Vintar Rok]
 - Minor change to avoid occasionaly crashin, when user wants to close
   the config window. [Vintar Rok]
@@ -834,15 +750,12 @@ Changelog
 - Partial refeactor (gui not working) ... remove live compare
   functionallity from the snapshot core functionallity (ca part) [Vintar
   Rok]
+- Fix link in readme. [ebner]
 - Update Readme. [ebner]
 - Merge pull request #12 from paulscherrerinstitute/development. [Simon
   Gregor Ebner]
 
   Predefined labels and filters + sort by time
-
-
-1.4.0 (2016-11-03)
-------------------
 - Fixing bugs in file selector update. [Vintar Rok]
 - Remove duplicate predefined labels. [Vintar Rok]
 - Time formating for modif time sorting must start with a year not a
@@ -865,35 +778,19 @@ Changelog
 - Core supports resotring a slected subset of a PVs. [Vintar Rok]
 - Fix for predefined labels when editing metadata. [Vintar Rok]
 - Predefined labels for GUI tool. [Vintar Rok]
-
-
-1.3.3 (2016-10-04)
-------------------
 - Proper way of handling the prolem form previous commit. This fiyes
   problems for pyepics 3.2.4 and possibily odler version. Newer versions
   should not have this problem by default. [Vintar Rok]
 - When closing the app, call finalize_libca() to disconnect all PVs.
   [Vintar Rok]
-
-
-1.3.2 (2016-10-03)
-------------------
 - Version change to 1.3.2. [Vintar Rok]
 - Warnings for a problematic saved files (no meta data, false meta data,
   bad value, ...) are shown to user when the snapshot is opened. [Vintar
   Rok]
-
-
-1.3.1 (2016-09-27)
-------------------
 - Consistency of the arguments (old style arguments are silently
   handled). [Vintar Rok]
 - Bug updating the snap file list fixed. [Vintar Rok]
 - Fixed dependencies list. [ebner]
-
-
-1.3.0 (2016-08-15)
-------------------
 - Updated version to 1.3.0. [ebner]
 - Merge pull request #10 from paulscherrerinstitute/devl. [Simon Gregor
   Ebner]
@@ -910,10 +807,6 @@ Changelog
 - GUI: Added ability to use a prefix for the output data file name.
   [Saso Skube]
 - Update readme. [Vintar Rok]
-
-
-1.2.0 (2016-07-28)
-------------------
 - Version increased. [Vintar Rok]
 - Merge pull request #7 from paulscherrerinstitute/upgrade_changes.
   [rokvintar]
@@ -926,10 +819,6 @@ Changelog
 - Bug, handling arrays with only one value. [Vintar Rok]
 - Commandline programs added. [Vintar Rok]
 - Licenicing. [Tom Slejko]
-
-
-1.1.3 (2016-05-03)
-------------------
 - Updated readme with new usage. [ebner]
 - Added an option to set the base directory for the open dialog for
   request files. [ebner]
@@ -938,18 +827,10 @@ Changelog
   the menus for mac os x + actions named settings, preferences or
   something similar must have overriden menu role. [Rok Vintar]
 - Updated readme. [ebner]
-
-
-1.1.1 (2016-03-29)
-------------------
 - Version 1.1.1. [Vintar Rok]
 - Adding layouts to other layouts with addLayout() instead of addItem()
   [Vintar Rok]
 - Fixed settings menu for mac os x. [ebner]
-
-
-1.1.0 (2016-03-21)
-------------------
 - Merge pull request #1 from paulscherrerinstitute/rv_settings.
   [rokvintar]
 
@@ -963,10 +844,6 @@ Changelog
 - Fixed link. [ebner]
 - Added screenshots. [ebner]
 - Updated readme and links. [ebner]
-
-
-1.0.0 (2016-02-23)
-------------------
 - Increased to version 1.0. [ebner]
 - Merge branch 'vintar_r' into 'master' [vintar_r]
 
@@ -984,10 +861,6 @@ Changelog
   [Vintar Rok]
 - Comment and labels as advanced options during save. [Vintar Rok]
 - Show/hide status log. Hidden by default. [Vintar Rok]
-
-
-0.9.2 (2016-02-12)
-------------------
 - New version. [ebner]
 - Renamed recipe folder to "standard" [ebner]
 - Added: Updating saved values coloumn even if PV not connected and
@@ -1057,10 +930,6 @@ Changelog
 - Fixed code to be python 3 compatible. [ebner]
 - Updated recipe to use local source. [ebner]
 - Moved recipe folder. [ebner]
-
-
-0.9.0 (2016-01-20)
-------------------
 - Readme updated for release 0.9.0. [Vintar Rok]
 - Star_snapshot is a python file which uses snapshot module. It can be
   used when interpeter mode is needed (in case of readline bug) [Vintar
