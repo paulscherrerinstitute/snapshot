@@ -1,5 +1,11 @@
 # Overview
 
+
+[![Conda](https://anaconda.org/paulscherrerinstitute/snapshot/badges/version.svg
+)](https://anaconda.org/paulscherrerinstitute/snapshot) [![GitHub Release Date](https://img.shields.io/github/release-date/paulscherrerinstitute/snapshot)](https://github.com/paulscherrerinstitute/snapshot/releases) [![GitHub](https://img.shields.io/github/license/paulscherrerinstitute/snapshot)](https://github.com/paulscherrerinstitute/snapshot/blob/main/LICENSE)[![Lint](https://github.com/paulscherrerinstitute/snapshot/actions/workflows/lint.yml/badge.svg)](https://github.com/paulscherrerinstitute/snapshot/actions/workflows/lint.yml) [![Conda_publish](https://github.com/paulscherrerinstitute/snapshot/actions/workflows/conda_publish.yaml/badge.svg)](https://github.com/paulscherrerinstitute/snapshot/actions/workflows/conda_publish.yaml)
+
+
+
 Snapshot is Python based tool with a graphical user interface which enables users to view, save, restore and compare values of Channel Access process variables (PVs). It can be conveniently loaded and used by sourcing the python environments, as in:
 
 ```bash
