@@ -5,12 +5,10 @@ on:
   # but only for the main branch
   push:
     branches:
-      - master
-      - export_selected_feature
+      - main
   pull_request:
     branches:
-      - master
-      - export_selected_feature
+      - main
 
   workflow_dispatch:
 
