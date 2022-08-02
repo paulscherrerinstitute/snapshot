@@ -275,7 +275,7 @@ class SnapshotCompareWidget(QWidget):
 
     def _predefined_filter_selected(self, idx):
         txt = (
-            self.pv_filter_inp.text().split("|")[-1].strip()
+            self.pv_filter_inp.text().split("   |   ")[-1].strip()
             if "|" in self.pv_filter_inp.text()
             else self.pv_filter_inp.text()
         )
