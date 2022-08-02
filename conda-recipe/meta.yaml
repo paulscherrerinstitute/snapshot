@@ -9,12 +9,10 @@ requirements:
     - python
     - setuptools
     - pyqt
-    - pyepics
   run:
     - python
     - pyqt
     - pyepics
-    - pyyaml
     - numpy
 
 build:
