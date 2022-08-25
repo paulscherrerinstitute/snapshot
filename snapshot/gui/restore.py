@@ -259,7 +259,7 @@ class SnapshotRestoreWidget(QWidget):
     def start_restore_all(self):
         msgBox = QMessageBox()
         msgBox.setIcon(QMessageBox.Information)
-        msgBox.setText("Are you sure you want to restore all")
+        msgBox.setText("Are you sure you want to restore all?")
         msgBox.setWindowTitle("Restore all")
         msgBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
         returnValue = msgBox.exec()
