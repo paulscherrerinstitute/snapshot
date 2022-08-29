@@ -10,16 +10,8 @@ import time
 
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QMessageBox,
-    QPushButton,
-    QVBoxLayout,
-    QWidget,
-)
-
+from PyQt5.QtWidgets import (QHBoxLayout, QLabel, QLineEdit, QMessageBox,
+                             QPushButton, QVBoxLayout, QWidget)
 from snapshot.ca_core import ActionStatus, PvStatus
 from snapshot.core import get_machine_param_data
 from snapshot.gui.utils import DetailedMsgBox, SnapshotKeywordSelectorWidget
@@ -56,9 +48,8 @@ class SnapshotSaveWidget(QWidget):
         # Get the prefix ... use update_name() later
 
         # Create layout and add GUI elements (input fields, buttons, ...)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
-        self.setLayout(layout)
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(10, 10, 10, 10)
         min_label_width = 120
 
         # "Monitor" any name changes (by user, or by other methods)
@@ -82,30 +73,36 @@ class SnapshotSaveWidget(QWidget):
         filename_layout.addStretch()
 
         # Make Save button
-        save_layout = QHBoxLayout()
+        save_layout = QVBoxLayout()
         save_layout.setSpacing(10)
         self.save_button = QPushButton("Save", self)
         self.save_button.clicked.connect(self.start_save)
         # read only mode
         if self.common_settings["read_only"]:
             self.save_button.setDisabled(True)
-            self.save_button.setText(f"{self.save_button.text()} (read-only mode)")
+            self.save_button.setText(
+                f"{self.save_button.text()} (read-only mode)")
             self.setAutoFillBackground(True)
             p = self.palette()
             p.setColor(self.backgroundRole(), Qt.darkGray)
             self.setPalette(p)
 
         save_layout.addWidget(self.save_button)
+        self.output_dir_label_text = f"Output directory: { self.common_settings['save_dir'] }"
+        output_dir_label = QLabel(self.output_dir_label_text)
+        output_dir_label.setAlignment(Qt.AlignRight)
+        save_layout.addWidget(output_dir_label)
 
         # Status widgets
         self.sts_log = self.common_settings["sts_log"]
         self.sts_info = self.common_settings["sts_info"]
 
         # Add to main layout
-        layout.addLayout(filename_layout)
-        layout.addWidget(self.advanced)
-        layout.addLayout(save_layout)
-        layout.addStretch()
+        self.layout.addLayout(filename_layout)
+        self.layout.addWidget(self.advanced)
+        self.layout.addLayout(save_layout)
+        self.layout.addStretch()
+        self.setLayout(self.layout)
 
     def handle_new_snapshot_instance(self, snapshot):
         self.snapshot = snapshot
@@ -167,8 +164,8 @@ class SnapshotSaveWidget(QWidget):
             # finished
             output_file = os.path.join(
                 self.common_settings["save_dir"],
-                self.common_settings["save_file_prefix"] + "latest" + save_file_suffix,
-            )
+                self.common_settings["save_file_prefix"] + "latest" +
+                save_file_suffix,)
             status, pvs_status = self.snapshot.save_pvs(
                 self.file_path,
                 force=force,
@@ -249,7 +246,8 @@ class SnapshotSaveWidget(QWidget):
                     )
                 else:
                     success = False
-                    msgs.append(f"WARNING: {pvname}: Not saved, error status {sts}.")
+                    msgs.append(
+                        f"WARNING: {pvname}: Not saved, error status {sts}.")
                 msg_times.append(time.time())
                 status_txt = "Save error"
                 status_background = "#F06464"
@@ -267,15 +265,19 @@ class SnapshotSaveWidget(QWidget):
 
         self.saved.emit()
 
+    def update_output_dir(self):
+        self.output_dir_label_text = f"Output directory: { self.common_settings['save_dir'] }"
+        # save widget -> save layout -> label -> setText
+        self.layout.itemAt(2).itemAt(1).widget().setText(
+            self.output_dir_label_text)
+
     def update_name(self):
         name_extension_rb = "{TIMESTAMP}" + save_file_suffix
-        self.name_extension = datetime.datetime.fromtimestamp(time.time()).strftime(
-            "%Y%m%d_%H%M%S"
-        )
+        self.name_extension = datetime.datetime.fromtimestamp(
+            time.time()).strftime("%Y%m%d_%H%M%S")
 
-        self.common_settings["save_file_prefix"] = (
-            os.path.split(self.common_settings["req_file_path"])[1].split(".")[0] + "_"
-        )
+        self.common_settings["save_file_prefix"] = (os.path.split(
+            self.common_settings["req_file_path"])[1].split(".")[0] + "_")
 
         self.file_path = os.path.join(
             self.common_settings["save_dir"],

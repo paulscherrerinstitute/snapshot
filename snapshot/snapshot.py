@@ -72,6 +72,7 @@ def gui(args):
         config_path=args.config,
         trace_execution=args.trace_execution,
         read_only=args.read_only,
+        no_restore_all=args.no_restore_all,
     )
 
 
@@ -96,14 +97,17 @@ def main():
     args_pars.format_usage()
 
     # Gui
-    gui_pars = subparsers.add_parser("gui", help="open graphical interface (default)")
+    gui_pars = subparsers.add_parser(
+        "gui", help="open graphical interface (default)")
     gui_pars.set_defaults(func=gui)
     gui_pars.add_argument("FILE", nargs="?", help="REQ/YAML/JSON file.")
     gui_pars.add_argument(
         "-m", "--macro", help='macros for request file e.g.: "SYS=TEST,DEV=D1"'
     )
-    gui_pars.add_argument("-d", "--dir", help="directory for saved snapshot files")
-    gui_pars.add_argument("-b", "--base", help="base directory for request files")
+    gui_pars.add_argument(
+        "-d", "--dir", help="directory for saved snapshot files")
+    gui_pars.add_argument(
+        "-b", "--base", help="base directory for request files")
     gui_pars.add_argument(
         "-f",
         "--force",
@@ -129,6 +133,13 @@ def main():
         default=False,
         action="store_true",
         help="Snapshot without the restore buttons (read only mode)",
+    )
+
+    gui_pars.add_argument(
+        "--no_restore_all",
+        default=False,
+        action="store_true",
+        help="Snapshot without the restore all button.",
     )
 
     # Save
