@@ -70,6 +70,7 @@ options:
   --config CONFIG       path to configuration file
   --trace-execution     print info during long-running tasks
   --read_only           Snapshot without the restore buttons (read only mode)
+  --no_restore_all      Snapshot without the restore all button.
 ```
 
 The `--config` option is deprecated, although it remains. It is recommended
