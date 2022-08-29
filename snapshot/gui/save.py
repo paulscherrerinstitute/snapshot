@@ -10,8 +10,15 @@ import time
 
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QHBoxLayout, QLabel, QLineEdit, QMessageBox,
-                             QPushButton, QVBoxLayout, QWidget)
+from PyQt5.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 from snapshot.ca_core import ActionStatus, PvStatus
 from snapshot.core import get_machine_param_data
 from snapshot.gui.utils import DetailedMsgBox, SnapshotKeywordSelectorWidget
@@ -80,15 +87,16 @@ class SnapshotSaveWidget(QWidget):
         # read only mode
         if self.common_settings["read_only"]:
             self.save_button.setDisabled(True)
-            self.save_button.setText(
-                f"{self.save_button.text()} (read-only mode)")
+            self.save_button.setText(f"{self.save_button.text()} (read-only mode)")
             self.setAutoFillBackground(True)
             p = self.palette()
             p.setColor(self.backgroundRole(), Qt.darkGray)
             self.setPalette(p)
 
         save_layout.addWidget(self.save_button)
-        self.output_dir_label_text = f"Output directory: { self.common_settings['save_dir'] }"
+        self.output_dir_label_text = (
+            f"Output directory: { self.common_settings['save_dir'] }"
+        )
         output_dir_label = QLabel(self.output_dir_label_text)
         output_dir_label.setAlignment(Qt.AlignRight)
         save_layout.addWidget(output_dir_label)
@@ -164,8 +172,8 @@ class SnapshotSaveWidget(QWidget):
             # finished
             output_file = os.path.join(
                 self.common_settings["save_dir"],
-                self.common_settings["save_file_prefix"] + "latest" +
-                save_file_suffix,)
+                self.common_settings["save_file_prefix"] + "latest" + save_file_suffix,
+            )
             status, pvs_status = self.snapshot.save_pvs(
                 self.file_path,
                 force=force,
@@ -246,8 +254,7 @@ class SnapshotSaveWidget(QWidget):
                     )
                 else:
                     success = False
-                    msgs.append(
-                        f"WARNING: {pvname}: Not saved, error status {sts}.")
+                    msgs.append(f"WARNING: {pvname}: Not saved, error status {sts}.")
                 msg_times.append(time.time())
                 status_txt = "Save error"
                 status_background = "#F06464"
@@ -266,18 +273,21 @@ class SnapshotSaveWidget(QWidget):
         self.saved.emit()
 
     def update_output_dir(self):
-        self.output_dir_label_text = f"Output directory: { self.common_settings['save_dir'] }"
+        self.output_dir_label_text = (
+            f"Output directory: { self.common_settings['save_dir'] }"
+        )
         # save widget -> save layout -> label -> setText
-        self.layout.itemAt(2).itemAt(1).widget().setText(
-            self.output_dir_label_text)
+        self.layout.itemAt(2).itemAt(1).widget().setText(self.output_dir_label_text)
 
     def update_name(self):
         name_extension_rb = "{TIMESTAMP}" + save_file_suffix
-        self.name_extension = datetime.datetime.fromtimestamp(
-            time.time()).strftime("%Y%m%d_%H%M%S")
+        self.name_extension = datetime.datetime.fromtimestamp(time.time()).strftime(
+            "%Y%m%d_%H%M%S"
+        )
 
-        self.common_settings["save_file_prefix"] = (os.path.split(
-            self.common_settings["req_file_path"])[1].split(".")[0] + "_")
+        self.common_settings["save_file_prefix"] = (
+            os.path.split(self.common_settings["req_file_path"])[1].split(".")[0] + "_"
+        )
 
         self.file_path = os.path.join(
             self.common_settings["save_dir"],

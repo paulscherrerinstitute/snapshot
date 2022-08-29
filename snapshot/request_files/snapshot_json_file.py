@@ -48,8 +48,7 @@ class SnapshotJsonFile(SnapshotFile):
         metadata["filters"]["filters"] = json_data.get("filters", [])
         metadata["filters"]["rgx_filters"] = json_data.get("rgx_filters", [])
         metadata["labels"]["labels"] = json_data.get("labels", [])
-        metadata["labels"]["force_labels"] = json_data.get(
-            "force_labels", False)
+        metadata["labels"]["force_labels"] = json_data.get("force_labels", False)
         metadata["read_only"] = json_data.get("read_only", False)
         metadata["no_restore_all"] = json_data.get("no_restore_all", False)
         metadata["machine_params"] = json_data.get("machine_params", [])
@@ -75,8 +74,7 @@ class SnapshotJsonFile(SnapshotFile):
         # key-value pairs to preserve order. Here, we can rely on
         # having an ordered dict.
         try:
-            metadata["machine_params"] = dict(
-                metadata.get("machine_params", []))
+            metadata["machine_params"] = dict(metadata.get("machine_params", []))
             if not all(
                 isinstance(x, str)
                 for x in chain.from_iterable(metadata["machine_params"].items())
@@ -140,18 +138,17 @@ class SnapshotJsonFile(SnapshotFile):
         data = included_file.read_text()
         with concurrent.futures.ThreadPoolExecutor() as executor:
             results = executor.map(
-                lambda i, d,
-                m: SnapshotJsonFile(path=i, data=d, macros=m).read(),
+                lambda i, d, m: SnapshotJsonFile(path=i, data=d, macros=m).read(),
                 repeat(included_file),
                 repeat(data),
-                macros_list,)
+                macros_list,
+            )
             for pvs, _, config in results:
                 included_pvs += pvs
                 included_config += config
 
     @staticmethod
-    def __include_req_file(
-            included_config, included_file, included_pvs, macros_list):
+    def __include_req_file(included_config, included_file, included_pvs, macros_list):
         pvs = []
         for macros in macros_list:
             file = SnapshotReqFile(path=str(included_file), macros=macros)

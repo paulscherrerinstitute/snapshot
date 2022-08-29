@@ -190,8 +190,7 @@ def parse_from_save_file(save_file_path, metadata_only=False):
                 meta_data = json.loads(line)
             except json.JSONDecodeError:
                 # Problem reading metadata
-                err.append(
-                    "Meta data could not be decoded. Must be in JSON format.")
+                err.append("Meta data could not be decoded. Must be in JSON format.")
             meta_loaded = True
             if metadata_only:
                 break
@@ -253,8 +252,7 @@ def parse_from_save_file(save_file_path, metadata_only=False):
     return saved_pvs, meta_data, err
 
 
-def parse_to_save_file(
-        pvs, save_file_path, macros=None, symlink_path=None, **kw):
+def parse_to_save_file(pvs, save_file_path, macros=None, symlink_path=None, **kw):
     """
     This function is called at each save of PV values. This is a parser
     which generates save file from pvs. All parameters in **kw are packed
@@ -333,14 +331,12 @@ def get_save_files(save_dir, req_file_path):
     dictionary.
     """
     since_start("Started parsing snaps")
-    req_file_name, file_paths, modif_times = list_save_files(
-        save_dir, req_file_path)
+    req_file_name, file_paths, modif_times = list_save_files(save_dir, req_file_path)
 
     def process_file(file_path, modif_time):
         file_name = os.path.basename(file_path)
         if os.path.isfile(file_path):
-            _, meta_data, err = parse_from_save_file(
-                file_path, metadata_only=True)
+            _, meta_data, err = parse_from_save_file(file_path, metadata_only=True)
 
             # Check if we have req_file metadata. This is used to determine
             # which request file the save file belongs to. If there is no
@@ -351,8 +347,7 @@ def get_save_files(save_dir, req_file_path):
                 "req_file_name" in meta_data
                 and meta_data["req_file_name"] == req_file_name
             )
-            prefix_matches = file_name.startswith(
-                req_file_name.split(".")[0] + "_")
+            prefix_matches = file_name.startswith(req_file_name.split(".")[0] + "_")
             if have_metadata or prefix_matches:
                 # we really should have basic meta data
                 # (or filters and some other stuff will silently fail)

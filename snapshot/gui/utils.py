@@ -25,7 +25,6 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
 from snapshot.ca_core import parse_macros
 from snapshot.parser import MacroError
 
@@ -39,8 +38,7 @@ def parse_dict_macros_to_text(macros):
     :return: macro string
     """
 
-    macros_str = "".join(macro + "=" + subs + "," for macro,
-                         subs in macros.items())
+    macros_str = "".join(macro + "=" + subs + "," for macro, subs in macros.items())
 
     if macros_str:
         # Clear last comma
@@ -91,8 +89,7 @@ class SnapshotConfigureDialog(QDialog):
         layout.addWidget(self.file_selector)
         layout.addLayout(macros_layout)
 
-        button_box = QDialogButtonBox(
-            QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         layout.addWidget(button_box)
 
         button_box.accepted.connect(self._config_accepted)
@@ -105,8 +102,7 @@ class SnapshotConfigureDialog(QDialog):
             if file_path.endswith(".req"):
                 self._show_deprecation_messagebox()
             try:
-                self.accepted.emit(file_path, parse_macros(
-                    self.macros_input.text()))
+                self.accepted.emit(file_path, parse_macros(self.macros_input.text()))
                 self.done(QDialog.Accepted)
             except MacroError as e:
                 QMessageBox.warning(
@@ -563,8 +559,7 @@ def show_snapshot_parse_errors(parent, file_and_error_list):
             + " of the snapshot saved files (.snap) were loaded with errors "
             "(see details)."
         )
-        msg_window = DetailedMsgBox(
-            msg, err_details, "Warning", parent, QMessageBox.Ok)
+        msg_window = DetailedMsgBox(msg, err_details, "Warning", parent, QMessageBox.Ok)
         msg_window.exec_()
 
 
