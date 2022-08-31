@@ -517,6 +517,9 @@ class SnapshotRestoreFileSelector(QWidget):
         self.file_selector.setContextMenuPolicy(Qt.CustomContextMenu)
         self.file_selector.customContextMenuRequested.connect(self.open_menu)
 
+        self.file_selector.setStyleSheet("QTreeWidget::item:selected{"
+                                         "background:rgba(1,154,207,255)}")
+
         # Set column sizes
         # commented out for performance tests
         # self.file_selector.resizeColumnToContents(FileSelectorColumns.filename)
