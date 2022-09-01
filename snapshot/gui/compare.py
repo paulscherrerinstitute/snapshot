@@ -344,8 +344,9 @@ class SnapshotPvTableView(QTableView):
         # ---------- Context menu --------
         self.customContextMenuRequested.connect(self._open_menu)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.setStyleSheet("QTableView::item:selected{"
-                           "background:rgba(1,154,207,255)}")
+        self.setStyleSheet(
+            "QTableView::item:selected{" "background:rgba(1,154,207,255)}"
+        )
 
         # ------------------------------
         self._menu_click_pos = None
