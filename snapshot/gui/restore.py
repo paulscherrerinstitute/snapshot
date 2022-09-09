@@ -374,7 +374,8 @@ class SnapshotRestoreWidget(QWidget):
                 elif status == ActionStatus.busy:
                     self.sts_log.log_msgs(
                         "ERROR: Restore rejected. Previous restore not finished.",
-                        time.time(),)
+                        time.time(),
+                    )
                     if not self.common_settings["no_restore_all"]:
                         self.restore_all_button.setEnabled(True)
                     self.restore_button.setEnabled(True)
