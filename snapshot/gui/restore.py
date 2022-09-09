@@ -176,13 +176,13 @@ class SnapshotRestoreWidget(QWidget):
             "Restores only currently filtered PVs from the selected .snap file."
         )
         self.restore_button.setEnabled(False)
-
-        self.restore_all_button = QPushButton("Restore All", self)
-        self.restore_all_button.clicked.connect(self.start_restore_all)
-        self.restore_all_button.setToolTip(
-            "Restores all PVs from the selected .snap file."
-        )
-        self.restore_all_button.setEnabled(False)
+        if not self.common_settings["no_restore_all"]:
+            self.restore_all_button = QPushButton("Restore All", self)
+            self.restore_all_button.clicked.connect(self.start_restore_all)
+            self.restore_all_button.setToolTip(
+                "Restores all PVs from the selected .snap file."
+            )
+            self.restore_all_button.setEnabled(False)
 
         btn_layout = QHBoxLayout()
         btn_layout.addWidget(self.refresh_button)
@@ -190,27 +190,26 @@ class SnapshotRestoreWidget(QWidget):
 
         # read only mode
         if self.common_settings["read_only"]:
-            self.restore_all_button.setVisible(False)
-            self.restore_all_button.setDisabled(True)
+            if not self.common_settings["no_restore_all"]:
+                self.restore_all_button.setVisible(False)
+                self.restore_all_button.setDisabled(True)
             self.restore_button.setVisible(False)
             self.restore_button.setDisabled(True)
             self.restore_button.setText(
                 f"{self.restore_button.text()} (read-only mode)"
             )
-            self.restore_all_button.setText(
-                f"{self.restore_all_button.text()} (read-only mode)"
-            )
+            if not self.common_settings["no_restore_all"]:
+                self.restore_all_button.setText(
+                    f"{self.restore_all_button.text()} (read-only mode)"
+                )
             self.setAutoFillBackground(True)
             p = self.palette()
             p.setColor(self.backgroundRole(), Qt.darkGray)
             self.setPalette(p)
 
-        btn_layout.addWidget(self.restore_all_button)
+        if not self.common_settings["no_restore_all"]:
+            btn_layout.addWidget(self.restore_all_button)
         btn_layout.addWidget(self.restore_button)
-
-        # no restore all flag -> removes the button from GUI
-        if self.common_settings["no_restore_all"]:
-            btn_layout.removeWidget(self.restore_all_button)
 
         # Link to status widgets
         self.sts_log = self.common_settings["sts_log"]
@@ -246,11 +245,13 @@ class SnapshotRestoreWidget(QWidget):
         self.rebuild_file_list(already_parsed_files)
 
     def hide_restore_buttons(self):
-        self.restore_all_button.setVisible(False)
+        if not self.common_settings["no_restore_all"]:
+            self.restore_all_button.setVisible(False)
         self.restore_button.setVisible(False)
 
     def show_restore_buttons(self):
-        self.restore_all_button.setVisible(True)
+        if not self.common_settings["no_restore_all"]:
+            self.restore_all_button.setVisible(True)
         self.restore_button.setVisible(True)
 
     def indicate_refresh_needed(self):
@@ -317,7 +318,8 @@ class SnapshotRestoreWidget(QWidget):
                 # Try to restore with default force mode.
                 # First disable restore button (will be enabled when finished)
                 # Then Use one of the preloaded saved files to restore
-                self.restore_all_button.setEnabled(False)
+                if not self.common_settings["no_restore_all"]:
+                    self.restore_all_button.setEnabled(False)
                 self.restore_button.setEnabled(False)
 
                 # Force updating the GUI and disabling the button before future
@@ -359,7 +361,8 @@ class SnapshotRestoreWidget(QWidget):
                         # error state.
                         self.sts_log.log_msgs("Restore rejected by user.", time.time())
                         self.sts_info.clear_status()
-                        self.restore_all_button.setEnabled(True)
+                        if not self.common_settings["no_restore_all"]:
+                            self.restore_all_button.setEnabled(True)
                         self.restore_button.setEnabled(True)
 
                 elif status == ActionStatus.no_data:
@@ -371,9 +374,9 @@ class SnapshotRestoreWidget(QWidget):
                 elif status == ActionStatus.busy:
                     self.sts_log.log_msgs(
                         "ERROR: Restore rejected. Previous restore not finished.",
-                        time.time(),
-                    )
-                    self.restore_all_button.setEnabled(True)
+                        time.time(),)
+                    if not self.common_settings["no_restore_all"]:
+                        self.restore_all_button.setEnabled(True)
                     self.restore_button.setEnabled(True)
 
                     # else: ActionStatus.ok  --> waiting for callbacks
@@ -386,7 +389,8 @@ class SnapshotRestoreWidget(QWidget):
                 QMessageBox.warning(
                     self, "Warning", warn, QMessageBox.Ok, QMessageBox.NoButton
                 )
-                self.restore_all_button.setEnabled(True)
+                if not self.common_settings["no_restore_all"]:
+                    self.restore_all_button.setEnabled(True)
                 self.restore_button.setEnabled(True)
 
         else:
@@ -395,7 +399,8 @@ class SnapshotRestoreWidget(QWidget):
             QMessageBox.warning(
                 self, "Warning", warn, QMessageBox.Ok, QMessageBox.NoButton
             )
-            self.restore_all_button.setEnabled(True)
+            if not self.common_settings["no_restore_all"]:
+                self.restore_all_button.setEnabled(True)
             self.restore_button.setEnabled(True)
 
     def restore_done_callback(self, status, forced, **kw):
@@ -438,7 +443,8 @@ class SnapshotRestoreWidget(QWidget):
             status_background = "#64C864"
 
         # Enable button when restore is finished
-        self.restore_all_button.setEnabled(True)
+        if not self.common_settings["no_restore_all"]:
+            self.restore_all_button.setEnabled(True)
         self.restore_button.setEnabled(True)
 
         if status_txt:
@@ -453,10 +459,12 @@ class SnapshotRestoreWidget(QWidget):
         """
         if not self.common_settings["read_only"]:
             if len(selected_files) == 1:
-                self.restore_all_button.setEnabled(True)
+                if not self.common_settings["no_restore_all"]:
+                    self.restore_all_button.setEnabled(True)
                 self.restore_button.setEnabled(True)
             else:
-                self.restore_all_button.setEnabled(False)
+                if not self.common_settings["no_restore_all"]:
+                    self.restore_all_button.setEnabled(False)
                 self.restore_button.setEnabled(False)
 
         selected_data = {}
