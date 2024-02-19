@@ -26,6 +26,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
 from snapshot.ca_core import ActionStatus, PvStatus, SnapshotPv
 from snapshot.core import BackgroundThread, background_workers, since_start
 from snapshot.parser import (
@@ -368,6 +369,20 @@ class SnapshotRestoreWidget(QWidget):
                         "ERROR: Restore rejected. Previous restore not finished.",
                         time.time(),
                     )
+                    self.restore_all_button.setEnabled(True)
+                    self.restore_button.setEnabled(True)
+                elif status == ActionStatus.type_mismatch:
+                    msg = "Stopping restore due to a pv type mismatch, snapshot cannot proceed.\n List of PVs with type mismatch:\n {}".format(
+                        pvs_status
+                    )
+                    QMessageBox.warning(
+                        self, "Warning", msg, QMessageBox.Ok, QMessageBox.NoButton
+                    )
+                    self.sts_log.log_msgs(
+                        "ERROR: Restore rejected. Stopping restore due to a pv type mismatch.",
+                        time.time(),
+                    )
+                    self.sts_info.set_status("Restore rejected", 3000, "#F06464")
                     self.restore_all_button.setEnabled(True)
                     self.restore_button.setEnabled(True)
 

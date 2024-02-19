@@ -12,15 +12,12 @@ import time
 from collections import OrderedDict
 from enum import Enum
 
+import numpy as np
 from epics import ca
 
 from snapshot.core import PvStatus, SnapshotPv, background_workers, since_start
 from snapshot.create_snapshot_file import create_snapshot_file
-from snapshot.parser import (
-    parse_from_save_file,
-    parse_macros,
-    parse_to_save_file,
-)
+from snapshot.parser import parse_from_save_file, parse_macros, parse_to_save_file
 
 # For pyepics versions older than 3.2.4, this was set to True only for
 ca.AUTO_CLEANUP = True
@@ -47,6 +44,7 @@ class ActionStatus(Enum):
     no_conn = 3
     timeout = 4
     os_error = 5
+    type_mismatch = 6
 
 
 class Snapshot(object):
@@ -263,6 +261,7 @@ class Snapshot(object):
         # If force=True, then do restore even if not all PVs are connected.
 
         disconn_pvs = self.get_disconnected_pvs_names(pvs)
+        type_mismatch_pvs = self.get_type_mismatch_pvs(pvs)
         # At this point core can provide not connected status for PVs from self.get_disconnected_pvs_names()
         # Should be dict to follow the same format of error reporting ass
         # save_pvs
@@ -270,6 +269,12 @@ class Snapshot(object):
         if not force and disconn_pvs:
             self._restore_started = False
             return ActionStatus.no_conn, pvs_status
+
+        # Type check all the pvs that should be restored and exit if there's a mismatch
+        pvs_status = {pvname: PvStatus.type_err for pvname in type_mismatch_pvs}
+        if not force and type_mismatch_pvs:
+            self._restored_started = False
+            return ActionStatus.type_mismatch, pvs_status
 
         # Do a restore. It is started here, but is completed
         # in _check_restore_complete()
@@ -355,6 +360,39 @@ class Snapshot(object):
         """
         # To access a list of all pvs that are under control of snapshot object
         return list(self.pvs.keys())
+
+    def get_type_mismatch_pvs(self, pvs, selected=None):
+        """
+        Get list of PVs that have a type mismatch with the snapshot.
+
+        :param pvs: List of PVs to check.
+
+        :return: List of mismatched PV names.
+        """
+        if selected is None:
+            selected = []
+
+        mismatched_list = [
+            pvname
+            for pvname in pvs
+            if (
+                # For non-ndarray types, check if values are of different types and not None
+                (
+                    type(pvs[pvname].get("value")) != np.ndarray
+                    and self.pvs[pvname].value is not None
+                    and type(pvs[pvname].get("value")) != type(self.pvs[pvname].value)
+                )
+                or
+                # For ndarray types, check if the lengths of the values are different
+                (
+                    type(pvs[pvname].get("value")) == np.ndarray
+                    and type(pvs[pvname].get("value")) == type(self.pvs[pvname].value)
+                    and len(pvs[pvname].get("value")) != len(self.pvs[pvname].value)
+                )
+            )
+        ]
+
+        return mismatched_list
 
     def get_disconnected_pvs_names(self, selected=None):
         """
