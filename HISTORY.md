@@ -4,7 +4,10 @@ Changelog
 
 (unreleased)
 ------------
+- Version bump. [hax_l]
 - Release: version. [hax_l]
+- Release: version. [hax_l]
+- Fix code style issues with Black. [Lint Action]
 - Simple softiocs for testing purposes. [hax_l]
 - Fix type mismatch when restoring. [hax_l]
 - Fix code style issues with Black. [Lint Action]
