@@ -1,4 +1,4 @@
-
+x
 name: conda_publish
 
 on:
@@ -37,4 +37,4 @@ jobs:
         subdir: 'conda-recipe'
         anacondatoken: ${{ secrets.ANACONDA_TOKEN }}
         # apparently this is no longer an option
-        # channel_opts: '-c conda-forge'
+        channel_opts: '-c conda-forge'
