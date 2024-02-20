@@ -4,6 +4,7 @@ Changelog
 
 (unreleased)
 ------------
+- Release: version. [hax_l]
 - Simple softiocs for testing purposes. [hax_l]
 - Fix type mismatch when restoring. [hax_l]
 - Fix code style issues with Black. [Lint Action]
