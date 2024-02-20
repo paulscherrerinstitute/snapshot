@@ -31,11 +31,8 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: publish-to-conda
-      uses: fdiblen/anaconda-action@0.1.7
+      uses: paulscherrerinstitute/conda-publish-action@master
       with:
-        # subdir: 'conda-recipe'
-        channels: 'conda-forge'
-        anacondaToken: ${{ secrets.ANACONDA_TOKEN }}
-        # apparently this is no longer an option
-        envFileName: 'env.yml'
-        # channels: 'conda-forge'?
+        subdir: 'conda-recipe'
+        anacondatoken: ${{ secrets.ANACONDA_TOKEN }}
+        channel_opts: '-c conda-forge'
