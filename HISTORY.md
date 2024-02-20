@@ -4,6 +4,8 @@ Changelog
 
 (unreleased)
 ------------
+- Release: version. [hax_l]
+- Update conda_publish.yaml. [Leonardo Hax Damiani]
 - Version bump. [hax_l]
 - Release: version. [hax_l]
 - Release: version. [hax_l]
