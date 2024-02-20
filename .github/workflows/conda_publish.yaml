@@ -36,4 +36,5 @@ jobs:
       with:
         subdir: 'conda-recipe'
         anacondatoken: ${{ secrets.ANACONDA_TOKEN }}
-        channel_opts: '-c conda-forge'
+        # apparently this is no longer an option
+        # channel_opts: '-c conda-forge'
