@@ -42,6 +42,6 @@ setup(
     #              'snapshot.cmd': 'src/cmd'},
     package_data={"snapshot": ["gui/images/*.png", "gui/qss/*.qss"]},
     platforms=["any"],
-    zip_safe=False
+    zip_safe=False,
     # requires=['pyepics', 'pyqt', 'numpy'],
 )

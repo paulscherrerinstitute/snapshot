@@ -63,9 +63,11 @@ def save(
     }
     if invalid_params:
         pv_errors = [
-            f"\t{p} ({machine_params[p]}) has no value"
-            if v is None
-            else f"\t{p} ({machine_params[p]}) has unsupported type {type(v)}"
+            (
+                f"\t{p} ({machine_params[p]}) has no value"
+                if v is None
+                else f"\t{p} ({machine_params[p]}) has unsupported type {type(v)}"
+            )
             for p, v in invalid_params.items()
         ]
         if not force:

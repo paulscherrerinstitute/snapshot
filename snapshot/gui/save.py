@@ -150,10 +150,12 @@ class SnapshotSaveWidget(QWidget):
                     msg,
                     "\n".join(
                         [
-                            f"{p} ({machine_params[p]}) has no value"
-                            if v is None
-                            else f"{p} ({machine_params[p]}) has unsupported "
-                            f"type {type(v)}"
+                            (
+                                f"{p} ({machine_params[p]}) has no value"
+                                if v is None
+                                else f"{p} ({machine_params[p]}) has unsupported "
+                                f"type {type(v)}"
+                            )
                             for p, v in invalid_params.items()
                         ]
                     ),
