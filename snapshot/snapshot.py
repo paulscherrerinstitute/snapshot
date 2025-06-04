@@ -76,6 +76,24 @@ def gui(args):
     )
 
 
+def compare(args):
+    from .cmd.compare import standalone_compare
+    # sys.argv = [sys.argv[0], args.FILE]
+    standalone_compare(req_file_path=args.FILE,
+                    req_file_macros=args.macro,
+                    save_dir=None,
+                    force=False,
+                    default_labels=False,
+                    force_default_labels=False,
+                    init_path=None,
+                    config_path=args.config,
+                    trace_execution=False,
+                    read_only=True,
+                    no_restore_all=True,)
+        
+        
+
+
 def main():
     """Main creates Qt application and handles arguments"""
 
@@ -231,8 +249,30 @@ def main():
     ### Example: find <PATH> -iname "*.req" -exec python -m snapshot convert -o -u .yaml {} \\;
     """
 
+    # Compare
+    compare_parser = subparsers.add_parser(
+        "compare",
+        help="open standalone compare viewer or run performance test",
+    )
+
+
+    compare_parser.set_defaults(func=compare)
+    compare_parser.add_argument("FILE", help="snapshot file to compare against")
+    compare_parser.add_argument("--config", help="path to configuration file")
+    # compare_parser.add_argument(
+    #     "--test",
+    #     action="store_true",
+    #     help="run performance test comparing PvUpdater and PvUpdaterBulk",
+    # )
+    
+    # compare_parser.add_argument(
+    #     "--iterations",
+    #     type=int,
+    #     default=5,
+    #     help="number of iterations for performance test (default: 5)",
+    # )
     # Following two functions modify sys.argv
-    _set_default_subparser("gui", ["gui", "save", "restore", "convert"])
+    _set_default_subparser("gui", ["gui", "save", "restore", "convert", "compare"])
     # From version 1.3.1 handling of options have changed to be more consistent. However following function replaces
     # old style options with new style equivalents (backward compatibility).Old style options are no more shown in the
     # help, so users are encouraged to use new style.
@@ -255,12 +295,15 @@ usage: {}       {}
 {}
 -------- Command line convert mode --------
 {}
+-------- Command line compare mode --------
+{}
 """.format(
         re.sub(r"\sgui|usage:\s", "", gui_pars.format_usage()),
         re.sub(r"usage:\s", "", gui_pars.format_help()),
         save_pars.format_help(),
         rest_pars.format_help(),
         convert_parser.format_help(),
+        compare_parser.format_help(),
     )
 
     args_pars.description = """Tool for saving and restoring snapshots of EPICS process variables (PVs).

@@ -5,7 +5,7 @@ from threading import Lock, Thread
 from time import monotonic, sleep, time
 
 import numpy
-from epics import PV, ca, caput
+from epics import PV, ca, caput, caget_many
 
 _start_time = time()
 _print_trace = False
@@ -238,7 +238,7 @@ class SnapshotPv(PV):
         # Internals for synchronization with PvUpdater
         self._last_value = None
         self._initialized = False
-        self._pvget_lock = Lock()
+        self.pvget_lock = Lock()
         self._pvget_completer = None
         self._user_config = user_config
 
@@ -265,7 +265,7 @@ class SnapshotPv(PV):
         This method is never used when we _really_ want a value. In such cases,
         use get().
         """
-        return self._last_value if self._initialized else None
+        return self._last_value if self._last_value is not None else None
 
     def get(self, *args, **kwargs):
         """
@@ -281,7 +281,7 @@ class SnapshotPv(PV):
             # Because PvUpdater uses low-level ca calls that can time
             # out, get() must be able to handle incomplete gets that
             # it didn't start itself.
-            with self._pvget_lock:
+            with self.pvget_lock:
                 if self._pvget_completer is not None:
                     val = self._pvget_completer()
                     if val is None:
@@ -413,7 +413,7 @@ class SnapshotPv(PV):
             #  with precision 0 is shown as integer
             try:
                 fmt = f"{{:.{precision}f}}" if precision >= 0 else "{:f}"
-            except TypeError as e:
+            except TypeError:
                 fmt = "{:f}"
             return fmt.format(value)
 
@@ -536,6 +536,148 @@ class SnapshotPv(PV):
             txt = txt.replace(macro, macros[key])
         return txt
 
+class PvUpdaterBulk(BackgroundThread):
+    """
+    Manages a thread that periodically updates PV values. The values are both
+    cached in the PV objects (see SnapshotPv.value()) and passed to a callback.
+    A normal python thread is used instead of a CAThread because a fresh CA
+    context is needed.
+    """
+    timeout = 3.0
+
+    def __init__(self, callback=lambda: None, **kwargs):
+        super().__init__(name="pv_updater", **kwargs)
+        self._callback = callback
+        self._pvs = []
+        self._update_rate = 10.0  # seconds
+        self._pvs_list_changed = False
+
+    def set_update_rate(self, new_update_rate):
+        self._update_period(float(new_update_rate))
+
+    def set_pvs(self, pvs):
+        with self._lock:
+            self._pvs = list(pvs)
+            self._pvs_list_changed = True
+
+    @staticmethod
+    def _bulk_update(pvs):
+        """
+        Performs a bulk read of the provided list of PVs using caget_many to
+        update their cached readback values.
+
+        Args:
+            pvs (list of SnapshotPv): List of PV objects to update.
+
+        Returns:
+            list: A list of updated PV values corresponding to the input PVs.
+        """
+        # Acquire each PV's lock and set disconnected PVs' cache to None
+        for pv in pvs:
+            pv.pvget_lock.acquire()
+            if not pv.connected:
+                pv._last_value = None
+
+        connected_pvs = [pv for pv in pvs if pv.connected]
+        results = []
+        if connected_pvs:
+            try:
+                results = caget_many(
+                    [pv.pvname for pv in connected_pvs],
+                    as_numpy=True,
+                    timeout=PvUpdater.timeout,
+                )
+            except Exception as e:
+                logging.error(f"Bulk caget_many failed: {e}")
+                results = [None] * len(connected_pvs)
+        # Update each connected PV with its fetched value, handling arrays
+        for pv, res in zip(connected_pvs, results):
+            val = res
+            if val is not None and pv.is_array:
+                if numpy.size(val) == 0:
+                    val = None
+                elif numpy.size(val) == 1 and not isinstance(val, numpy.ndarray):
+                    val = numpy.asarray([val])
+                elif not isinstance(val, numpy.ndarray):
+                    val = numpy.asarray(val)
+            pv._last_value = val
+
+        # Release locks for all PVs
+        for pv in pvs:
+            pv.pvget_lock.release()
+
+        return [pv._last_value for pv in pvs]
+
+    @staticmethod
+    def _async_init_ctrlvars(self, pv):
+        """
+        Asynchronously fetches control variables for a PV and updates its
+        _initialized flag if successful.
+
+        Args:
+            pv (SnapshotPv): The PV object to initialize.
+        """
+        with pv.pvget_lock:
+            try:
+                ctrl = pv.get_ctrlvars()
+                if ctrl:
+                    pv._initialized = True
+            except Exception as e:
+                logging.debug(f"Async init ctrlvars for {pv.pvname} failed: {e}")
+
+    def _get_initial(self):
+        """
+        Performs an initial update of all PVs. Uses bulk updating for readback
+        values and asynchronously initializes control variables for each PV.
+        """
+        since_start("Started initial getting PV values")
+        # Bulk update the readback values.
+        vals = self._bulk_update(self._pvs)
+        # Offload control variable initialization to a thread pool.
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+
+
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {
+                executor.submit(self._async_init_ctrlvars, pv): pv
+                for pv in self._pvs
+                if not pv._initialized and pv.connected
+            }
+            for future in as_completed(futures):
+                try:
+                    future.result(timeout=0.1)
+                except Exception as e:
+                    pv = futures[future]
+                    logging.debug(f"Async init ctrlvars for {pv.pvname} exception: {e}")
+        
+        self._finish_getting_pvs(vals)
+
+    def _finish_getting_pvs(self, vals):
+        since_start("Finished getting PV values")
+        self._lock.release()
+        try:
+            self._callback(vals)
+        finally:
+            self._lock.acquire()
+
+    def _get(self):
+        since_start("Started getting PV values")
+        # Use bulk update for the periodic readback.
+        vals = self._bulk_update(self._pvs)
+        self._finish_getting_pvs(vals)
+
+    def _run(self):
+        ca.use_initial_context()
+        self._periodic_loop(self._update_rate, self._task)
+
+    def _task(self):
+        if self._pvs_list_changed:
+            self._get_initial()
+            self._pvs_list_changed = False
+        else:
+            self._get()
+
 
 class PvUpdater(BackgroundThread):
     """
@@ -610,7 +752,7 @@ class PvUpdater(BackgroundThread):
         ca.use_initial_context()
         initialized = False
         report_init_timeout = False
-        pv._pvget_lock.acquire()
+        pv.pvget_lock.acquire()
         if not pv._initialized and pv.connected:
             ctrl = pv.get_ctrlvars()
             # It can timeout, so don't rely on it.
@@ -623,7 +765,7 @@ class PvUpdater(BackgroundThread):
         val = PvUpdater._get_complete(pv)
 
         pv._initialized |= initialized
-        pv._pvget_lock.release()
+        pv.pvget_lock.release()
         return val, report_init_timeout
 
     def _get_initial(self):
@@ -666,7 +808,7 @@ class PvUpdater(BackgroundThread):
         report_init_timeout = False
         newly_initialized = []
         for pv in self._pvs:
-            pv._pvget_lock.acquire()
+            pv.pvget_lock.acquire()
             if not pv._initialized and pv.connected:
                 ctrl = pv.get_ctrlvars()
                 # It can timeout, so don't rely on it.
@@ -695,6 +837,6 @@ class PvUpdater(BackgroundThread):
         for pv in newly_initialized:
             pv._initialized = True
         for pv in self._pvs:
-            pv._pvget_lock.release()
+            pv.pvget_lock.release()
 
         self._finish_getting_pvs(vals)

@@ -36,9 +36,9 @@ from PyQt5.QtWidgets import (
 )
 
 from snapshot.ca_core import Snapshot
-from snapshot.core import PvUpdater, SnapshotPv, process_record
+from snapshot.core import SnapshotPv, process_record
 from snapshot.gui.utils import make_separator, show_snapshot_parse_errors
-from snapshot.parser import parse_from_save_file, save_file_suffix
+from snapshot.parser import parse_from_save_file
 
 
 class PvCompareFilter(enum.Enum):
@@ -58,7 +58,7 @@ class SnapshotCompareWidget(QWidget):
     restore_requested = QtCore.pyqtSignal(list)
     rgx_icon = None
 
-    def __init__(self, snapshot, common_settings, parent=None, **kw):
+    def __init__(self, snapshot, common_settings, parent=None, pv_updater_cls=None, **kw):
         super().__init__(parent, **kw)
         self.snapshot = snapshot
         self.common_settings = common_settings
@@ -73,7 +73,10 @@ class SnapshotCompareWidget(QWidget):
         self.view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.view.restore_requested.connect(self._handle_restore_request)
 
-        self.model = SnapshotPvTableModel(snapshot, self)
+        if pv_updater_cls is None:
+            from snapshot.core import PvUpdater
+            pv_updater_cls = PvUpdater
+        self.model = SnapshotPvTableModel(snapshot, self, pv_updater_cls=pv_updater_cls)
         self.model.file_parse_errors.connect(self._show_snapshot_parse_errors)
         self._proxy = SnapshotPvFilterProxyModel(self)
         self._proxy.setSourceModel(self.model)
@@ -488,6 +491,7 @@ class SnapshotPvTableView(QTableView):
             for idx in self.selectedIndexes()
         )
         return list(precision)
+    
 
     def _selected_pv_snapfiles(self):
         headers_counter = len(self.model().sourceModel()._headers.copy())
@@ -592,26 +596,45 @@ class SnapshotPvTableView(QTableView):
 
 
 # Wrap PvUpdater into QObject for threadsafe signalling
-class ModelUpdater(QtCore.QObject, PvUpdater):
+class ModelUpdater(QtCore.QObject):
     update_complete = QtCore.pyqtSignal(list)
     _internal_update = QtCore.pyqtSignal(list)
+    fetch_now_signal = QtCore.pyqtSignal()
 
-    def __init__(self, parent):
-        super().__init__(parent=parent, callback=self._callback)
-
-        # Use a blocking connection to throttle the thread.
-        self._internal_update.connect(
-            self.update_complete, QtCore.Qt.BlockingQueuedConnection
-        )
+    def __init__(self, parent, pv_updater_cls):
+        self._pv_updater_cls = pv_updater_cls
+        self._updater = pv_updater_cls(callback=self._callback)
+        super().__init__(parent=parent)
+        # Use the default (non-blocking) connection to avoid deadlocks
+        self._internal_update.connect(self.update_complete)
+        self.fetch_now_signal.connect(self._do_fetch_now, QtCore.Qt.QueuedConnection)
 
     def _callback(self, pvs):
         self._internal_update.emit(pvs)
 
+    def set_pvs(self, pvs):
+        self._updater.set_pvs(pvs)
+
+    def set_update_rate(self, rate):
+        self._updater.set_update_rate(rate)
+
+    def start(self):
+        self._updater.start()
+
+    def fetch_now(self):
+        # Emit a signal to safely trigger fetch in the updater's thread
+        self.fetch_now_signal.emit()
+
+    def _do_fetch_now(self):
+        # This runs in the updater's thread
+        if hasattr(self._updater, '_get_initial'):
+            self._updater._get_initial()
+        elif hasattr(self._updater, '_get'):
+            self._updater._get()
+
     def stop(self):
-        # The connection is blocking, so disconnect to prevent deadlock
-        # while waiting for thread to finish.
         self._internal_update.disconnect()
-        PvUpdater.stop(self)
+        self._updater.stop()
 
 
 class SnapshotPvTableModel(QtCore.QAbstractTableModel):
@@ -623,7 +646,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
 
     file_parse_errors = QtCore.pyqtSignal(list)
 
-    def __init__(self, snapshot: Snapshot, parent=None):
+    def __init__(self, snapshot: Snapshot, parent=None, pv_updater_cls=None):
         super().__init__(parent)
         self.snapshot = snapshot
         self._data = []
@@ -636,7 +659,10 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self._headers[PvTableColumns.effective_tol] = "Eff. Tol."
         self._headers[PvTableColumns.value] = "Current value"
 
-        self._updater = ModelUpdater(self)
+        if pv_updater_cls is None:
+            from snapshot.core import PvUpdater
+            pv_updater_cls = PvUpdater
+        self._updater = ModelUpdater(self, pv_updater_cls)
         self._updater.update_complete.connect(self._handle_pv_update)
 
         # Tie starting and stopping the worker thread to starting and
@@ -672,6 +698,12 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         for line in self._data:
             line.disconnect_callbacks()
         self._data = [SnapshotPvTableLine(pv, self._tolerance_f, self) for pv in pvs]
+        # Ensure unit column is updated for each PV
+        for line in self._data:
+            if getattr(line._pv_ref, 'units', None):
+                line.data[PvTableColumns.unit]["data"] = line._pv_ref.units
+            else:
+                line.data[PvTableColumns.unit]["data"] = "UNDEF"
         self.endResetModel()
 
     def add_snap_files(self, files: dict):
@@ -700,9 +732,8 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             # Otherwise values of PVs listed in request but not in the saved
             # file are not cleared (value from previous file is seen on the
             # screen)
-            prefix = self.parent().common_settings["save_file_prefix"]
-            short_name = file_name.lstrip(prefix).rstrip(save_file_suffix)
-            self._headers.append(short_name)
+            # Use just the file name without any prefix or suffix
+            self._headers.append(file_name)
             for pv_line in self._data:
                 pvname = pv_line.pvname
                 pv_data = pvs_list_full_names.get(pvname, {"value": None})
@@ -727,14 +758,19 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
 
     def _replace_macros_on_file_data(self, file_data):
         macros = self.snapshot.macros or file_data["meta_data"].get("macros", dict())
-        pvs_list, _, errors = parse_from_save_file(file_data["file_path"])
+        # Use the already parsed PVs from file_data if available
+        if "pvs" in file_data:
+            pvs_list = file_data["pvs"]
+        else:
+            pvs_list, _, errors = parse_from_save_file(file_data["file_path"])
+            
         # PVS data mapped to real pvs names (no macros)
         pvs_list_full_names = {
-            SnapshotPv.macros_substitution(pv_name_raw, macros): pv_data
+            SnapshotPv.macros_substitution(pv_name_raw, macros): {"value": pv_data.get("value")}
             for pv_name_raw, pv_data in pvs_list.items()
         }
 
-        return pvs_list_full_names, errors
+        return pvs_list_full_names, []
 
     # Reimplementation of parent methods needed for visualization
     def rowCount(self, parent):
@@ -744,6 +780,9 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         return len(self._headers)
 
     def data(self, index, role):
+        if not index.isValid() or index.row() >= len(self._data) or index.column() >= len(self._data[index.row()].data):
+            return None
+            
         if role == QtCore.Qt.ToolTipRole and index.column() == 2:
             return (
                 ""
@@ -840,10 +879,14 @@ class SnapshotPvTableLine(QtCore.QObject):
 
         self.data = [None] * PvTableColumns.snapshots
         self.data[PvTableColumns.name] = {"data": pv_ref.pvname}
-        self.data[PvTableColumns.unit] = {"data": "UNDEF", "icon": None}
+        # Set unit to the PV's unit if available, otherwise 'UNDEF'
+        unit_val = pv_ref.units if getattr(pv_ref, 'units', None) else "UNDEF"
+        self.data[PvTableColumns.unit] = {"data": unit_val, "icon": None}
         self.data[PvTableColumns.effective_tol] = (
-            {"data": f""} if self._string_enum else {"data": self.effective_tolerance}
+            {"data": ""} if self._string_enum else {"data": self.effective_tolerance}
         )
+
+        print(self.data[PvTableColumns.unit])
 
         self.data[PvTableColumns.value] = {
             "data": "PV disconnected",
@@ -861,7 +904,9 @@ class SnapshotPvTableLine(QtCore.QObject):
             self.data[PvTableColumns.value]["data"] = ""
             self.data[PvTableColumns.value]["icon"] = None
             self._precision = self._pv_ref.precision
-
+            # Update unit if available
+            if getattr(self._pv_ref, 'units', None):
+                self.data[PvTableColumns.unit]["data"] = self._pv_ref.units
         else:
             self.conn = False
 
@@ -880,7 +925,7 @@ class SnapshotPvTableLine(QtCore.QObject):
                 if (self.precision is not None and self.precision >= 0)
                 else 1 * self._tolerance_f
             )
-        except TypeError as e:
+        except TypeError:
             eff_tol_value = ""
         return eff_tol_value
 
@@ -904,7 +949,7 @@ class SnapshotPvTableLine(QtCore.QObject):
         self._tolerance_f = tol_f
         # update eff. tol column
         self.data[PvTableColumns.effective_tol] = (
-            {"data": f""} if self._string_enum else {"data": self.effective_tolerance}
+            {"data": ""} if self._string_enum else {"data": self.effective_tolerance}
         )
         self._compare()
 
@@ -917,7 +962,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             sval = SnapshotPvTableLine.string_repr_snap_value(value, self.precision)
             self.data.append({"data": sval, "raw_value": value})
         else:
-            self.data.append({"data": "", "raw_value": None})
+            self.data.append({"data": "UNDEF", "icon": None, "raw_value": None})
 
         # Do compare
         self._compare()
@@ -1018,13 +1063,19 @@ class SnapshotPvTableLine(QtCore.QObject):
         value_col = self.data[PvTableColumns.value]
         unit_col = self.data[PvTableColumns.unit]
 
-        # Since sometimees the precision fails to load
+        # Since sometimes the precision fails to load
         # properly at the beginning, this will reload it
         #  on the first updated
         if not self._precision_loaded:
             if self.precision is None:
                 self._precision = self._pv_ref.precision
             self._precision_loaded = True
+
+        # Always update the unit column if available
+        if getattr(self._pv_ref, 'units', None):
+            unit_col["data"] = self._pv_ref.units
+        else:
+            unit_col["data"] = "UNDEF"
 
         if pv_value is None:
             value_col["data"] = ""
@@ -1045,9 +1096,6 @@ class SnapshotPvTableLine(QtCore.QObject):
                 )
         except (TypeError, ValueError, IndexError):
             pass
-
-        if unit_col["data"] == "UNDEF":
-            unit_col["data"] = self._pv_ref.units
 
         if value_col["data"] == new_value:
             return False
@@ -1111,7 +1159,7 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
     def lessThan(self, lhs: QtCore.QModelIndex, rhs: QtCore.QModelIndex) -> bool:
         try:
             return float(lhs.data()) < float(rhs.data())
-        except (ValueError, TypeError) as e:
+        except (ValueError, TypeError):
             return super().lessThan(lhs, rhs)
 
     def filterAcceptsRow(self, idx: int, source_parent: QtCore.QModelIndex):
