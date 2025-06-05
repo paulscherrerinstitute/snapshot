@@ -630,11 +630,10 @@ class PvUpdaterBulk(BackgroundThread):
 
     def _finish_getting_pvs(self, vals):
         since_start("Finished getting PV values")
-        self._lock.release()
         try:
             self._callback(vals)
-        finally:
-            self._lock.acquire()
+        except Exception as e:
+            logging.error(f"Error in PV update callback: {e}")
 
     def _get(self):
         since_start("Started getting PV values")
@@ -652,6 +651,11 @@ class PvUpdaterBulk(BackgroundThread):
             self._pvs_list_changed = False
         else:
             self._get()
+
+    def fetch_now(self):
+        """Force an immediate update of all PVs"""
+        with self._lock:
+            self._get_initial()
 
 
 class PvUpdater(BackgroundThread):
@@ -761,11 +765,10 @@ class PvUpdater(BackgroundThread):
 
     def _finish_getting_pvs(self, vals):
         since_start("Finished getting PV values")
-        self._lock.release()
         try:
             self._callback(vals)
-        finally:
-            self._lock.acquire()
+        except Exception as e:
+            logging.error(f"Error in PV update callback: {e}")
 
     def _run(self):
         ca.use_initial_context()
@@ -816,3 +819,8 @@ class PvUpdater(BackgroundThread):
             pv.pvget_lock.release()
 
         self._finish_getting_pvs(vals)
+
+    def fetch_now(self):
+        """Force an immediate update of all PVs"""
+        with self._lock:
+            self._get_initial()

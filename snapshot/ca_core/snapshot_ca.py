@@ -11,6 +11,7 @@ import os
 import time
 from collections import OrderedDict
 from enum import Enum
+import concurrent.futures
 
 import numpy as np
 from epics import ca
@@ -48,13 +49,14 @@ class ActionStatus(Enum):
 
 
 class Snapshot(object):
-    def __init__(self, req_file_path=None, macros=None):
+    def __init__(self, req_file_path=None, macros=None, use_bulk_add=False):
         """
         Main snapshot class. Provides methods to handle PVs from request or snapshot files and to create, delete, etc
         snap (saved) files
 
         :param req_file_path: Path to the request file.
         :param macros: macros to be substituted in request file (can be dict {'A': 'B', 'C': 'D'} or str "A=B,C=D").
+        :param use_bulk_add: If True, uses parallel bulk processing for adding PVs. Default is False.
 
         :return:
         """
@@ -69,6 +71,7 @@ class Snapshot(object):
         self.macros = macros
         self.req_file_path = ""
         self.req_file_metadata = {}
+        self.use_bulk_add = use_bulk_add
 
         # Other important states
         self._restore_started = False
@@ -91,7 +94,136 @@ class Snapshot(object):
             since_start("Finished parsing reqfile")
 
             self.req_file_metadata = metadata
-            self.add_pvs(pvs, pvs_config)
+            print("USE BULK ADD", self.use_bulk_add)
+            if self.use_bulk_add:
+                print("BUUUULK ADD PVS)")
+                self.add_pvs_bulk(pvs, pvs_config)
+            else:
+                self.add_pvs(pvs, pvs_config)
+
+    def add_pvs_bulk(self, pv_list, pv_configs):
+        """Creates SnapshotPv objects for each PV in list using parallel processing.
+
+        :param pv_list: List of PV names.
+        :param pv_configs: List of dictionaries with PV configurations.
+        :return:
+        """
+        print("Using add_pvs_bulk method for parallel processing")
+        if not pv_list:
+            return
+
+        # Process PV names to handle macros
+        processed_names = []
+        for pvname in pv_list:
+            if not self.pvs.get(pvname):
+                processed_names.append(pvname)
+
+        if not processed_names:
+            return
+
+        # Convert list of single-key dicts into a single dict
+        config_dict = {}
+        if isinstance(pv_configs, list):
+            for config in pv_configs:
+                if isinstance(config, dict):
+                    for pv_name, pv_config in config.items():
+                        config_dict[pv_name] = pv_config
+
+        def process_batch(batch_names):
+            """Process a batch of PVs in a worker thread"""
+            try:
+                import threading
+                import time
+
+                from epics import caget_many
+
+                thread_id = threading.get_ident()
+                batch_start = time.time()
+                logging.info(f"Processing batch in thread {thread_id} with {len(batch_names)} PVs")
+
+                # Use caget_many for bulk operations
+                caget_start = time.time()
+                results = caget_many(batch_names, timeout=0.5, as_numpy=True)
+                caget_time = time.time() - caget_start
+
+                # Create a dictionary mapping PV names to their values
+                process_start = time.time()
+                values = {name: val for name, val in zip(batch_names, results) if val is not None}
+                process_time = time.time() - process_start
+
+                logging.info(f"Batch stats - Thread {thread_id}: caget={caget_time:.3f}s, processing={process_time:.3f}s, success_rate={len(values)/len(batch_names)*100:.1f}%")
+
+            except Exception as e:
+                logging.debug(f"Batch caget_many failed, falling back to individual gets: {e}")
+                values = {}
+
+            # Create PV objects and initialize them with the values we got
+            batch_pvs = {}
+            for p_name in batch_names:
+                if not self.pvs.get(p_name):
+                    try:
+                        config = config_dict.get(p_name, {})
+                        pv_ref = SnapshotPv(p_name, config)
+
+                        # Try to connect but don't skip if it fails
+                        pv_ref.wait_for_connection(timeout=0.1)
+
+                        # If we got a value from batch caget, use it
+                        value = values.get(p_name)
+                        if value is not None:
+                            pv_ref._last_value = value
+                            pv_ref._initialized = True
+                            pv_ref.connected = True  # Ensure connection state is set
+                        else:
+                            # Try individual get if batch failed
+                            try:
+                                value = pv_ref.get(timeout=0.2)
+                                if value is not None:
+                                    pv_ref._last_value = value
+                                    pv_ref._initialized = True
+                                    pv_ref.connected = True
+                            except Exception as e:
+                                logging.debug(f"Individual get failed for {p_name}: {e}")
+                                pv_ref._last_value = None
+                                pv_ref._initialized = False
+                                pv_ref.connected = False
+
+                        # Always add the PV to the batch, even if disconnected
+                        batch_pvs[p_name] = pv_ref
+                    except Exception as e:
+                        logging.warning(f"Error creating PV {p_name}: {e}")
+
+            pv_create_time = time.time() - batch_start
+            total_time = time.time() - batch_start
+            logging.info(f"Batch complete - Thread {thread_id}: pv_creation={pv_create_time:.3f}s, total={total_time:.3f}s, pvs_created={len(batch_pvs)}")
+            return batch_pvs
+
+        # Split PVs into batches
+        BATCH_SIZE = 50  # Number of PVs to process in each batch
+        NUM_THREADS = 4  # Number of parallel threads to use
+        total_start = time.time()
+        batches = [processed_names[i:i + BATCH_SIZE]
+                  for i in range(0, len(processed_names), BATCH_SIZE)]
+
+        logging.info(f"Starting parallel processing of {len(processed_names)} PVs in {len(batches)} batches")
+
+        # Process batches in parallel
+        with concurrent.futures.ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
+            futures = [executor.submit(process_batch, batch) for batch in batches]
+
+            # Collect results as they complete
+            total_pvs = 0
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    batch_pvs = future.result()
+                    total_pvs += len(batch_pvs)
+                    self.pvs.update(batch_pvs)
+                except Exception as e:
+                    logging.warning(f"Error processing batch: {e}")
+
+        total_time = time.time() - total_start
+        success_rate = total_pvs / len(processed_names) * 100 if processed_names else 0
+        logging.info(f"All batches complete: total_time={total_time:.3f}s, success_rate={success_rate:.1f}% ({total_pvs}/{len(processed_names)} PVs)")
 
     def add_pvs(self, pv_list, pv_configs):
         """
@@ -101,7 +233,7 @@ class Snapshot(object):
 
         :return:
         """
-
+        print("Using add_pvs method for sequential processing")
         since_start("Started adding PVs")
 
         # pyepics will handle PVs to have only one connection per PV.

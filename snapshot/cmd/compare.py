@@ -63,7 +63,7 @@ class StandaloneCompareWindow(QMainWindow):
                 return
 
         # Before creating GUI, snapshot must be initialized.
-        self.snapshot = Snapshot()
+        self.snapshot = Snapshot(use_bulk_add=True)
 
         # Create main GUI components:
         #         menu bar
@@ -128,7 +128,7 @@ class StandaloneCompareWindow(QMainWindow):
         self.pv_update_time.addItems(["1s", "5s", "10s", "15s", "30s"])
         # self.pv_update_time.setMinimumWidth(25)
         self.pv_update_time.setMaximumWidth(50)
-        self.pv_update_time.setCurrentIndex(1)  # Default is 5s
+        self.pv_update_time.setCurrentIndex(1)  # Start with 5s
         self.pv_update_time.currentIndexChanged.connect(self.set_pv_update_timer)
 
         left_layout = QVBoxLayout()
@@ -180,6 +180,13 @@ class StandaloneCompareWindow(QMainWindow):
 
         if self.common_settings["read_only"]:
             self.status_bar.set_read_only()
+
+        # Schedule the timer change after 100ms
+        QTimer.singleShot(100, self._reset_update_timer)
+
+    def _reset_update_timer(self):
+        """Reset the update timer to 5s after initial 1s period"""
+        self.pv_update_time.setCurrentIndex(1)  # Set to 5s
 
     def handle_selected_files(self, selected_files):
         # selected_files is a dict() with file names as keywords and
@@ -239,10 +246,6 @@ class StandaloneCompareWindow(QMainWindow):
             )
 
         # handle all gui components
-        # self.restore_widget.handle_new_snapshot_instance(
-        #     self.snapshot, already_parsed_files
-        # )
-        # self.save_widget.handle_new_snapshot_instance(self.snapshot)
         self.compare_widget.handle_new_snapshot_instance(self.snapshot)
 
         self.setWindowTitle(os.path.basename(req_file_path) + " - Snapshot")
@@ -251,6 +254,13 @@ class StandaloneCompareWindow(QMainWindow):
         background_workers.resume()
         since_start("GUI processing finished")
 
+        # Force an immediate update after loading the file and refresh the view
+        def immediate_update():
+            self.compare_widget.model._updater.fetch_now()
+            self.compare_widget.view.viewport().update()
+            self.compare_widget.view.resizeColumnsToContents()
+        
+        QTimer.singleShot(0, immediate_update)
 
     def handle_pvs_filtered(self, pv_names_set):
         # Yes, this merely sets the reference to the set of names, so
@@ -265,9 +275,12 @@ class StandaloneCompareWindow(QMainWindow):
             self.common_settings["save_dir"] = os.path.dirname(path)
 
     def set_pv_update_timer(self):
+        """Set the PV update timer based on the combo box selection"""
         self.compare_widget.set_pv_update_time(
             int(self.pv_update_time.currentText().strip("s"))
         )
+        # Force an immediate update when changing the timer
+        self.compare_widget.model._updater.fetch_now()
 
     def toggle_autorefresh(self, checked):
         if checked:
@@ -303,7 +316,7 @@ class StandaloneCompareWindow(QMainWindow):
         req_macros = req_macros or {}
         reopen_config = False
         try:
-            self.snapshot = Snapshot(req_file_path, req_macros)
+            self.snapshot = Snapshot(req_file_path, req_macros, use_bulk_add=True)
             self.set_request_file(req_file_path, req_macros)
 
             # readonly mode detection
