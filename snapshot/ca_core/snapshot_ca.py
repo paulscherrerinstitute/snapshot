@@ -378,16 +378,16 @@ class Snapshot(object):
             if (
                 # For non-ndarray types, check if values are of different types and not None
                 (
-                    type(pvs[pvname].get("value")) != np.ndarray
+                    type(pvs[pvname].get("value")) is not np.ndarray
                     and self.pvs[pvname].value is not None
-                    and type(pvs[pvname].get("value")) != type(self.pvs[pvname].value)
+                    and type(pvs[pvname].get("value")) is not type(self.pvs[pvname].value)
                 )
                 or
                 # For ndarray types, check if the lengths of the values are different
                 (
-                    type(pvs[pvname].get("value")) == np.ndarray
-                    and type(pvs[pvname].get("value")) == type(self.pvs[pvname].value)
-                    and len(pvs[pvname].get("value")) != len(self.pvs[pvname].value)
+                    type(pvs[pvname].get("value")) is np.ndarray
+                    and type(pvs[pvname].get("value")) is type(self.pvs[pvname].value)
+                    and len(pvs[pvname].get("value")) is not len(self.pvs[pvname].value)
                 )
             )
         ]

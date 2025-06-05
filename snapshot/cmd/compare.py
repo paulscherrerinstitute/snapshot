@@ -9,7 +9,7 @@ from PyQt5.QtCore import Qt, QTimer
 
 from snapshot.gui.utils import DetailedMsgBox
 from snapshot.gui.snapshot_gui import SnapshotCompareWidget, SnapshotStatusLog, SnapshotStatus, SnapshotConfigureDialog, Snapshot, SnapshotRestoreWidget
-from snapshot.core import SnapshotError, background_workers, since_start, PvUpdaterBulk
+from snapshot.core import SnapshotError, background_workers, since_start, SnapshotPv, PvUpdaterBulk, PvUpdater
 from snapshot.parser import get_save_files, initialize_config, parse_from_save_file
 
 from PyQt5.QtWidgets import (
@@ -22,11 +22,10 @@ from PyQt5.QtWidgets import (
 from snapshot.request_files.snapshot_file import ReqParseError
 
 
-from snapshot.parser import initialize_config
 # this is going to be a 'restricted' view of the default snapshot with some removed features and a different pvupdater
 
 class StandaloneCompareWindow(QMainWindow):
-    def __init__(self, config=None, parent=None, pv_updater_cls=PvUpdaterBulk) -> None:
+    def __init__(self, config=None, parent=None, pv_updater_cls=PvUpdater) -> None:
         super().__init__(parent)
         self.setWindowTitle("Snapshot Compare")
         QMainWindow.__init__(self, parent)  
@@ -393,6 +392,25 @@ class StandaloneCompareWindow(QMainWindow):
 
     def handle_files_updated(self):
         self.load_snapshot_files(self.common_settings["req_file_path"])
+
+    def _replace_macros_on_file_data(self, file_data):
+        macros = self.snapshot.macros or file_data["meta_data"].get("macros", dict())
+        # Use the already parsed PVs from file_data if available
+        if "pvs" in file_data:
+            pvs_list = file_data["pvs"]
+        else:
+            pvs_list, _, errors = parse_from_save_file(file_data["file_path"])
+            
+        # PVS data mapped to real pvs names (no macros)
+        pvs_list_full_names = {
+            SnapshotPv.macros_substitution(pv_name_raw, macros): {
+                "value": pv_data.get("value"),
+                "raw_value": pv_data.get("value")  # Store raw value for display
+            }
+            for pv_name_raw, pv_data in pvs_list.items()
+        }
+
+        return pvs_list_full_names, []
 
 
 def standalone_compare(*args, **kwargs):

@@ -547,9 +547,10 @@ class PvUpdaterBulk(BackgroundThread):
 
     def __init__(self, callback=lambda: None, **kwargs):
         super().__init__(name="pv_updater", **kwargs)
+        print("PvUpdaterBulk init")
         self._callback = callback
         self._pvs = []
-        self._update_rate = 10.0  # seconds
+        self._update_rate = 5.0  # seconds
         self._pvs_list_changed = False
 
     def set_update_rate(self, new_update_rate):
@@ -584,12 +585,12 @@ class PvUpdaterBulk(BackgroundThread):
             try:
                 results = caget_many(
                     [pv.pvname for pv in connected_pvs],
-                    as_numpy=True,
-                    timeout=PvUpdater.timeout,
+                    timeout=PvUpdaterBulk.timeout,
                 )
             except Exception as e:
                 logging.error(f"Bulk caget_many failed: {e}")
                 results = [None] * len(connected_pvs)
+
         # Update each connected PV with its fetched value, handling arrays
         for pv, res in zip(connected_pvs, results):
             val = res
@@ -602,28 +603,20 @@ class PvUpdaterBulk(BackgroundThread):
                     val = numpy.asarray(val)
             pv._last_value = val
 
+            # If PV is not initialized, try to get control variables
+            if not pv._initialized:
+                try:
+                    ctrl = pv.get_ctrlvars()
+                    if ctrl:
+                        pv._initialized = True
+                except Exception as e:
+                    logging.debug(f"Async init ctrlvars for {pv.pvname} failed: {e}")
+
         # Release locks for all PVs
         for pv in pvs:
             pv.pvget_lock.release()
 
         return [pv._last_value for pv in pvs]
-
-    @staticmethod
-    def _async_init_ctrlvars(self, pv):
-        """
-        Asynchronously fetches control variables for a PV and updates its
-        _initialized flag if successful.
-
-        Args:
-            pv (SnapshotPv): The PV object to initialize.
-        """
-        with pv.pvget_lock:
-            try:
-                ctrl = pv.get_ctrlvars()
-                if ctrl:
-                    pv._initialized = True
-            except Exception as e:
-                logging.debug(f"Async init ctrlvars for {pv.pvname} failed: {e}")
 
     def _get_initial(self):
         """
@@ -633,24 +626,6 @@ class PvUpdaterBulk(BackgroundThread):
         since_start("Started initial getting PV values")
         # Bulk update the readback values.
         vals = self._bulk_update(self._pvs)
-        # Offload control variable initialization to a thread pool.
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-
-
-
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = {
-                executor.submit(self._async_init_ctrlvars, pv): pv
-                for pv in self._pvs
-                if not pv._initialized and pv.connected
-            }
-            for future in as_completed(futures):
-                try:
-                    future.result(timeout=0.1)
-                except Exception as e:
-                    pv = futures[future]
-                    logging.debug(f"Async init ctrlvars for {pv.pvname} exception: {e}")
-        
         self._finish_getting_pvs(vals)
 
     def _finish_getting_pvs(self, vals):
@@ -691,6 +666,7 @@ class PvUpdater(BackgroundThread):
 
     def __init__(self, callback=lambda: None, **kwargs):
         super().__init__(name="pv_updater", **kwargs)
+        print("PvUpdater init")
         self._callback = callback
         self._pvs = []
         self._update_rate = 5.0  # seconds

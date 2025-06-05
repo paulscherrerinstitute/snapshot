@@ -306,10 +306,10 @@ class SnapshotCompareWidget(QWidget):
 
 class PvTableColumns(enum.IntEnum):
     name = 0
-    unit = enum.auto()
-    effective_tol = enum.auto()
-    value = enum.auto()
-    snapshots = enum.auto()
+    unit = 1
+    effective_tol = 2
+    value = 3
+    snapshots = 4
 
     @staticmethod
     def snap_index(idx):
@@ -653,11 +653,11 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self._file_names = []
         self._tolerance_f = 1
 
-        self._headers = [""] * PvTableColumns.snapshots
-        self._headers[PvTableColumns.name] = "PV"
-        self._headers[PvTableColumns.unit] = "Unit"
-        self._headers[PvTableColumns.effective_tol] = "Eff. Tol."
-        self._headers[PvTableColumns.value] = "Current value"
+        self._headers = [""] * int(PvTableColumns.snapshots)
+        self._headers[int(PvTableColumns.name)] = "PV"
+        self._headers[int(PvTableColumns.unit)] = "Unit"
+        self._headers[int(PvTableColumns.effective_tol)] = "Eff. Tol."
+        self._headers[int(PvTableColumns.value)] = "Current value"
 
         if pv_updater_cls is None:
             from snapshot.core import PvUpdater
@@ -701,9 +701,9 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         # Ensure unit column is updated for each PV
         for line in self._data:
             if getattr(line._pv_ref, 'units', None):
-                line.data[PvTableColumns.unit]["data"] = line._pv_ref.units
+                line.data[int(PvTableColumns.unit)]["data"] = line._pv_ref.units
             else:
-                line.data[PvTableColumns.unit]["data"] = "UNDEF"
+                line.data[int(PvTableColumns.unit)]["data"] = "UNDEF"
         self.endResetModel()
 
     def add_snap_files(self, files: dict):
@@ -728,16 +728,11 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             if err:
                 errors.append((file_data["file_name"], err))
 
-            # To get a proper update, need to go through all existing pvs.
-            # Otherwise values of PVs listed in request but not in the saved
-            # file are not cleared (value from previous file is seen on the
-            # screen)
-            # Use just the file name without any prefix or suffix
             self._headers.append(file_name)
             for pv_line in self._data:
                 pvname = pv_line.pvname
-                pv_data = pvs_list_full_names.get(pvname, {"value": None})
-                pv_line.append_snap_value(pv_data.get("value", None))
+                pv_data = pvs_list_full_names.get(pvname, {"value": None, "raw_value": None})
+                pv_line.append_snap_value(pv_data)
         self.endInsertColumns()
         if errors:
             self.file_parse_errors.emit(errors)
@@ -746,14 +741,14 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self._file_names = []
         self.beginRemoveColumns(
             QtCore.QModelIndex(),
-            PvTableColumns.snapshots,
+            int(PvTableColumns.snapshots),
             self.columnCount(self.createIndex(-1, -1)) - 1,
         )
         # remove all snap files
         for pv_line in self._data:
             pv_line.clear_snap_values()
 
-        self._headers = self._headers[: PvTableColumns.snapshots]
+        self._headers = self._headers[: int(PvTableColumns.snapshots)]
         self.endRemoveColumns()
 
     def _replace_macros_on_file_data(self, file_data):
@@ -763,13 +758,14 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             pvs_list = file_data["pvs"]
         else:
             pvs_list, _, errors = parse_from_save_file(file_data["file_path"])
-            
         # PVS data mapped to real pvs names (no macros)
         pvs_list_full_names = {
-            SnapshotPv.macros_substitution(pv_name_raw, macros): {"value": pv_data.get("value")}
+            SnapshotPv.macros_substitution(pv_name_raw, macros): {
+                "value": pv_data.get("value"),
+                "raw_value": pv_data.get("value")
+            }
             for pv_name_raw, pv_data in pvs_list.items()
         }
-
         return pvs_list_full_names, []
 
     # Reimplementation of parent methods needed for visualization
@@ -783,7 +779,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         if not index.isValid() or index.row() >= len(self._data) or index.column() >= len(self._data[index.row()].data):
             return None
             
-        if role == QtCore.Qt.ToolTipRole and index.column() == 2:
+        if role == QtCore.Qt.ToolTipRole and index.column() == int(PvTableColumns.effective_tol):
             return (
                 ""
                 if self._data[index.row()]._string_enum
@@ -806,7 +802,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
     def _emit_data_changed(self):
         # No need to update PV names, units
         self.dataChanged.emit(
-            self.createIndex(0, PvTableColumns.value),
+            self.createIndex(0, int(PvTableColumns.value)),
             self.createIndex(len(self._data), self.columnCount() - 1),
         )
 
@@ -877,18 +873,18 @@ class SnapshotPvTableLine(QtCore.QObject):
         self._precision_loaded = False
         self._config_loaded = False
 
-        self.data = [None] * PvTableColumns.snapshots
-        self.data[PvTableColumns.name] = {"data": pv_ref.pvname}
+        self.data = [None] * int(PvTableColumns.snapshots)
+        self.data[int(PvTableColumns.name)] = {"data": pv_ref.pvname}
         # Set unit to the PV's unit if available, otherwise 'UNDEF'
         unit_val = pv_ref.units if getattr(pv_ref, 'units', None) else "UNDEF"
-        self.data[PvTableColumns.unit] = {"data": unit_val, "icon": None}
-        self.data[PvTableColumns.effective_tol] = (
+        self.data[int(PvTableColumns.unit)] = {"data": unit_val, "icon": None}
+        self.data[int(PvTableColumns.effective_tol)] = (
             {"data": ""} if self._string_enum else {"data": self.effective_tolerance}
         )
 
-        print(self.data[PvTableColumns.unit])
+        # print(self.data[int(PvTableColumns.unit)])
 
-        self.data[PvTableColumns.value] = {
+        self.data[int(PvTableColumns.value)] = {
             "data": "PV disconnected",
             "icon": self._WARN_ICON,
         }
@@ -901,12 +897,12 @@ class SnapshotPvTableLine(QtCore.QObject):
 
         if pv_ref.connected:
             self.conn = pv_ref.connected
-            self.data[PvTableColumns.value]["data"] = ""
-            self.data[PvTableColumns.value]["icon"] = None
+            self.data[int(PvTableColumns.value)]["data"] = ""
+            self.data[int(PvTableColumns.value)]["icon"] = None
             self._precision = self._pv_ref.precision
             # Update unit if available
             if getattr(self._pv_ref, 'units', None):
-                self.data[PvTableColumns.unit]["data"] = self._pv_ref.units
+                self.data[int(PvTableColumns.unit)]["data"] = self._pv_ref.units
         else:
             self.conn = False
 
@@ -948,23 +944,23 @@ class SnapshotPvTableLine(QtCore.QObject):
     def change_tolerance_line(self, tol_f):
         self._tolerance_f = tol_f
         # update eff. tol column
-        self.data[PvTableColumns.effective_tol] = (
+        self.data[int(PvTableColumns.effective_tol)] = (
             {"data": ""} if self._string_enum else {"data": self.effective_tolerance}
         )
         self._compare()
 
-    def append_snap_value(self, value):
+    def append_snap_value(self, value_dict):
+        value = value_dict.get("raw_value") if isinstance(value_dict, dict) else value_dict
         if value is not None:
-            # if pv is not connected:
-            # precision and string representation is not available
             if self.precision is None:
                 self._precision = 6
-            sval = SnapshotPvTableLine.string_repr_snap_value(value, self.precision)
+            if isinstance(value, str):
+                sval = value
+            else:
+                sval = SnapshotPvTableLine.string_repr_snap_value(value, self.precision)
             self.data.append({"data": sval, "raw_value": value})
         else:
             self.data.append({"data": "UNDEF", "icon": None, "raw_value": None})
-
-        # Do compare
         self._compare()
 
     def change_snap_value(self, column_idx, value):
@@ -978,14 +974,14 @@ class SnapshotPvTableLine(QtCore.QObject):
         self._compare()
 
     def clear_snap_values(self):
-        self.data = self.data[: PvTableColumns.snapshots]
+        self.data = self.data[: int(PvTableColumns.snapshots)]
         self._compare()
 
     def are_snap_values_eq(self):
         n_files = self.get_snap_count()
         if n_files >= 2:
-            first_data = self.data[PvTableColumns.snapshots]["raw_value"]
-            for data in self.data[PvTableColumns.snapshots + 1 :]:
+            first_data = self.data[int(PvTableColumns.snapshots)]["raw_value"]
+            for data in self.data[int(PvTableColumns.snapshots) + 1 :]:
                 if not SnapshotPv.compare(
                     first_data,
                     data["raw_value"],
@@ -1006,7 +1002,7 @@ class SnapshotPvTableLine(QtCore.QObject):
             return False
 
     def get_snap_count(self):
-        return len(self.data[PvTableColumns.snapshots :])
+        return len(self.data[int(PvTableColumns.snapshots) :])
 
     def _compare(self, pv_value=None, get_missing=True):
         if pv_value is None and get_missing and self._pv_ref.connected:
@@ -1017,13 +1013,13 @@ class SnapshotPvTableLine(QtCore.QObject):
         n_files = self.get_snap_count()
         if n_files > 0:
             values = [pv_value] + [
-                x["raw_value"] for x in self.data[PvTableColumns.snapshots :]
+                x["raw_value"] for x in self.data[int(PvTableColumns.snapshots) :]
             ]
             tolerance = self.tolerance_from_precision()
             connected = self._pv_ref.connected
             for i in range(1, len(values)):
                 comparison = SnapshotPv.compare(values[i - 1], values[i], tolerance)
-                snap = self.data[PvTableColumns.snapshots + i - 1]
+                snap = self.data[int(PvTableColumns.snapshots) + i - 1]
                 if i == 1 and not connected:
                     snap["icon"] = self._WARN_ICON
                 elif not comparison:
@@ -1035,7 +1031,7 @@ class SnapshotPvTableLine(QtCore.QObject):
                 # get the desired str representation of it
                 try:
                     if 0 <= int(snap["data"]) < len(self._pv_ref.enum_strs):
-                        self.data[PvTableColumns.snapshots + i - 1]["data"] = (
+                        self.data[int(PvTableColumns.snapshots) + i - 1]["data"] = (
                             self._pv_ref.enum_strs[int(snap["data"])]
                         )
                 except (TypeError, ValueError, IndexError):
@@ -1060,8 +1056,8 @@ class SnapshotPvTableLine(QtCore.QObject):
             return SnapshotPv.value_to_display_str(value, precision)
 
     def update_pv_value(self, pv_value):
-        value_col = self.data[PvTableColumns.value]
-        unit_col = self.data[PvTableColumns.unit]
+        value_col = self.data[int(PvTableColumns.value)]
+        unit_col = self.data[int(PvTableColumns.unit)]
 
         # Since sometimes the precision fails to load
         # properly at the beginning, this will reload it
@@ -1089,7 +1085,7 @@ class SnapshotPvTableLine(QtCore.QObject):
                 enum_str_value = self._pv_ref.enum_strs[int(pv_value)]
                 new_value = enum_str_value
                 self._string_enum = True
-                self.data[PvTableColumns.effective_tol] = (
+                self.data[int(PvTableColumns.effective_tol)] = (
                     {"data": ""}
                     if self._string_enum
                     else {"data": self.effective_tolerance}
@@ -1110,7 +1106,7 @@ class SnapshotPvTableLine(QtCore.QObject):
 
     def _handle_conn_callback(self, data):
         self.conn = data.get("conn")
-        self.data[PvTableColumns.value] = (
+        self.data[int(PvTableColumns.value)] = (
             {"data": "", "icon": None}
             if self.conn
             else {"data": "PV disconnected", "icon": self._WARN_ICON}
