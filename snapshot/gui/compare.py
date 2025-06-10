@@ -714,7 +714,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             if getattr(line._pv_ref, 'units', None):
                 line.data[int(PvTableColumns.unit)]["data"] = line._pv_ref.units
             else:
-                line.data[int(PvTableColumns.unit)]["data"] = "UNDEF"
+                line.data[int(PvTableColumns.unit)]["data"] = ""
         self.endResetModel()
         self.update_pv_column_name()
 
@@ -889,14 +889,12 @@ class SnapshotPvTableLine(QtCore.QObject):
 
         self.data = [None] * int(PvTableColumns.snapshots)
         self.data[int(PvTableColumns.name)] = {"data": pv_ref.pvname}
-        # Set unit to the PV's unit if available, otherwise 'UNDEF'
-        unit_val = pv_ref.units if getattr(pv_ref, 'units', None) else "UNDEF"
+        # Set unit to the PV's unit if available, otherwise empty string
+        unit_val = pv_ref.units if getattr(pv_ref, 'units', None) else ""
         self.data[int(PvTableColumns.unit)] = {"data": unit_val, "icon": None}
         self.data[int(PvTableColumns.effective_tol)] = (
             {"data": ""} if self._string_enum else {"data": self.effective_tolerance}
         )
-
-        # print(self.data[int(PvTableColumns.unit)])
 
         self.data[int(PvTableColumns.value)] = {
             "data": "PV disconnected",
@@ -974,7 +972,7 @@ class SnapshotPvTableLine(QtCore.QObject):
                 sval = SnapshotPvTableLine.string_repr_snap_value(value, self.precision)
             self.data.append({"data": sval, "raw_value": value})
         else:
-            self.data.append({"data": "UNDEF", "icon": None, "raw_value": None})
+            self.data.append({"data": "", "icon": None, "raw_value": None})
         self._compare()
 
     def change_snap_value(self, column_idx, value):
@@ -1085,7 +1083,7 @@ class SnapshotPvTableLine(QtCore.QObject):
         if getattr(self._pv_ref, 'units', None):
             unit_col["data"] = self._pv_ref.units
         else:
-            unit_col["data"] = "UNDEF"
+            unit_col["data"] = ""
 
         if pv_value is None:
             value_col["data"] = ""

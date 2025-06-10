@@ -291,7 +291,7 @@ class SnapshotGui(QMainWindow):
         self.save_widget.handle_new_snapshot_instance(self.snapshot)
         self.compare_widget.handle_new_snapshot_instance(self.snapshot)
 
-        self.setWindowTitle(os.path.basename(req_file_path) + " - Snapshot")
+        self.setWindowTitle(os.path.basename(req_file_path) + " - Snapshot DEV")
 
         self.status_bar.set_status("New request file loaded.", 3000, "#64C864")
         background_workers.resume()
@@ -409,10 +409,10 @@ class SnapshotStatusLog(QWidget):
             datetime.datetime.fromtimestamp(t).strftime("%H:%M:%S.%f")
             for t in msg_times
         )
-        self.sts_log.insertPlainText(
-            "\n".join("[{}] {}".format(*t) for t in zip(msg_times, msgs)) + "\n"
+        self.sts_log.appendPlainText(
+            "\n".join("[{}] {}".format(*t) for t in zip(msg_times, msgs))
         )
-        self.sts_log.ensureCursorVisible()
+        self.sts_log.verticalScrollBar().setValue(self.sts_log.verticalScrollBar().maximum())
 
 
 class SnapshotStatus(QStatusBar):

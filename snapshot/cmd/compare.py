@@ -128,7 +128,7 @@ class StandaloneCompareWindow(QMainWindow):
         self.pv_update_time.addItems(["1s", "5s", "10s", "15s", "30s"])
         # self.pv_update_time.setMinimumWidth(25)
         self.pv_update_time.setMaximumWidth(50)
-        self.pv_update_time.setCurrentIndex(4)  # Start with 5s
+        self.pv_update_time.setCurrentIndex(1)  # Start with 5s
         self.pv_update_time.currentIndexChanged.connect(self.set_pv_update_timer)
 
         left_layout = QVBoxLayout()
@@ -251,7 +251,7 @@ class StandaloneCompareWindow(QMainWindow):
         # handle all gui components
         self.compare_widget.handle_new_snapshot_instance(self.snapshot)
 
-        self.setWindowTitle(os.path.basename(req_file_path) + " - Snapshot")
+        self.setWindowTitle(os.path.basename(req_file_path) + " - Snapshot DEV")
 
         self.status_bar.set_status("New file loaded.", 3000, "#64C864")
         background_workers.resume()
