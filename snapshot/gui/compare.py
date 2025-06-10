@@ -671,6 +671,17 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         app.aboutToQuit.connect(self._updater.stop)
         QtCore.QTimer.singleShot(0, self._updater.start)
 
+    def update_pv_column_name(self):
+        """Update the PV column name with the count of visible PVs"""
+        # Get the filtered PVs from the proxy model
+        proxy_model = self.parent().view.model()
+        if proxy_model:
+            visible_count = len(proxy_model.get_filtered_pvs())
+        else:
+            visible_count = len(self._data)
+        self._headers[int(PvTableColumns.name)] = f"PV ({visible_count})"
+        self.headerDataChanged.emit(QtCore.Qt.Horizontal, int(PvTableColumns.name), int(PvTableColumns.name))
+
     def get_snap_file_names(self):
         return self._file_names
 
@@ -705,6 +716,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
             else:
                 line.data[int(PvTableColumns.unit)]["data"] = "UNDEF"
         self.endResetModel()
+        self.update_pv_column_name()
 
     def add_snap_files(self, files: dict):
         """
@@ -736,6 +748,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
         self.endInsertColumns()
         if errors:
             self.file_parse_errors.emit(errors)
+        self.update_pv_column_name()
 
     def clear_snap_files(self):
         self._file_names = []
@@ -750,6 +763,7 @@ class SnapshotPvTableModel(QtCore.QAbstractTableModel):
 
         self._headers = self._headers[: int(PvTableColumns.snapshots)]
         self.endRemoveColumns()
+        self.update_pv_column_name()
 
     def _replace_macros_on_file_data(self, file_data):
         macros = self.snapshot.macros or file_data["meta_data"].get("macros", dict())
@@ -1151,6 +1165,8 @@ class SnapshotPvFilterProxyModel(QSortFilterProxyModel):
     def apply_filter(self):
         # during invalidateFilter(), filterAcceptsRow() is called for each row
         self.invalidateFilter()
+        # Update the PV count in the source model
+        self.sourceModel().update_pv_column_name()
 
     def lessThan(self, lhs: QtCore.QModelIndex, rhs: QtCore.QModelIndex) -> bool:
         try:

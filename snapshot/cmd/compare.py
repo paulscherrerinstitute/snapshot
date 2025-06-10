@@ -6,7 +6,7 @@ import glob
 import datetime
 from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QWidget, QCheckBox, QDialog, QMessageBox
 from PyQt5.QtCore import Qt, QTimer
-
+import time 
 from snapshot.gui.utils import DetailedMsgBox
 from snapshot.gui.snapshot_gui import SnapshotCompareWidget, SnapshotStatusLog, SnapshotStatus, SnapshotConfigureDialog, Snapshot, SnapshotRestoreWidget
 from snapshot.core import SnapshotError, background_workers, since_start, SnapshotPv, PvUpdaterBulk, PvUpdater
@@ -94,7 +94,7 @@ class StandaloneCompareWindow(QMainWindow):
         self.show_log_control = QCheckBox("Show status log")
         self.show_log_control.setStyleSheet("background-color: transparent")
         self.show_log_control.stateChanged.connect(self.status_log.setVisible)
-        self.status_log.setVisible(False)
+        self.status_log.setVisible(True)
         self.status_bar.addPermanentWidget(self.show_log_control)
 
         # Creating main layout
@@ -128,7 +128,7 @@ class StandaloneCompareWindow(QMainWindow):
         self.pv_update_time.addItems(["1s", "5s", "10s", "15s", "30s"])
         # self.pv_update_time.setMinimumWidth(25)
         self.pv_update_time.setMaximumWidth(50)
-        self.pv_update_time.setCurrentIndex(1)  # Start with 5s
+        self.pv_update_time.setCurrentIndex(4)  # Start with 5s
         self.pv_update_time.currentIndexChanged.connect(self.set_pv_update_timer)
 
         left_layout = QVBoxLayout()
@@ -183,10 +183,13 @@ class StandaloneCompareWindow(QMainWindow):
 
         # Schedule the timer change after 100ms
         QTimer.singleShot(100, self._reset_update_timer)
+        self.status_log.log_msgs("GUI initialized...", time.time())
+        self.snapshot.set_status_log(self.status_log)
+        
 
     def _reset_update_timer(self):
         """Reset the update timer to 5s after initial 1s period"""
-        self.pv_update_time.setCurrentIndex(1)  # Set to 5s
+        self.pv_update_time.setCurrentIndex(4)  # Set to 30s
 
     def handle_selected_files(self, selected_files):
         # selected_files is a dict() with file names as keywords and
@@ -316,7 +319,7 @@ class StandaloneCompareWindow(QMainWindow):
         req_macros = req_macros or {}
         reopen_config = False
         try:
-            self.snapshot = Snapshot(req_file_path, req_macros, use_bulk_add=True)
+            self.snapshot = Snapshot(req_file_path, req_macros, use_bulk_add=True, status_log=self.status_log)
             self.set_request_file(req_file_path, req_macros)
 
             # readonly mode detection

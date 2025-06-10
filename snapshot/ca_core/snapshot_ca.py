@@ -49,7 +49,7 @@ class ActionStatus(Enum):
 
 
 class Snapshot(object):
-    def __init__(self, req_file_path=None, macros=None, use_bulk_add=False):
+    def __init__(self, req_file_path=None, macros=None, use_bulk_add=False, status_log=None):
         """
         Main snapshot class. Provides methods to handle PVs from request or snapshot files and to create, delete, etc
         snap (saved) files
@@ -68,6 +68,7 @@ class Snapshot(object):
             macros = {}
 
         self.pvs = {}
+        self.status_log = status_log
         self.macros = macros
         self.req_file_path = ""
         self.req_file_metadata = {}
@@ -94,12 +95,13 @@ class Snapshot(object):
             since_start("Finished parsing reqfile")
 
             self.req_file_metadata = metadata
-            print("USE BULK ADD", self.use_bulk_add)
             if self.use_bulk_add:
-                print("BUUUULK ADD PVS)")
                 self.add_pvs_bulk(pvs, pvs_config)
             else:
                 self.add_pvs(pvs, pvs_config)
+
+    def set_status_log(self, status_log):
+        self.status_log = status_log
 
     def add_pvs_bulk(self, pv_list, pv_configs):
         """Creates SnapshotPv objects for each PV in list using parallel processing.
@@ -108,7 +110,6 @@ class Snapshot(object):
         :param pv_configs: List of dictionaries with PV configurations.
         :return:
         """
-        print("Using add_pvs_bulk method for parallel processing")
         if not pv_list:
             return
 
@@ -139,7 +140,7 @@ class Snapshot(object):
 
                 thread_id = threading.get_ident()
                 batch_start = time.time()
-                logging.info(f"Processing batch in thread {thread_id} with {len(batch_names)} PVs")
+                self.status_log.log_msgs(f"Processing batch in thread {thread_id} with {len(batch_names)} PVs", time.time())
 
                 # Use caget_many for bulk operations
                 caget_start = time.time()
@@ -150,11 +151,10 @@ class Snapshot(object):
                 process_start = time.time()
                 values = {name: val for name, val in zip(batch_names, results) if val is not None}
                 process_time = time.time() - process_start
-
-                logging.info(f"Batch stats - Thread {thread_id}: caget={caget_time:.3f}s, processing={process_time:.3f}s, success_rate={len(values)/len(batch_names)*100:.1f}%")
+                self.status_log.log_msgs(f"Batch stats - Thread {thread_id}: caget={caget_time:.3f}s, processing={process_time:.3f}s, success_rate={len(values)/len(batch_names)*100:.1f}%", time.time())
 
             except Exception as e:
-                logging.debug(f"Batch caget_many failed, falling back to individual gets: {e}")
+                self.status_log.log_msgs(f"Batch caget_many failed, falling back to individual gets: {e}", time.time())
                 values = {}
 
             # Create PV objects and initialize them with the values we got
@@ -195,7 +195,7 @@ class Snapshot(object):
 
             pv_create_time = time.time() - batch_start
             total_time = time.time() - batch_start
-            logging.info(f"Batch complete - Thread {thread_id}: pv_creation={pv_create_time:.3f}s, total={total_time:.3f}s, pvs_created={len(batch_pvs)}")
+            self.status_log.log_msgs(f"Batch complete - Thread {thread_id}: pv_creation={pv_create_time:.3f}s, total={total_time:.3f}s, pvs_created={len(batch_pvs)}", time.time())
             return batch_pvs
 
         # Split PVs into batches
@@ -205,7 +205,7 @@ class Snapshot(object):
         batches = [processed_names[i:i + BATCH_SIZE]
                   for i in range(0, len(processed_names), BATCH_SIZE)]
 
-        logging.info(f"Starting parallel processing of {len(processed_names)} PVs in {len(batches)} batches")
+        self.status_log.log_msgs(f"Starting parallel processing of {len(processed_names)} PVs in {len(batches)} batches", time.time())
 
         # Process batches in parallel
         with concurrent.futures.ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
@@ -223,7 +223,14 @@ class Snapshot(object):
 
         total_time = time.time() - total_start
         success_rate = total_pvs / len(processed_names) * 100 if processed_names else 0
-        logging.info(f"All batches complete: total_time={total_time:.3f}s, success_rate={success_rate:.1f}% ({total_pvs}/{len(processed_names)} PVs)")
+        self.status_log.log_msgs(f"All batches complete: total_time={total_time:.3f}s, success_rate={success_rate:.1f}% ({total_pvs}/{len(processed_names)} PVs)", time.time())
+
+        # Count connected and disconnected PVs
+        total_pvs = len(self.pvs)
+        connected_pvs = sum(1 for pv in self.pvs.values() if pv.connected)
+        disconnected_pvs = total_pvs - connected_pvs
+
+        self.status_log.log_msgs(f"PV Statistics - Total: {total_pvs}, Connected: {connected_pvs}, Disconnected: {disconnected_pvs}", time.time())
 
     def add_pvs(self, pv_list, pv_configs):
         """
@@ -233,7 +240,6 @@ class Snapshot(object):
 
         :return:
         """
-        print("Using add_pvs method for sequential processing")
         since_start("Started adding PVs")
 
         # pyepics will handle PVs to have only one connection per PV.
@@ -256,6 +262,13 @@ class Snapshot(object):
                     self.pvs[pv_ref.pvname] = pv_ref
 
         since_start("Finished adding PVs")
+
+        # Count connected and disconnected PVs
+        total_pvs = len(self.pvs)
+        connected_pvs = sum(1 for pv in self.pvs.values() if pv.connected)
+        disconnected_pvs = total_pvs - connected_pvs
+
+        self.status_log.log_msgs(f"PV Statistics - Total: {total_pvs}, Connected: {connected_pvs}, Disconnected: {disconnected_pvs}", time.time())
 
     def remove_pvs(self, pv_list):
         """

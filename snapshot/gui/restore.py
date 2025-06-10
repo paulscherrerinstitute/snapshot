@@ -517,7 +517,7 @@ class SnapshotRestoreFileSelector(QWidget):
         self.pvs = {}
 
         # Filter handling
-        self.file_filter = {"keys": [], "comment": ""}
+        self.file_filter = {"keys": [], "comment": "", "name": ""}
         self.filter_input = SnapshotFileFilterWidget(self.common_settings, self)
 
         self.filter_input.file_filter_updated.connect(self.filter_file_list_selector)
@@ -570,117 +570,27 @@ class SnapshotRestoreFileSelector(QWidget):
         self.filter_input.clear()
         self.snapshot = snapshot
 
-    def rebuild_file_list(self, already_parsed_files=None):
-        background_workers.suspend()
-        self.clear_file_selector()
-        self.file_selector.setSortingEnabled(False)
-        if already_parsed_files:
-            save_files, err_to_report = already_parsed_files
-        else:
-            save_dir = self.common_settings["save_dir"]
-            req_file_path = self.common_settings["req_file_path"]
-            save_files, err_to_report = get_save_files(save_dir, req_file_path)
-
-        self._update_file_list_selector(save_files)
-        self.filter_file_list_selector()
-
-        # Report any errors with snapshot files to the user
-        if err_to_report:
-            show_snapshot_parse_errors(self, err_to_report)
-
-        self.file_selector.setSortingEnabled(True)
-        self.files_updated.emit(save_files)
-        background_workers.resume()
-
-    def _update_file_list_selector(self, file_list):
-        new_labels = set()
-        new_params = set()
-        for new_file, new_data in file_list.items():
-            meta_data = new_data["meta_data"]
-            labels = meta_data.get("labels", [])
-            params = meta_data.get("machine_params", {})
-
-            assert new_file not in self.file_list
-            new_labels.update(labels)
-            new_params.update(params.keys())
-
-        new_labels = list(new_labels)
-        new_params = list(new_params)
-        defined_params = list(self.common_settings["machine_params"].keys())
-        all_params = defined_params + [p for p in new_params if p not in defined_params]
-        for new_file, new_data in file_list.items():
-            meta_data = new_data["meta_data"]
-            labels = meta_data.get("labels", [])
-            params = meta_data.get("machine_params", {})
-            comment = meta_data.get("comment", "")
-
-            row = [new_file, comment, " ".join(labels)]
-            assert len(row) == FileSelectorColumns.params
-            param_vals = [None] * len(all_params)
-            for p, v in params.items():
-                string = SnapshotPv.value_to_display_str(
-                    v["value"],
-                    v["precision"] if v["precision"] is not None else 0,
-                )
-                idx = all_params.index(p)
-                param_vals[idx] = string
-            selector_item = QTreeWidgetItem(row + param_vals)
-            self.file_selector.addTopLevelItem(selector_item)
-            self.file_list[new_file] = new_data
-            self.file_list[new_file]["file_selector"] = selector_item
-
-        self.common_settings["existing_labels"] = new_labels
-        self.common_settings["existing_params"] = new_params
-        self.filter_input.update_params()
-
-        # Add units to column headers; get units from the latest file that has
-        # them.
-        params_mtimes = [
-            (data["meta_data"]["machine_params"], data["modif_time"])
-            for data in file_list.values()
-        ]
-        params_mtimes.sort(key=lambda d: d[1], reverse=True)
-        for i, p in enumerate(all_params):
-            for file_params, _ in params_mtimes:
-                if file_params.get(p, {}).get("units", None):
-                    all_params[i] += f" ({file_params[p]['units']})"
-                    break
-
-        headers = self.column_labels + all_params
-        self.file_selector.setColumnCount(len(headers))
-        self.file_selector.setHeaderLabels(headers)
-        self.file_selector.resizeColumnToContents(0)
-
-        # There can be some rather long comments in the snapshots, so let's
-        # make sure that they don't push out more useful stuff.
-        if self.file_selector.columnWidth(
-            FileSelectorColumns.comment
-        ) > self.file_selector.columnWidth(FileSelectorColumns.filename):
-            self.file_selector.setColumnWidth(
-                FileSelectorColumns.comment,
-                self.file_selector.columnWidth(FileSelectorColumns.filename),
-            )
+    def update_file_column_name(self):
+        """Update the file name column header with the count of visible files"""
+        visible_count = sum(1 for i in range(self.file_selector.topLevelItemCount()) 
+                          if not self.file_selector.topLevelItem(i).isHidden())
+        self.column_labels[FileSelectorColumns.filename] = f"File name ({visible_count})"
+        self.file_selector.setHeaderLabels(self.column_labels)
 
     def filter_file_list_selector(self):
         file_filter = self.filter_input.file_filter
 
         def ensure_nums_or_strings(*vals):
-            """Variables have to be all numbers or all strings. If this is not
-            the case, convert everything to strings."""
-            if not all((isinstance(x, (int, float)) for x in vals)):
-                return tuple((str(x) for x in vals))
-            return vals
+            # Convert all values to either numbers or strings
+            try:
+                return [float(v) for v in vals]
+            except (ValueError, TypeError):
+                return [str(v) for v in vals]
 
         def check_params(params_filter, file_params):
-            """
-            file_params is a dict of machine params and their data (being a
-            dict containing 'value' and 'precision').
-            params_filter is a dict of machine params and corresponding lists.
-            These lists have either one or two elements, causing either an
-            equality or in-range check.
+            if not params_filter:
+                return True
 
-            Returns True if all checks pass.
-            """
             for p, vals in params_filter.items():
                 if p not in file_params:
                     return False
@@ -773,6 +683,119 @@ class SnapshotRestoreFileSelector(QWidget):
                         name_status and keys_status and comment_status and params_status
                     )
                 )
+        
+        self.update_file_column_name()
+
+    def rebuild_file_list(self, already_parsed_files=None):
+        background_workers.suspend()
+        self.clear_file_selector()
+        self.file_selector.setSortingEnabled(False)
+        if already_parsed_files:
+            save_files, err_to_report = already_parsed_files
+        else:
+            save_dir = self.common_settings["save_dir"]
+            req_file_path = self.common_settings["req_file_path"]
+            save_files, err_to_report = get_save_files(save_dir, req_file_path)
+
+        self._update_file_list_selector(save_files)
+        self.filter_file_list_selector()
+
+        # Report any errors with snapshot files to the user
+        if err_to_report:
+            show_snapshot_parse_errors(self, err_to_report)
+
+        self.file_selector.setSortingEnabled(True)
+        self.files_updated.emit(save_files)
+        background_workers.resume()
+
+    def _update_file_list_selector(self, file_list):
+        new_labels = set()
+        new_params = set()
+        for new_file, new_data in file_list.items():
+            meta_data = new_data["meta_data"]
+            labels = meta_data.get("labels", [])
+            params = meta_data.get("machine_params", {})
+
+            assert new_file not in self.file_list
+            new_labels.update(labels)
+            new_params.update(params.keys())
+
+        new_labels = list(new_labels)
+        new_params = list(new_params)
+        defined_params = list(self.common_settings["machine_params"].keys())
+        all_params = defined_params + [p for p in new_params if p not in defined_params]
+        for new_file, new_data in file_list.items():
+            meta_data = new_data["meta_data"]
+            labels = meta_data.get("labels", [])
+            params = meta_data.get("machine_params", {})
+            comment = meta_data.get("comment", "")
+
+            row = [new_file, comment, " ".join(labels)]
+            assert len(row) == FileSelectorColumns.params
+            param_vals = [None] * len(all_params)
+            for p, v in params.items():
+                string = SnapshotPv.value_to_display_str(
+                    v["value"],
+                    v["precision"] if v["precision"] is not None else 0,
+                )
+                idx = all_params.index(p)
+                param_vals[idx] = string
+            selector_item = QTreeWidgetItem(row + param_vals)
+            self.file_selector.addTopLevelItem(selector_item)
+            self.file_list[new_file] = new_data
+            self.file_list[new_file]["file_selector"] = selector_item
+
+        self.common_settings["existing_labels"] = new_labels
+        self.common_settings["existing_params"] = new_params
+        self.filter_input.update_params()
+
+        # Add units to column headers; get units from the latest file that has
+        # them.
+        params_mtimes = [
+            (data["meta_data"]["machine_params"], data["modif_time"])
+            for data in file_list.values()
+        ]
+        params_mtimes.sort(key=lambda d: d[1], reverse=True)
+        for i, p in enumerate(all_params):
+            for file_params, _ in params_mtimes:
+                if file_params.get(p, {}).get("units", None):
+                    all_params[i] += f" ({file_params[p]['units']})"
+                    break
+
+        headers = self.column_labels + all_params
+        self.file_selector.setColumnCount(len(headers))
+        self.file_selector.setHeaderLabels(headers)
+        self.file_selector.resizeColumnToContents(0)
+
+        # There can be some rather long comments in the snapshots, so let's
+        # make sure that they don't push out more useful stuff.
+        if self.file_selector.columnWidth(
+            FileSelectorColumns.comment
+        ) > self.file_selector.columnWidth(FileSelectorColumns.filename):
+            self.file_selector.setColumnWidth(
+                FileSelectorColumns.comment,
+                self.file_selector.columnWidth(FileSelectorColumns.filename),
+            )
+        
+        self.update_file_column_name()
+
+    def clear_file_selector(self):
+        self.file_selector.clear()  # Clears and "deselects" itmes on file selector
+        self.select_files()  # Process new,empty list of selected files
+        self.pvs = {}
+        self.file_list = {}
+        self.update_file_column_name()
+
+    def select_files(self):
+        # Pre-process selected items, to a list of files
+        self.selected_files = []
+        if self.file_selector.selectedItems():
+            self.selected_files.extend(
+                item.text(FileSelectorColumns.filename)
+                for item in self.file_selector.selectedItems()
+            )
+
+        self.files_selected.emit(self.selected_files)
 
     def open_menu(self, point):
         item_idx = self.file_selector.indexAt(point)
@@ -811,17 +834,6 @@ class SnapshotRestoreFileSelector(QWidget):
 
         menu.exec(QCursor.pos())
         menu.deleteLater()
-
-    def select_files(self):
-        # Pre-process selected items, to a list of files
-        self.selected_files = []
-        if self.file_selector.selectedItems():
-            self.selected_files.extend(
-                item.text(FileSelectorColumns.filename)
-                for item in self.file_selector.selectedItems()
-            )
-
-        self.files_selected.emit(self.selected_files)
 
     def delete_files(self):
         if not self.selected_files:
@@ -913,12 +925,6 @@ class SnapshotRestoreFileSelector(QWidget):
                 QMessageBox.Ok,
                 QMessageBox.NoButton,
             )
-
-    def clear_file_selector(self):
-        self.file_selector.clear()  # Clears and "deselects" itmes on file selector
-        self.select_files()  # Process new,empty list of selected files
-        self.pvs = {}
-        self.file_list = {}
 
 
 def num_or_string(string):

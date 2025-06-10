@@ -308,7 +308,7 @@ class SnapshotGui(QMainWindow):
         req_macros = req_macros or {}
         reopen_config = False
         try:
-            self.snapshot = Snapshot(req_file_path, req_macros)
+            self.snapshot = Snapshot(req_file_path, req_macros, status_log=self.status_log)
             self.set_request_file(req_file_path, req_macros)
 
             # readonly mode detection
