@@ -669,7 +669,6 @@ class PvUpdater(BackgroundThread):
 
     def __init__(self, callback=lambda: None, **kwargs):
         super().__init__(name="pv_updater", **kwargs)
-        print("PvUpdater init")
         self._callback = callback
         self._pvs = []
         self._update_rate = 5.0  # seconds
