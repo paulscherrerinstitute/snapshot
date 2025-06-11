@@ -29,6 +29,40 @@ from snapshot.ca_core import parse_macros
 from snapshot.parser import MacroError
 
 
+def get_version():
+    """Get the current version from git tag."""
+    try:
+        import subprocess
+        import os
+        
+        # Find the repository root by looking for .git directory
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        repo_root = current_dir
+        while repo_root != os.path.dirname(repo_root):  # Stop at filesystem root
+            if os.path.exists(os.path.join(repo_root, '.git')):
+                break
+            repo_root = os.path.dirname(repo_root)
+        
+        # Get the latest tag
+        try:
+            version = subprocess.check_output(['git', 'describe', '--tags', '--abbrev=0'], 
+                                            stderr=subprocess.PIPE, cwd=repo_root).decode().strip()            
+            # Check if there are any commits after the tag
+            try:
+                subprocess.check_output(['git', 'describe', '--tags', '--exact-match'], 
+                                      stderr=subprocess.PIPE, cwd=repo_root)
+                return version  # No commits after tag
+            except subprocess.CalledProcessError:
+                return version + "-dev"  # Has commits after tag
+        except subprocess.CalledProcessError as e:
+            print(f"Error getting latest tag: {e.stderr.decode()}")
+            return "unknown"
+    except Exception:
+        return "unknown"
+
+
+
+
 def parse_dict_macros_to_text(macros):
     """
     Converting dict() separated macros string to comma separated.

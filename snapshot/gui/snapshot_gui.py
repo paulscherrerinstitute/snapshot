@@ -34,7 +34,7 @@ from snapshot.core import SnapshotError, background_workers, enable_tracing, sin
 from snapshot.gui.compare import SnapshotCompareWidget
 from snapshot.gui.restore import SnapshotRestoreWidget
 from snapshot.gui.save import SnapshotSaveWidget
-from snapshot.gui.utils import DetailedMsgBox, SnapshotConfigureDialog, make_separator
+from snapshot.gui.utils import DetailedMsgBox, SnapshotConfigureDialog, make_separator, get_version
 from snapshot.parser import get_save_files, initialize_config
 from snapshot.request_files.snapshot_file import ReqParseError
 
@@ -203,7 +203,7 @@ class SnapshotGui(QMainWindow):
         # Show GUI and manage window properties
         self.show()
         self.setWindowTitle(
-            os.path.basename(self.common_settings["req_file_path"]) + " - Snapshot"
+            os.path.basename(self.common_settings["req_file_path"]) + " - Snapshot v" + get_version()
         )
 
         # Status log default height should be 100px Set with splitter methods
@@ -291,7 +291,7 @@ class SnapshotGui(QMainWindow):
         self.save_widget.handle_new_snapshot_instance(self.snapshot)
         self.compare_widget.handle_new_snapshot_instance(self.snapshot)
 
-        self.setWindowTitle(os.path.basename(req_file_path) + " - Snapshot DEV")
+        self.setWindowTitle(os.path.basename(req_file_path) + " - Snapshot v" + get_version())
 
         self.status_bar.set_status("New request file loaded.", 3000, "#64C864")
         background_workers.resume()
@@ -412,7 +412,8 @@ class SnapshotStatusLog(QWidget):
         self.sts_log.appendPlainText(
             "\n".join("[{}] {}".format(*t) for t in zip(msg_times, msgs))
         )
-        self.sts_log.verticalScrollBar().setValue(self.sts_log.verticalScrollBar().maximum())
+        # Use moveCursor to scroll to the end
+        self.sts_log.moveCursor(self.sts_log.textCursor().End)
 
 
 class SnapshotStatus(QStatusBar):

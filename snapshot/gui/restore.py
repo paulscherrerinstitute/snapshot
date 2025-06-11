@@ -126,6 +126,29 @@ class FileListScanner(QtCore.QObject, BackgroundThread):
                 self._internal_sig.emit()
 
 
+class SortableTreeWidgetItem(QTreeWidgetItem):
+    """Custom QTreeWidgetItem that implements proper sorting for different data types"""
+    
+    def __lt__(self, other):
+        column = self.treeWidget().sortColumn()
+        
+        # Get the sort data we stored using Qt.UserRole
+        self_data = self.data(column, Qt.UserRole)
+        other_data = other.data(column, Qt.UserRole)
+        
+        # If we have sort data, use it; otherwise fall back to text comparison
+        if self_data is not None and other_data is not None:
+            # Handle different data types
+            if isinstance(self_data, (int, float)) and isinstance(other_data, (int, float)):
+                return self_data < other_data
+            else:
+                # String comparison (case-insensitive)
+                return str(self_data).lower() < str(other_data).lower()
+        
+        # Fall back to default text comparison
+        return self.text(column).lower() < other.text(column).lower()
+
+
 class SnapshotRestoreWidget(QWidget):
     """
     Restore widget is a widget that enables user to restore saved state of PVs
@@ -534,6 +557,10 @@ class SnapshotRestoreFileSelector(QWidget):
         self.file_selector.setHeaderLabels(self.column_labels)
         self.file_selector.setAllColumnsShowFocus(True)
         self.file_selector.setSortingEnabled(True)
+        
+        # Enable click-to-sort on headers and set initial sort
+        self.file_selector.header().setSectionsClickable(True)
+        self.file_selector.header().setSortIndicatorShown(True)
         # Sort by file name (alphabetical order)
         self.file_selector.sortItems(FileSelectorColumns.filename, Qt.DescendingOrder)
 
@@ -724,6 +751,7 @@ class SnapshotRestoreFileSelector(QWidget):
         new_params = list(new_params)
         defined_params = list(self.common_settings["machine_params"].keys())
         all_params = defined_params + [p for p in new_params if p not in defined_params]
+        
         for new_file, new_data in file_list.items():
             meta_data = new_data["meta_data"]
             labels = meta_data.get("labels", [])
@@ -732,15 +760,34 @@ class SnapshotRestoreFileSelector(QWidget):
 
             row = [new_file, comment, " ".join(labels)]
             assert len(row) == FileSelectorColumns.params
-            param_vals = [None] * len(all_params)
+            param_vals = [""] * len(all_params)  # Initialize with empty strings instead of None
+            
+            selector_item = SortableTreeWidgetItem(row + param_vals)
+            
+            # Set display text and sort data for machine parameters
             for p, v in params.items():
-                string = SnapshotPv.value_to_display_str(
+                display_string = SnapshotPv.value_to_display_str(
                     v["value"],
                     v["precision"] if v["precision"] is not None else 0,
                 )
                 idx = all_params.index(p)
-                param_vals[idx] = string
-            selector_item = QTreeWidgetItem(row + param_vals)
+                column_idx = FileSelectorColumns.params + idx
+                
+                # Set the display text
+                selector_item.setText(column_idx, display_string)
+                
+                # Store the actual numeric value for proper sorting
+                if isinstance(v["value"], (int, float)):
+                    selector_item.setData(column_idx, Qt.UserRole, float(v["value"]))
+                else:
+                    # For non-numeric values, store the string for sorting
+                    selector_item.setData(column_idx, Qt.UserRole, str(v["value"]))
+            
+            # Set sort data for other columns to ensure proper sorting
+            selector_item.setData(FileSelectorColumns.filename, Qt.UserRole, new_file.lower())
+            selector_item.setData(FileSelectorColumns.comment, Qt.UserRole, comment.lower())
+            selector_item.setData(FileSelectorColumns.labels, Qt.UserRole, " ".join(labels).lower())
+            
             self.file_selector.addTopLevelItem(selector_item)
             self.file_list[new_file] = new_data
             self.file_list[new_file]["file_selector"] = selector_item
@@ -765,6 +812,11 @@ class SnapshotRestoreFileSelector(QWidget):
         headers = self.column_labels + all_params
         self.file_selector.setColumnCount(len(headers))
         self.file_selector.setHeaderLabels(headers)
+        
+        # Enable sorting for all columns
+        for i in range(len(headers)):
+            self.file_selector.headerItem().setData(i, Qt.UserRole, i)
+        
         self.file_selector.resizeColumnToContents(0)
 
         # There can be some rather long comments in the snapshots, so let's

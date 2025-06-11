@@ -7,7 +7,7 @@ import datetime
 from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QWidget, QCheckBox, QDialog, QMessageBox
 from PyQt5.QtCore import Qt, QTimer
 import time 
-from snapshot.gui.utils import DetailedMsgBox
+from snapshot.gui.utils import DetailedMsgBox, get_version
 from snapshot.gui.snapshot_gui import SnapshotCompareWidget, SnapshotStatusLog, SnapshotStatus, SnapshotConfigureDialog, Snapshot, SnapshotRestoreWidget
 from snapshot.core import SnapshotError, background_workers, since_start, SnapshotPv, PvUpdaterBulk, PvUpdater
 from snapshot.parser import get_save_files, initialize_config, parse_from_save_file
@@ -27,7 +27,6 @@ from snapshot.request_files.snapshot_file import ReqParseError
 class StandaloneCompareWindow(QMainWindow):
     def __init__(self, config=None, parent=None, pv_updater_cls=PvUpdater) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Snapshot Compare")
         QMainWindow.__init__(self, parent)  
         if config is None:
             config = {}
@@ -161,7 +160,7 @@ class StandaloneCompareWindow(QMainWindow):
         # Show GUI and manage window properties
         self.show()
         self.setWindowTitle(
-            os.path.basename(self.common_settings["req_file_path"]) + " - Snapshot"
+            os.path.basename(self.common_settings["req_file_path"]) + " - Snapshot v" + get_version()
         )
 
         # Status log default height should be 100px Set with splitter methods
@@ -250,8 +249,6 @@ class StandaloneCompareWindow(QMainWindow):
 
         # handle all gui components
         self.compare_widget.handle_new_snapshot_instance(self.snapshot)
-
-        self.setWindowTitle(os.path.basename(req_file_path) + " - Snapshot DEV")
 
         self.status_bar.set_status("New file loaded.", 3000, "#64C864")
         background_workers.resume()
